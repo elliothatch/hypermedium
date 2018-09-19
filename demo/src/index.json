@@ -1,0 +1,15 @@
+{
+    "title": "welcome to freshr",
+    "_links": {
+        "author": {
+            "href": "/about"
+        },
+        "fs:posts": {
+            "href": "/posts"
+        },
+        "fs:tags": {
+            "href": "/tags{?t}",
+            "templated": true
+        }
+    }
+}

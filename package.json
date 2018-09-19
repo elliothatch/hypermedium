@@ -1,37 +1,50 @@
 {
-  "name": "freshr",
-  "version": "0.1.0",
-  "description": "a blogging platform for all!",
-  "main": "server/src/index.js",
-  "scripts": {
-    "start": "node server/src/index.js",
-    "build": "node node_modules/node-sass/bin/node-sass client/src/sass/main.scss client/dist/css/main.css",
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/elliothatch/freshr.git"
-  },
-  "author": "Elliot Hatch <elliot.hatch@gmail.com>",
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/elliothatch/frehr/issues"
-  },
-  "homepage": "https://github.com/elliothatch/freshr#readme",
-  "dependencies": {
-    "bluebird": "^3.5.0",
-    "body-parser": "^1.17.1",
-    "compression": "^1.6.2",
-    "config": "^1.25.1",
-    "express": "^4.15.2",
-    "handlebars": "^4.0.10",
-    "minimist": "^1.2.0",
-    "moment": "^2.18.1",
-    "moment-timezone": "^0.5.13",
-    "mongodb": "^2.2.30",
-    "safe-json-stringify": "^1.0.4"
-  },
-  "devDependencies": {
-    "node-sass": "^4.5.3"
-  }
+    "name": "freshr",
+    "version": "0.1.0",
+    "description": "a blog platform for all!",
+    "main": "build/index.js",
+    "types": "declarations/index.d.ts",
+    "scripts": {
+        "build": "tsc",
+        "clean": "node scripts/clean.js",
+        "docs": "typedoc --out docs/ src/",
+        "start": "node build/index.js",
+        "test": "jest"
+    },
+    "author": {
+        "name": "Elliot Hatch",
+        "email": "elliot.hatch@gmail.com"
+    },
+    "license": "MIT",
+    "devDependencies": {
+        "@types/express": "^4.16.0",
+        "@types/jest": "^23.3.2",
+        "jest": "^23.6.0",
+        "ts-jest": "^23.1.4",
+        "typedoc": "^0.12.0",
+        "typescript": "^3.0.3"
+    },
+    "dependencies": {
+        "body-parser": "^1.18.3",
+        "compression": "^1.7.3",
+        "cookie-parser": "^1.4.3",
+        "express": "^4.16.3",
+        "fresh-validation": "^3.0.0",
+        "freshlog": "^0.1.2",
+        "socket.io": "^2.1.1"
+    },
+    "jest": {
+        "transform": {
+            "^.+\\.tsx?$": "ts-jest"
+        },
+        "testRegex": "(/test/.*|(\\.|/)(test|spec))\\.(tsx?|ts?)$",
+        "moduleFileExtensions": [
+            "ts",
+            "tsx",
+            "js",
+            "jsx",
+            "json",
+            "node"
+        ]
+    }
 }

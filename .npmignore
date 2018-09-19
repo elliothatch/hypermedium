@@ -1,6 +1,5 @@
-build/
-declarations/
-docs/
-
 node_modules/
 yarn-error.log
+
+scripts/
+test/

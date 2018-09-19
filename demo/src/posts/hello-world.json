@@ -1,0 +1,13 @@
+{
+    "title": "hello world!",
+    "_links": {
+        "tag": [{
+            "name": "blog",
+            "href": "/tags/blog"
+        }, {
+            "name": "hello",
+            "href": "/tags/hello"
+        }]
+    },
+    "body": "starting out the blog with a quick hello. hello!"
+}
