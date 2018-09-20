@@ -55,29 +55,127 @@ class Hypermedia {
     public router: Router;
     public state: Hypermedia.State;
     public processors: Hypermedia.Processor[];
+    /** should ALWAYS be serializable. nothing fancy in the resources */
     public resources: Hypermedia.ResourceMap;
+    /** tracks which resources are currently being processed.
+     * used to prevent reprocessing cycles */
+    public processing: {[uri: string]: true};
+    /** each value is an set of URIs that depend on the object property's URI */
+    public dependents: Map<HAL.Uri, Set<HAL.Uri>>;
+    public dependencies: Map<HAL.Uri, Set<HAL.Uri>>;
 
     constructor(options: Hypermedia.Options) {
         this.state = {
             baseUri: options.baseUri,
             curies: options.curies,
             tags: {},
+            suffix: options.suffix || '.json',
         };
         this.processors = options.processors;
         this.resources = {};
+        this.processing = {};
+        this.dependents = new Map();
+        this.dependencies = new Map();
         this.router = Router();
 
         // this.router.use();
     }
 
+    public getResource(relativeUri: HAL.Uri): HAL.Resource | undefined {
+        if(relativeUri.slice(-1) === '/') {
+            return this.resources[`${relativeUri}index${this.state.suffix}`] || this.resources[relativeUri];
+        }
+        return this.resources[relativeUri];
+    }
+
+    public getByUri<T>(dict: Map<string, T>, relativeUri: HAL.Uri): T | undefined {
+        if(relativeUri.slice(-1) === '/') {
+            return dict.get(`${relativeUri}index${this.state.suffix}`) || dict.get(relativeUri);
+        }
+        return dict.get(relativeUri);
+    }
+
+    public deleteByUri<T>(dict: Map<string, T>, relativeUri: HAL.Uri): boolean;
+    public deleteByUri(dict: Set<string>, relativeUri: HAL.Uri): boolean;
+    public deleteByUri<T>(dict: Map<string, T> | Set<string>, relativeUri: HAL.Uri): boolean {
+        if(relativeUri.slice(-1) === '/') {
+            const indexUri = `${relativeUri}index${this.state.suffix}`;
+            if(dict.has(indexUri)) {
+                return dict.delete(indexUri);
+            }
+            else {
+                return dict.delete(relativeUri);
+            }
+        }
+        return dict.delete(relativeUri);
+    }
+
     public processResource(relativeUri: HAL.Uri, resource: HAL.Resource): HAL.Resource {
+        console.log('process', relativeUri, this.processing[relativeUri]);
+        if(this.processing[relativeUri]) {
+            return resource;
+        }
+
+        this.processing[relativeUri] = true;
+        const dependencies = new Set<HAL.Uri>();
+
         const result = this.processors.reduce(
-            (d, processor) => processor(d), {resource, relativeUri, state: this.state});
+            (d, processor) => {
+                return processor({
+                    ...d, 
+                    calculateFrom: (dependencyUri: HAL.Uri | HAL.Uri[], fn: Hypermedia.CalculateFromResourceFn): any => {
+                        if(Array.isArray(dependencyUri)) {
+                            dependencyUri.forEach((uri) => dependencies.add(uri));
+                            return fn(dependencyUri.map((uri) => this.getResource(uri)));
+                        } else {
+                            dependencies.add(dependencyUri);
+                            console.log('calc', this.getResource(dependencyUri));
+                            return fn(this.getResource(dependencyUri));
+                        }
+                    }
+                });
+            }, {resource, relativeUri, state: this.state});
 
         this.state = result.state;
         this.resources[relativeUri] = result.resource;
 
-        return result.resource;
+        // delete old dependency relationships
+        const oldDependencies = this.getByUri(this.dependencies, relativeUri);
+        if(oldDependencies) {
+            oldDependencies.forEach((uri) => {
+                const dependents = this.getByUri(this.dependents, uri)!;
+                this.deleteByUri(dependents, relativeUri);
+                if(dependents.size === 0) {
+                    this.deleteByUri(dependents, uri);
+                }
+            });
+
+            oldDependencies.forEach((uri) => {
+                const dependents = this.getByUri(this.dependents, uri)!;
+                this.deleteByUri(dependents, relativeUri);
+                if(dependents.size === 0) {
+                    this.deleteByUri(dependents, uri);
+                }
+            });
+        }
+
+        // add new dependency relationships
+        dependencies.forEach((uri) => {
+            const dependents = this.getByUri(this.dependents, uri) || new Set();
+            dependents.add(relativeUri);
+            this.dependents.set(uri, dependents);
+        });
+        this.dependencies.set(relativeUri, dependencies);
+
+        // reprocess dependent resources
+        const dependents = this.getByUri(this.dependents, relativeUri);
+        if(dependents) {
+            this.reprocessResources(Array.from(dependents.values()));
+        }
+
+        delete this.processing[relativeUri];
+        // look up the value in case reprocessing updated it
+        return this.getResource(relativeUri)!;
     }
 
     /** recursively process files in a directory */
@@ -89,6 +187,16 @@ class Hypermedia {
              relativeUri,
          );
      }
+
+    /** processes the resource identified by each URI */
+    public reprocessResources(relativeUris: HAL.Uri[]): HAL.Resource[] {
+        return relativeUris.reduce((resources, relativeUri) => {
+            if(this.resources[relativeUri]) {
+                resources.push(this.processResource(relativeUri, this.resources[relativeUri]));
+            }
+            return resources;
+        }, [] as HAL.Resource[]);
+    }
 }
 
 namespace Hypermedia {
@@ -97,14 +205,17 @@ namespace Hypermedia {
         baseUri?: string;
         curies: HAL.Curi[];
         processors: Processor[];
+        /** resource suffix e.g. `.json`. you must include the first period (.) */
+        suffix?: string;
     }
 
     /** Dynamically calculated properties of the hypermedia site. */
     export interface State {
         baseUri?: string;
         curies: HAL.Curi[];
-        /** maps tag name to list of URIs that have tagged this word */
+        /** maps tag name to list of URIs that contain this tag */
         tags: {[tag: string]: string[]};
+        suffix: string;
     }
 
     export interface ExtendedResource extends HAL.Resource {
@@ -115,6 +226,21 @@ namespace Hypermedia {
         resource: R;
         relativeUri: string;
         state: S;
+        /** call this function to calculate values based on other resources.
+         * has the side-effect of letting the processing engine know to reprocess this file
+         * whenever the dependency changes.
+         * if a resource is not found, it is replaced with `undefined`
+         */
+        calculateFrom: CalculateFromResource;
+    }
+
+    export type CalculateFromResource = {
+        (relativeUri: HAL.Uri, fn: CalculateFromResourceFn ): any;
+        (relativeUri: Array<HAL.Uri>, fn: CalculateFromResourceFn): any;
+    };
+    export type CalculateFromResourceFn = {
+        (r?: HAL.Resource): any;
+        (r: Array<HAL.Resource | undefined>): any;
     }
 
     export type ResourceMap = {[uri: string]: HAL.Resource};
@@ -141,6 +267,21 @@ namespace Hypermedia {
                 }
                 rs.state.tags[t].push(rs.relativeUri);
             });
+            return rs;
+        };
+
+        export const breadcrumb = (rs: ResourceState): ResourceState => {
+            const uriParts = rs.relativeUri.split('/').slice(0, -1);
+            rs.resource._links = Object.assign({
+                'fs:breadcrumb': (uriParts.length === 0)? undefined:
+                    uriParts.map((uriPart, i) => {
+                        const uri = '/' + uriParts.slice(1, i+1).join('/');
+                        return {
+                            href: uri,
+                            title: rs.calculateFrom(uri, (r: any) => { return r && r.title;}),
+                        };
+                    })
+            }, rs.resource._links);
             return rs;
         };
     }

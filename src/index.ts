@@ -21,6 +21,7 @@ const hypermediaOptions = {
     processors: [
         Hypermedia.Processor.self,
         Hypermedia.Processor.tags,
+        Hypermedia.Processor.breadcrumb,
     ]
 };
 
