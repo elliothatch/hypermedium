@@ -7,6 +7,8 @@ import { Log } from 'freshlog';
 import { server } from './server';
 import { Hypermedia } from './hypermedia';
 
+Log.handlers.get('trace')!.enabled = true;
+
     // clientPath: path.join(__dirname, '..', 'demo'),
     // env: 'dev',
 const app = Express();
@@ -22,18 +24,32 @@ const hypermediaOptions = {
         Hypermedia.Processor.self,
         Hypermedia.Processor.tags,
         Hypermedia.Processor.breadcrumb,
+        Hypermedia.Processor.curies,
     ]
 };
 
+const verbose = true;
 
 const hypermedia = new Hypermedia(hypermediaOptions);
+hypermedia.event$.subscribe({
+    next: (e) =>
+        verbose? 
+            Log.trace('hypermedia', {
+                ...e,
+                dependencies: Array.from(e.dependencies.values()),
+                dependents: Array.from(e.dependents.values()),
+            }):
+            Log.trace('hypermedia', {
+                type: e.type,
+                relativeUri: e.relativeUri,
+            }),
+    error: (e) => Log.error('hypermedia', e),
+});
 
 const sitePath = Path.join(__dirname, '..', 'demo', 'src');
+
 hypermedia.processDirectory(sitePath).then(() => {
-    console.log('resources');
-    console.log(JSON.stringify(hypermedia.resources));
-    console.log('state');
-    console.log(JSON.stringify(hypermedia.state));
+    hypermedia.reprocessResources(['/index.json']);
 }).catch(console.error);
 
 app.use(hypermedia.router);

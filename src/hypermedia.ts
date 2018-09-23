@@ -2,6 +2,8 @@ import * as Path from 'path';
 import { promises as fs } from 'fs';
 import * as Url from 'url';
 
+import { Observable, Observer } from 'rxjs';
+
 import { Router, Request, Response } from 'express';
 
 /* types based on spec draft (https://tools.ietf.org/html/draft-kelly-json-hal-08) */
@@ -38,7 +40,7 @@ namespace HAL {
         '_embedded'?: {[rel: string]: Resource | Resource[]};
     }
 
-    export interface Curi {
+    export interface Curie {
         /** must contain the {rel} placeholder */
         href: string;
         name: string;
@@ -55,6 +57,8 @@ class Hypermedia {
     public router: Router;
     public state: Hypermedia.State;
     public processors: Hypermedia.Processor[];
+    /** maps relative uri to the original resource loaded from the file system */
+    public files: Hypermedia.ResourceMap;
     /** should ALWAYS be serializable. nothing fancy in the resources */
     public resources: Hypermedia.ResourceMap;
     /** tracks which resources are currently being processed.
@@ -62,9 +66,17 @@ class Hypermedia {
     public processing: {[uri: string]: true};
     /** each value is an set of URIs that depend on the object property's URI */
     public dependents: Map<HAL.Uri, Set<HAL.Uri>>;
+    /** reverse index of dependents */
     public dependencies: Map<HAL.Uri, Set<HAL.Uri>>;
 
+    public event$: Observable<Hypermedia.Event>;
+    protected eventObserver!: Observer<Hypermedia.Event>;
+
     constructor(options: Hypermedia.Options) {
+        this.event$ = new Observable((observer) => {
+            this.eventObserver = observer;
+        });
+
         this.state = {
             baseUri: options.baseUri,
             curies: options.curies,
@@ -72,25 +84,35 @@ class Hypermedia {
             suffix: options.suffix || '.json',
         };
         this.processors = options.processors;
+        this.files = {};
         this.resources = {};
         this.processing = {};
         this.dependents = new Map();
         this.dependencies = new Map();
         this.router = Router();
+    }
 
-        // this.router.use();
+    protected log(event: Hypermedia.Event): void {
+        this.eventObserver.next(event);
+    }
+
+    public normalizeUri(relativeUri: HAL.Uri): HAL.Uri {
+        if(relativeUri.slice(-1) === '/') {
+            return `${relativeUri}index${this.state.suffix}`;
+        }
+        return relativeUri;
     }
 
     public getResource(relativeUri: HAL.Uri): HAL.Resource | undefined {
         if(relativeUri.slice(-1) === '/') {
-            return this.resources[`${relativeUri}index${this.state.suffix}`] || this.resources[relativeUri];
+            return this.resources[this.normalizeUri(relativeUri)] || this.resources[relativeUri];
         }
         return this.resources[relativeUri];
     }
 
     public getByUri<T>(dict: Map<string, T>, relativeUri: HAL.Uri): T | undefined {
         if(relativeUri.slice(-1) === '/') {
-            return dict.get(`${relativeUri}index${this.state.suffix}`) || dict.get(relativeUri);
+            return dict.get(this.normalizeUri(relativeUri)) || dict.get(relativeUri);
         }
         return dict.get(relativeUri);
     }
@@ -99,7 +121,7 @@ class Hypermedia {
     public deleteByUri(dict: Set<string>, relativeUri: HAL.Uri): boolean;
     public deleteByUri<T>(dict: Map<string, T> | Set<string>, relativeUri: HAL.Uri): boolean {
         if(relativeUri.slice(-1) === '/') {
-            const indexUri = `${relativeUri}index${this.state.suffix}`;
+            const indexUri = this.normalizeUri(relativeUri);
             if(dict.has(indexUri)) {
                 return dict.delete(indexUri);
             }
@@ -111,28 +133,36 @@ class Hypermedia {
     }
 
     public processResource(relativeUri: HAL.Uri, resource: HAL.Resource): HAL.Resource {
-        console.log('process', relativeUri, this.processing[relativeUri]);
         if(this.processing[relativeUri]) {
             return resource;
         }
 
         this.processing[relativeUri] = true;
         const dependencies = new Set<HAL.Uri>();
+        const dirtyResources = new Set<HAL.Uri>();
 
+        // TODO: figure out the normalized uri mess
         const result = this.processors.reduce(
             (d, processor) => {
                 return processor({
                     ...d, 
                     calculateFrom: (dependencyUri: HAL.Uri | HAL.Uri[], fn: Hypermedia.CalculateFromResourceFn): any => {
                         if(Array.isArray(dependencyUri)) {
-                            dependencyUri.forEach((uri) => dependencies.add(uri));
+                            dependencyUri
+                                .filter((uri) => this.normalizeUri(uri) !== relativeUri)
+                                .forEach((uri) => dependencies.add(uri));
                             return fn(dependencyUri.map((uri) => this.getResource(uri)));
-                        } else {
-                            dependencies.add(dependencyUri);
-                            console.log('calc', this.getResource(dependencyUri));
+                        } else if(this.normalizeUri(dependencyUri) !== relativeUri) {
+                            dependencies.add(this.normalizeUri(dependencyUri));
                             return fn(this.getResource(dependencyUri));
                         }
-                    }
+                    },
+                    markDirty: (uri: HAL.Uri | HAL.Uri[]) => (
+                        (Array.isArray(uri)?
+                            uri:
+                            [uri]
+                        ).forEach((u) => dirtyResources.add(u))
+                    )
                 });
             }, {resource, relativeUri, state: this.state});
 
@@ -149,14 +179,6 @@ class Hypermedia {
                     this.deleteByUri(dependents, uri);
                 }
             });
-
-            oldDependencies.forEach((uri) => {
-                const dependents = this.getByUri(this.dependents, uri)!;
-                this.deleteByUri(dependents, relativeUri);
-                if(dependents.size === 0) {
-                    this.deleteByUri(dependents, uri);
-                }
-            });
         }
 
         // add new dependency relationships
@@ -165,16 +187,31 @@ class Hypermedia {
             dependents.add(relativeUri);
             this.dependents.set(uri, dependents);
         });
-        this.dependencies.set(relativeUri, dependencies);
+        if(dependencies.size > 0) {
+            this.dependencies.set(relativeUri, dependencies);
+        }
 
         // reprocess dependent resources
         const dependents = this.getByUri(this.dependents, relativeUri);
+        console.log('a');
+        const allDependents = new Set();
         if(dependents) {
-            this.reprocessResources(Array.from(dependents.values()));
+            console.log('b', dependents.entries());
+            dependents.forEach((uri) => allDependents.add(uri));
         }
+        console.log('c', dirtyResources.entries());
+        dirtyResources.forEach((uri) => allDependents.add(uri));
+        this.reprocessResources(Array.from(allDependents.values()));
+
+        this.log({
+            type: 'ProcessResource',
+            dependencies,
+            dependents: allDependents,
+            relativeUri,
+            resource,
+        });
 
         delete this.processing[relativeUri];
-        // look up the value in case reprocessing updated it
         return this.getResource(relativeUri)!;
     }
 
@@ -182,17 +219,24 @@ class Hypermedia {
      public processDirectory(directoryPath: string, relativeUri: HAL.Uri = ''): Promise<Hypermedia.ResourceMap> {
          return walkDirectory(
              directoryPath,
-             (filePath: string, uri: string, fileContents: string) => (
-                 this.processResource(uri, JSON.parse(fileContents))),
+             (filePath: string, uri: string, fileContents: string) => {
+                 //  parse twice so we have two distinct copies
+                 this.files[uri] = JSON.parse(fileContents);
+                 return this.processResource(uri, JSON.parse(fileContents));
+             },
              relativeUri,
          );
      }
 
-    /** processes the resource identified by each URI */
+    /** reprocesses the resource identified by each URI using the original version
+     * of the resource from the file system */
     public reprocessResources(relativeUris: HAL.Uri[]): HAL.Resource[] {
         return relativeUris.reduce((resources, relativeUri) => {
-            if(this.resources[relativeUri]) {
-                resources.push(this.processResource(relativeUri, this.resources[relativeUri]));
+            if(this.files[relativeUri]) {
+                resources.push(this.processResource(
+                    relativeUri,
+                    JSON.parse(JSON.stringify(this.files[relativeUri])), // lazy deep clone
+                ));
             }
             return resources;
         }, [] as HAL.Resource[]);
@@ -203,7 +247,7 @@ namespace Hypermedia {
     export interface Options {
         /** if provided, this string prefixes the "href" property on all all site-local links. e.g. "https://example.com" */
         baseUri?: string;
-        curies: HAL.Curi[];
+        curies: HAL.Curie[];
         processors: Processor[];
         /** resource suffix e.g. `.json`. you must include the first period (.) */
         suffix?: string;
@@ -212,7 +256,7 @@ namespace Hypermedia {
     /** Dynamically calculated properties of the hypermedia site. */
     export interface State {
         baseUri?: string;
-        curies: HAL.Curi[];
+        curies: HAL.Curie[];
         /** maps tag name to list of URIs that contain this tag */
         tags: {[tag: string]: string[]};
         suffix: string;
@@ -232,6 +276,7 @@ namespace Hypermedia {
          * if a resource is not found, it is replaced with `undefined`
          */
         calculateFrom: CalculateFromResource;
+        markDirty: (relativeUri: HAL.Uri | HAL.Uri[]) => void;
     }
 
     export type CalculateFromResource = {
@@ -260,13 +305,29 @@ namespace Hypermedia {
             })
         );
 
+        // TODO: detect refs that use curies that haven't been defined
+        // TODO: record local curie refs so we can generate warnings for refs that have no documentation resource */
+        export const curies = (rs: ResourceState): ResourceState => {
+            const matchedCuries = filterCuries(rs.state.curies, Object.keys(rs.resource._links || {}));
+            return matchedCuries.length === 0?
+                rs:
+                { ...rs, resource: {
+                    ...rs.resource, _links: {
+                        curies: matchedCuries,
+                        ...rs.resource._links,
+                }}};
+        };
+
         export const tags = (rs: ResourceState): ResourceState => {
-            getTags(rs.resource).forEach((t) => {
-                if(!rs.state.tags[t]) {
-                    rs.state.tags[t] = [];
+            const tags = getTags(rs.resource);
+            tags.forEach((t) => {
+                if(!rs.state.tags[t.href]) {
+                    rs.state.tags[t.href] = [];
                 }
-                rs.state.tags[t].push(rs.relativeUri);
+                rs.state.tags[t.href].push(rs.relativeUri);
             });
+
+            rs.markDirty(tags.map((t) => t.href));
             return rs;
         };
 
@@ -285,8 +346,8 @@ namespace Hypermedia {
             return rs;
         };
     }
-    /** get href of all "tag" links, or empty array */
-    function getTags(resource: HAL.Resource): string[] {
+    /** get all "tag" links, or empty array */
+    function getTags(resource: HAL.Resource): HAL.Link[] {
         let tags = resource._links && resource._links.tag;
         if(!tags) {
             return [];
@@ -295,7 +356,33 @@ namespace Hypermedia {
         if(!Array.isArray(tags)) {
             tags = [tags];
         }
-        return tags.map((t) => t.href);
+        return tags;
+    }
+
+    /** @returns only curies that are referenced in the target refs */
+    export function filterCuries(curies: HAL.Curie[], refs: string[]): HAL.Curie[] {
+        const namespaces = refs.reduce((namespaces, ref) => {
+            const refParts = ref.split(':');
+            if(refParts.length > 1) {
+                namespaces.push(refParts[0]);
+            }
+            return namespaces;
+        }, [] as string[])
+
+        return curies.filter((curi) => namespaces.indexOf(curi.name) !== -1);
+    }
+
+
+    export type Event = Event.ProcessResource;
+    export namespace Event {
+        export interface ProcessResource {
+            type: 'ProcessResource'
+
+            relativeUri: HAL.Uri;
+            dependents: Set<HAL.Uri>;
+            dependencies: Set<HAL.Uri>;
+            resource: HAL.Resource;
+        }
     }
 }
 
