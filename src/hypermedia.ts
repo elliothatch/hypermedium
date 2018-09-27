@@ -4,7 +4,7 @@ import * as Url from 'url';
 
 import { Observable, Observer } from 'rxjs';
 
-import { Router, Request, Response } from 'express';
+import { NextFunction, Router, Request, Response } from 'express';
 
 /* types based on spec draft (https://tools.ietf.org/html/draft-kelly-json-hal-08) */
 namespace HAL {
@@ -90,12 +90,23 @@ class Hypermedia {
         this.dependents = new Map();
         this.dependencies = new Map();
         this.router = Router();
+        this.router.get('/*', this.middleware);
+    }
+
+    protected middleware = (req: Request, res: Response, next: NextFunction) => {
+        const resource = this.getResource(req.path);
+        if(!resource) {
+            return next(new NotFoundError(req.path));
+        }
+
+        return res.status(200).json(resource);
     }
 
     protected log(event: Hypermedia.Event): void {
         this.eventObserver.next(event);
     }
 
+    // TODO: make this work with different MIME types with sensible default beahvior
     public normalizeUri(relativeUri: HAL.Uri): HAL.Uri {
         if(relativeUri.slice(-1) === '/') {
             return `${relativeUri}index${this.state.suffix}`;
@@ -106,6 +117,11 @@ class Hypermedia {
     public getResource(relativeUri: HAL.Uri): HAL.Resource | undefined {
         if(relativeUri.slice(-1) === '/') {
             return this.resources[this.normalizeUri(relativeUri)] || this.resources[relativeUri];
+        }
+        else if(relativeUri.lastIndexOf('.') < relativeUri.lastIndexOf('/')) {
+            // no file extension, try to find a file with the default suffix
+            // TODO: store a set of "suffixes", pick based on Accept header, or use default 'suffix' if missing
+            return this.resources[`${relativeUri}${this.state.suffix}`] || this.resources[relativeUri];
         }
         return this.resources[relativeUri];
     }
@@ -193,13 +209,10 @@ class Hypermedia {
 
         // reprocess dependent resources
         const dependents = this.getByUri(this.dependents, relativeUri);
-        console.log('a');
         const allDependents = new Set();
         if(dependents) {
-            console.log('b', dependents.entries());
             dependents.forEach((uri) => allDependents.add(uri));
         }
-        console.log('c', dirtyResources.entries());
         dirtyResources.forEach((uri) => allDependents.add(uri));
         this.reprocessResources(Array.from(allDependents.values()));
 
@@ -417,11 +430,23 @@ function walkDirectory(directoryPath: string, f: FileProcessor, relativeUri: HAL
     });
 }
 
+export class NotFoundError extends Error {
+    public path: string;
+    constructor(path: string) {
+        super(`Resource not found: ${path}`);
+        this.name = this.constructor.name;
+        Object.setPrototypeOf(this, NotFoundError);
+
+        this.path = path;
+    }
+}
+
 export class ProcessFileError extends Error {
     public filePath: string;
     public innerError: Error;
     constructor(filePath: string, innerError: Error) {
         super(`${filePath}: processing error. ${innerError.message || ''}`);
+        this.name = this.constructor.name;
         Object.setPrototypeOf(this, ProcessFileError);
 
         this.filePath = filePath;

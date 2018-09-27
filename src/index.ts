@@ -57,9 +57,9 @@ app.use(hypermedia.router);
 
 server(app).subscribe({
     next: (server) => {
-        Log.info('server-start', server);
+        Log.info('server-listening', {port: server.port});
     }, 
-    error: (error) => console.error(error),
+    error: (error) => Log.error('server-start', error),
 });
 
 // setting wsEngine prevents crash when starting more than one websocket instance (e.g. in tests)

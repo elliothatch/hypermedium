@@ -61,8 +61,8 @@ export function server(app: Express.Express, opts?: Partial<Server.Options>): Ob
                         fromEvent(server, 'listening'),
                         fromEvent(redirectServer, 'listening'),
                     ),
-                    fromEvent(server, 'error').pipe(throwError),
-                    fromEvent(redirectServer, 'error').pipe(throwError),
+                    fromEvent(server, 'error').pipe(map((err) => throwError(err))),
+                    fromEvent(redirectServer, 'error').pipe(map((err) => throwError(err))),
                 );
 
                 server.listen(options.securePort || 0);
@@ -83,10 +83,10 @@ export function server(app: Express.Express, opts?: Partial<Server.Options>): Ob
         const server = Http.createServer(app);
         const events = merge(
             fromEvent(server, 'listening'),
-            fromEvent(server, 'error').pipe(throwError)
+            fromEvent(server, 'error').pipe(map((err) => throwError(err))),
         );
 
-        server.listen(options.securePort);
+        server.listen(options.port || 0);
 
         return events.pipe(
             map(() => ({
