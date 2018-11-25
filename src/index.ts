@@ -23,8 +23,9 @@ const hypermediaOptions = {
     processors: [
         Hypermedia.Processor.self,
         Hypermedia.Processor.tags,
-        Hypermedia.Processor.breadcrumb,
+        // Hypermedia.Processor.breadcrumb,
         Hypermedia.Processor.curies,
+        Hypermedia.makeIndex('/schema/post')
     ]
 };
 
@@ -49,7 +50,8 @@ hypermedia.event$.subscribe({
 const sitePath = Path.join(__dirname, '..', 'demo', 'src');
 
 hypermedia.processDirectory(sitePath).then(() => {
-    hypermedia.reprocessResources(['/index.json']);
+    // hypermedia.reprocessResources(['/index.json']);
+    hypermedia.reprocessResources(['/posts/index.json']);
 }).catch(console.error);
 
 app.use(hypermedia.router);

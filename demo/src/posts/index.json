@@ -1,0 +1,8 @@
+{
+    "title": "posts",
+    "_links": {
+        "profile": {
+            "href": "/schema/index/schema/post"
+        }
+    }
+}

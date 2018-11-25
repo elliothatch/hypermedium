@@ -52,6 +52,7 @@ namespace HAL {
  * for example, adds "self" links and "breadcrumb"
  * dynamic resources like comments can be updated with CRUD actions through hypermedia
  * dynamic tagging
+ * use middleware to extend resources that match a certain profile
  */
 class Hypermedia {
     public router: Router;
@@ -81,6 +82,7 @@ class Hypermedia {
             baseUri: options.baseUri,
             curies: options.curies,
             tags: {},
+            indexes: {},
             suffix: options.suffix || '.json',
         };
         this.processors = options.processors;
@@ -93,10 +95,13 @@ class Hypermedia {
         this.router.get('/*', this.middleware);
     }
 
+    // pagination:
+    // time cursor based, options: skip, limit.
+
     protected middleware = (req: Request, res: Response, next: NextFunction) => {
         const resource = this.getResource(req.path);
         if(!resource) {
-            return next(new NotFoundError(req.path));
+            return next();
         }
 
         return res.status(200).json(resource);
@@ -221,7 +226,7 @@ class Hypermedia {
             dependencies,
             dependents: allDependents,
             relativeUri,
-            resource,
+            resource: result.resource,
         });
 
         delete this.processing[relativeUri];
@@ -272,6 +277,8 @@ namespace Hypermedia {
         curies: HAL.Curie[];
         /** maps tag name to list of URIs that contain this tag */
         tags: {[tag: string]: string[]};
+        /** maps profiles to list of hrefs that have that profile */
+        indexes: {[profile: string]: string[]};
         suffix: string;
     }
 
@@ -318,8 +325,8 @@ namespace Hypermedia {
             })
         );
 
-        // TODO: detect refs that use curies that haven't been defined
-        // TODO: record local curie refs so we can generate warnings for refs that have no documentation resource */
+        // TODO: detect rels that use curies that haven't been defined
+        // TODO: record local curie rels so we can generate warnings for rels that have no documentation resource */
         export const curies = (rs: ResourceState): ResourceState => {
             const matchedCuries = filterCuries(rs.state.curies, Object.keys(rs.resource._links || {}));
             return matchedCuries.length === 0?
@@ -344,21 +351,90 @@ namespace Hypermedia {
             return rs;
         };
 
+        // This is kind of useless... these kinds of additions should be part of the HTML renderer
+        // we should assume HAL client knows how to walk up the resource tree
         export const breadcrumb = (rs: ResourceState): ResourceState => {
             const uriParts = rs.relativeUri.split('/').slice(0, -1);
             rs.resource._links = Object.assign({
                 'fs:breadcrumb': (uriParts.length === 0)? undefined:
                     uriParts.map((uriPart, i) => {
-                        const uri = '/' + uriParts.slice(1, i+1).join('/');
+                        const href = '/' + uriParts.slice(1, i+1).join('/');
                         return {
-                            href: uri,
-                            title: rs.calculateFrom(uri, (r: any) => { return r && r.title;}),
+                            href,
+                            title: rs.calculateFrom(href, (r: any) => { return r && r.title;}),
                         };
                     })
             }, rs.resource._links);
             return rs;
         };
+
     }
+
+    /** whenever a new resources matches the given profile, 
+     * add it to the index and update the index page.
+     * augments index pages with links to all indexed resources
+     * index pages can be recognized by the profile `/index/{profile}`
+     * links are added with rel "fs:entries"
+     */
+    // TODO: automatically add curie for fs rels
+    // TODO: make indexes pagable, sortable. Allow user to specify embedding rules (e.g. embed first 3 links)
+    // TODO: convert all relative links to absolute links if baseUri is provided, in post-processing step?
+    // TODO: should profile be automatically added to links if the linked resource has its own _links.profile? makes dependency tree explode!
+    export const makeIndex = (profile: HAL.Uri): Processor => {
+        const indexProfile = `/schema/index${profile}`;
+        return (rs) => {
+            if(resourceMatchesProfile(rs.resource, profile, rs.state.baseUri)) {
+                const index = rs.state.indexes[profile] || [];
+                if(index.indexOf(rs.relativeUri) === -1) {
+                    index.push(rs.relativeUri);
+                    rs.state.indexes[profile] = index;
+                }
+
+                // TODO: mark dirty should mark all indexes for this profile dirty, not the index profile itself
+                // rs.markDirty(indexProfile);
+                return rs;
+            }
+            else if(resourceMatchesProfile(rs.resource, indexProfile, rs.state.baseUri)) {
+                return { ...rs, resource: {
+                    ...rs.resource, _links: {
+                        'fs:entries': (rs.state.indexes[profile] || []).map((href: HAL.Uri) => ({
+                            href,
+                            profile,
+                            title: rs.calculateFrom(href, (r: any) => { return r && r.title;}),
+                        })),
+                        ...rs.resource._links,
+                }}};
+            }
+
+            return rs;
+        };
+    };
+
+    /* higher-order processor that only runs the provided processor if the resource matches the designated profile */
+    export const matchProfile = (profile: HAL.Uri, processor: Processor): Processor => {
+        return (rs) => resourceMatchesProfile(rs.resource, profile, rs.state.baseUri)?
+            processor(rs):
+            rs;
+    };
+
+    function resourceMatchesProfile(resource: HAL.Resource, profile: HAL.Uri, baseUri?: HAL.Uri): boolean {
+        const resourceProfile = resource._links && resource._links.profile;
+
+        if(!resourceProfile) {
+            return false;
+        }
+
+        return Array.isArray(resourceProfile)?
+            !!(resourceProfile.find((link) => profilesMatch(profile, link.href, baseUri))):
+            profilesMatch(profile, resourceProfile.href, baseUri);
+    }
+
+    function profilesMatch(profile: HAL.Uri, targetProfile?: HAL.Uri, baseUri?: HAL.Uri): boolean {
+        return baseUri?
+            profile === targetProfile || Url.resolve(baseUri, profile) === targetProfile:
+            profile === targetProfile;
+    }
+
     /** get all "tag" links, or empty array */
     function getTags(resource: HAL.Resource): HAL.Link[] {
         let tags = resource._links && resource._links.tag;
@@ -372,9 +448,9 @@ namespace Hypermedia {
         return tags;
     }
 
-    /** @returns only curies that are referenced in the target refs */
-    export function filterCuries(curies: HAL.Curie[], refs: string[]): HAL.Curie[] {
-        const namespaces = refs.reduce((namespaces, ref) => {
+    /** @returns only curies that are referenced in the target rels */
+    export function filterCuries(curies: HAL.Curie[], rels: string[]): HAL.Curie[] {
+        const namespaces = rels.reduce((namespaces, ref) => {
             const refParts = ref.split(':');
             if(refParts.length > 1) {
                 namespaces.push(refParts[0]);

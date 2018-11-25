@@ -1,6 +1,9 @@
 {
     "title": "hello world!",
     "_links": {
+        "profile": {
+            "href": "/schema/post"
+        },
         "tag": [{
             "name": "blog",
             "href": "/tags/blog"
