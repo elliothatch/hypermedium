@@ -513,7 +513,7 @@ function walkDirectory(directoryPath: string, f: FileProcessor, relativeUri: HAL
     });
 }
 
-export class NotFoundError extends Error {
+class NotFoundError extends Error {
     public path: string;
     constructor(path: string) {
         super(`Resource not found: ${path}`);
@@ -524,7 +524,7 @@ export class NotFoundError extends Error {
     }
 }
 
-export class ProcessFileError extends Error {
+class ProcessFileError extends Error {
     public filePath: string;
     public innerError: Error;
     constructor(filePath: string, innerError: Error) {
@@ -537,4 +537,4 @@ export class ProcessFileError extends Error {
     }
 }
 
-export { Hypermedia };
+export { HAL, Hypermedia, NotFoundError, ProcessFileError };

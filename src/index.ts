@@ -6,6 +6,7 @@ import { Log } from 'freshlog';
 
 import { server } from './server';
 import { Hypermedia } from './hypermedia';
+import { HypermediaRenderer } from './hypermedia-renderer';
 
 Log.handlers.get('trace')!.enabled = true;
 
@@ -54,6 +55,9 @@ hypermedia.processDirectory(sitePath).then(() => {
     hypermedia.reprocessResources(['/posts/index.json']);
 }).catch(console.error);
 
+const hypermediaRenderer = new HypermediaRenderer({hypermedia});
+
+app.use(hypermediaRenderer.router);
 app.use(hypermedia.router);
 
 
