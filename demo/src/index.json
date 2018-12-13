@@ -8,8 +8,7 @@
             "href": "/posts"
         },
         "fs:tags": {
-            "href": "/tags{?t}",
-            "templated": true
+            "href": "/tags"
         }
     }
 }

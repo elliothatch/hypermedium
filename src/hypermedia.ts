@@ -126,7 +126,7 @@ class Hypermedia {
         else if(relativeUri.lastIndexOf('.') < relativeUri.lastIndexOf('/')) {
             // no file extension, try to find a file with the default suffix
             // TODO: store a set of "suffixes", pick based on Accept header, or use default 'suffix' if missing
-            return this.resources[`${relativeUri}${this.state.suffix}`] || this.resources[relativeUri];
+            return this.resources[`${relativeUri}${this.state.suffix}`] || this.resources[relativeUri] || this.resources[this.normalizeUri(relativeUri + '/')]
         }
         return this.resources[relativeUri];
     }
@@ -273,12 +273,12 @@ namespace Hypermedia {
 
     /** Dynamically calculated properties of the hypermedia site. */
     export interface State {
-        baseUri?: string;
+        baseUri?: HAL.Uri;
         curies: HAL.Curie[];
         /** maps tag name to list of URIs that contain this tag */
-        tags: {[tag: string]: string[]};
+        tags: {[tag: string]: HAL.Uri[]};
         /** maps profiles to list of hrefs that have that profile */
-        indexes: {[profile: string]: string[]};
+        indexes: {[profile: string]: HAL.Uri[]};
         suffix: string;
     }
 
@@ -319,7 +319,7 @@ namespace Hypermedia {
             Object.assign(rs, {
                 resource: Object.assign(rs.resource, {
                     _links: Object.assign({
-                        self: rs.state.baseUri? Url.resolve(rs.state.baseUri, rs.relativeUri): rs.relativeUri
+                        self: {href: rs.state.baseUri? Url.resolve(rs.state.baseUri, rs.relativeUri): rs.relativeUri}
                     }, rs.resource._links)
                 })
             })
@@ -375,6 +375,7 @@ namespace Hypermedia {
      * augments index pages with links to all indexed resources
      * index pages can be recognized by the profile `/index/{profile}`
      * links are added with rel "fs:entries"
+     * index pages are automatically indexed, so they can be updated as new entries are indexed
      */
     // TODO: automatically add curie for fs rels
     // TODO: make indexes pagable, sortable. Allow user to specify embedding rules (e.g. embed first 3 links)
@@ -390,12 +391,18 @@ namespace Hypermedia {
                     rs.state.indexes[profile] = index;
                 }
 
-                // TODO: mark dirty should mark all indexes for this profile dirty, not the index profile itself
-                // rs.markDirty(indexProfile);
+                rs.markDirty(rs.state.indexes[indexProfile]);
                 return rs;
             }
             else if(resourceMatchesProfile(rs.resource, indexProfile, rs.state.baseUri)) {
-                return { ...rs, resource: {
+                const index = rs.state.indexes[indexProfile] || [];
+                if(index.indexOf(rs.relativeUri) === -1) {
+                    index.push(rs.relativeUri);
+                    rs.state.indexes[indexProfile] = index;
+                }
+
+                return { ...rs, 
+                    resource: {
                     ...rs.resource, _links: {
                         'fs:entries': (rs.state.indexes[profile] || []).map((href: HAL.Uri) => ({
                             href,
