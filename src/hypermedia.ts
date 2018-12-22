@@ -6,6 +6,8 @@ import { Observable, Observer } from 'rxjs';
 
 import { NextFunction, Router, Request, Response } from 'express';
 
+import { walkDirectory } from './util';
+
 /* types based on spec draft (https://tools.ietf.org/html/draft-kelly-json-hal-08) */
 namespace HAL {
     export type Uri = string;
@@ -482,59 +484,4 @@ namespace Hypermedia {
     }
 }
 
-function loadHypermedia() {
-}
-
-type FileProcessor = (filePath: string, relativeUri: string, fileContents: string) => HAL.Resource;
-
-function walkDirectory(directoryPath: string, f: FileProcessor, relativeUri: HAL.Uri = ''): Promise<Hypermedia.ResourceMap> {
-    return fs.readdir(directoryPath).then((files) => {
-        return Promise.all(files.map((filename) => {
-            const filePath = Path.join(directoryPath, filename);
-            const fileRelativeUri = `${relativeUri}/${filename}`;
-            return fs.lstat(filePath).then((stats) => {
-                if(stats.isFile()) {
-                    return fs.readFile(filePath, 'utf8').then(
-                        (contents) => ({[fileRelativeUri]: f(filePath, fileRelativeUri, contents)})
-                    ).catch((error) => {
-                        throw new ProcessFileError(filePath, error);
-                    });
-                }
-                else if(stats.isDirectory()) {
-                    return walkDirectory(filePath, f, fileRelativeUri);
-                }
-                else {
-                    return Promise.resolve({});
-                }
-            });
-        })).then((resources) => resources.reduce(
-            (resourceMap, resource) => Object.assign(resourceMap, resource), {})
-        );
-    });
-}
-
-class NotFoundError extends Error {
-    public path: string;
-    constructor(path: string) {
-        super(`Resource not found: ${path}`);
-        this.name = this.constructor.name;
-        Object.setPrototypeOf(this, NotFoundError);
-
-        this.path = path;
-    }
-}
-
-class ProcessFileError extends Error {
-    public filePath: string;
-    public innerError: Error;
-    constructor(filePath: string, innerError: Error) {
-        super(`${filePath}: processing error. ${innerError.message || ''}`);
-        this.name = this.constructor.name;
-        Object.setPrototypeOf(this, ProcessFileError);
-
-        this.filePath = filePath;
-        this.innerError = innerError;
-    }
-}
-
-export { HAL, Hypermedia, NotFoundError, ProcessFileError };
+export { HAL, Hypermedia };

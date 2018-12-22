@@ -48,7 +48,7 @@ hypermedia.event$.subscribe({
     error: (e) => Log.error('hypermedia', e),
 });
 
-const sitePath = Path.join(__dirname, '..', 'demo', 'src');
+const sitePath = Path.join(__dirname, '..', 'demo', 'src', 'site');
 
 hypermedia.processDirectory(sitePath).then(() => {
     // hypermedia.reprocessResources(['/index.json']);
