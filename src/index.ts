@@ -57,6 +57,11 @@ hypermedia.processDirectory(sitePath).then(() => {
 
 const hypermediaRenderer = new HypermediaRenderer({hypermedia});
 
+const templatesPath = Path.join(__dirname, '..', 'src', 'templates');
+const partialsPath = Path.join(__dirname, '..', 'src', 'partials');
+hypermediaRenderer.loadTemplates(templatesPath);
+hypermediaRenderer.loadTemplates(partialsPath);
+
 app.use(hypermediaRenderer.router);
 app.use(hypermedia.router);
 
