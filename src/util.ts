@@ -2,7 +2,8 @@ import * as Path from 'path';
 import { promises as fs } from 'fs';
 import * as Url from 'url';
 
-import { HAL, Hypermedia } from './hypermedia';
+import { Hypermedia } from './hypermedia';
+import * as HAL from './hal';
 
 type FileProcessor<T> = (filePath: string, relativeUri: string, fileContents: string) => T;
 

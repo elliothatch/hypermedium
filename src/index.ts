@@ -55,15 +55,33 @@ hypermedia.processDirectory(sitePath).then(() => {
     hypermedia.reprocessResources(['/posts/index.json']);
 }).catch(console.error);
 
-const hypermediaRenderer = new HypermediaRenderer({hypermedia});
+const coreTemplatesPath = Path.join(__dirname, '..', 'src', 'templates');
+const corePartialsPath = Path.join(__dirname, '..', 'src', 'partials');
 
-const templatesPath = Path.join(__dirname, '..', 'src', 'templates');
-const partialsPath = Path.join(__dirname, '..', 'src', 'partials');
-hypermediaRenderer.loadTemplates(templatesPath);
-hypermediaRenderer.loadTemplates(partialsPath);
+const demoTemplatesPath = Path.join(__dirname, '..', 'demo', 'src', 'templates');
+const demoPartialsPath = Path.join(__dirname, '..', 'demo', 'src', 'partials');
+
+const hypermediaRenderer = new HypermediaRenderer({
+    hypermedia,
+    defaultTemplate: '/freshr.hbs',
+    siteContext: {
+        title: 'freshr'
+    },
+    profileLayouts: {
+        '/schema/welcome-page': 'layouts/welcome-page.hbs'
+    }
+});
+
+hypermediaRenderer.loadPartials(corePartialsPath, 'core');
+hypermediaRenderer.loadTemplates(coreTemplatesPath, 'core');
+
+hypermediaRenderer.loadPartials(demoPartialsPath);
+hypermediaRenderer.loadTemplates(demoTemplatesPath).catch((err) => console.error(err));
 
 app.use(hypermediaRenderer.router);
 app.use(hypermedia.router);
+
+app.use(Express.static(Path.join(__dirname, '..', 'demo', 'src', 'site')));
 
 
 server(app).subscribe({

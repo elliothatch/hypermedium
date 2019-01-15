@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta http-equiv="X-UA-Compatible" content="IE=edge">
+		<title>{{#if title}}{{title}} | {{/if}}{{site.title}}</title>
+		<meta name="viewport" content="width=device-width">
+
+		<link rel="stylesheet" href="/styles/freshr.css">
+	</head>
+	<body>
+		{{> includes/header.hbs }}
+		<div class="page-content">
+			{{#> (lookup site 'layout') }}
+				{{#> core/layouts/default.hbs }}
+					<!-- no layout found -->
+				{{/ core/layouts/default.hbs }}
+			{{/ undefined }}
+		</div>
+		{{> includes/footer.hbs }}
+	</body>
+</html>

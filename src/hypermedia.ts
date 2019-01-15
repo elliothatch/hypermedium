@@ -6,49 +6,9 @@ import { Observable, Observer } from 'rxjs';
 
 import { NextFunction, Router, Request, Response } from 'express';
 
+import * as HAL from './hal';
+import { filterCuries, profilesMatch, resourceMatchesProfile } from './hal-util';
 import { walkDirectory } from './util';
-
-/* types based on spec draft (https://tools.ietf.org/html/draft-kelly-json-hal-08) */
-namespace HAL {
-    export type Uri = string;
-    export type UriTemplate = string;
-
-    /** represents a hyperlink from the containing resource to a URI. */
-    export interface Link {
-        href: Uri | UriTemplate;
-        /** SHOULD be true when the Link Object's "href" property is a URI Template. */
-        templated?: boolean
-        /** a hint to indicate the media type (MIME) expected when dereferencing the target resource. */
-        type?: string;
-        /** presence indicates that the link is to be deprecated (i.e. removed) at a future date.
-         * Its value is a URL that SHOULD provide further information about the deprecation. */
-        deprecation?: Uri;
-        /** Its value MAY be used as a secondary key for selecting Link Objects which share the same relation type. */
-        name?: string;
-        /** hints about the profile (as defined by [I-D.wilde-profile-link]) of the target resource. */
-        profile?: Uri;
-        /** labels the link with a human-readable identifier. */
-        title?: string;
-        /** indicates the language of the target resource. */
-        hreflang?: string;
-    }
-
-    export interface Resource {
-        /** an object whose property names are link relation types.
-         * The subject resource of these links is the Resource Object of which the containing "_links" object is a property. */
-        '_links'?: {[rel: string]: Link | Link[]};
-        /** an object whose property names are link relation types.
-         * MAY be a full, partial, or inconsistent version of the representation served from the target URI. */
-        '_embedded'?: {[rel: string]: Resource | Resource[]};
-    }
-
-    export interface Curie {
-        /** must contain the {rel} placeholder */
-        href: string;
-        name: string;
-        templated: boolean;
-    }
-}
 
 /** augments a hypermedia site with dynamic properties and resources
  * for example, adds "self" links and "breadcrumb"
@@ -426,23 +386,6 @@ namespace Hypermedia {
             rs;
     };
 
-    function resourceMatchesProfile(resource: HAL.Resource, profile: HAL.Uri, baseUri?: HAL.Uri): boolean {
-        const resourceProfile = resource._links && resource._links.profile;
-
-        if(!resourceProfile) {
-            return false;
-        }
-
-        return Array.isArray(resourceProfile)?
-            !!(resourceProfile.find((link) => profilesMatch(profile, link.href, baseUri))):
-            profilesMatch(profile, resourceProfile.href, baseUri);
-    }
-
-    function profilesMatch(profile: HAL.Uri, targetProfile?: HAL.Uri, baseUri?: HAL.Uri): boolean {
-        return baseUri?
-            profile === targetProfile || Url.resolve(baseUri, profile) === targetProfile:
-            profile === targetProfile;
-    }
 
     /** get all "tag" links, or empty array */
     function getTags(resource: HAL.Resource): HAL.Link[] {
@@ -457,20 +400,6 @@ namespace Hypermedia {
         return tags;
     }
 
-    /** @returns only curies that are referenced in the target rels */
-    export function filterCuries(curies: HAL.Curie[], rels: string[]): HAL.Curie[] {
-        const namespaces = rels.reduce((namespaces, ref) => {
-            const refParts = ref.split(':');
-            if(refParts.length > 1) {
-                namespaces.push(refParts[0]);
-            }
-            return namespaces;
-        }, [] as string[])
-
-        return curies.filter((curi) => namespaces.indexOf(curi.name) !== -1);
-    }
-
-
     export type Event = Event.ProcessResource;
     export namespace Event {
         export interface ProcessResource {
@@ -484,4 +413,4 @@ namespace Hypermedia {
     }
 }
 
-export { HAL, Hypermedia };
+export { Hypermedia };

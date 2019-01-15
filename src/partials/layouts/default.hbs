@@ -1,0 +1,15 @@
+<div>Links:
+	<ul>
+		{{#each _links}}
+		<li>{{@key}}<ul>
+				{{#if (isArray this)}}
+				{{#each this}}
+				<li>{{hal-link @../key this}}</li>
+				{{/each}}
+				{{else}}
+				<li>{{hal-link @key this}}</li>
+				{{/if}}
+		</li></ul>
+		{{/each}}
+	</ul>
+</div>
