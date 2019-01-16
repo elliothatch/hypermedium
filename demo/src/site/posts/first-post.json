@@ -1,0 +1,13 @@
+{
+    "title": "first post",
+    "_links": {
+        "profile": {
+            "href": "/schema/post"
+        },
+        "tag": [{
+            "name": "blog",
+            "href": "/tags/blog"
+        }]
+    },
+    "body": "this is my first real post! wow!"
+}

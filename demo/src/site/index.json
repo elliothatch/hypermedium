@@ -5,13 +5,16 @@
             "href": "/schema/welcome-page"
         },
         "author": {
-            "href": "/about"
+            "href": "/about",
+            "title": "About"
         },
         "fs:posts": {
-            "href": "/posts"
+            "href": "/posts",
+            "title": "Posts"
         },
         "fs:tags": {
-            "href": "/tags"
+            "href": "/tags",
+            "title": "Tags"
         }
     }
 }

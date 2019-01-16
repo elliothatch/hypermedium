@@ -4,5 +4,11 @@
         "profile": {
             "href": "/schema/index/schema/post"
         }
+    },
+    "_embed": {
+        "fs:entries": {
+            "max": 2,
+            "properties": ["body", "title"]
+        }
     }
 }

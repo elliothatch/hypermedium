@@ -1,0 +1,13 @@
+{
+    "title": "third post",
+    "_links": {
+        "profile": {
+            "href": "/schema/post"
+        },
+        "tag": [{
+            "name": "blog",
+            "href": "/tags/blog"
+        }]
+    },
+    "body": "three's company"
+}

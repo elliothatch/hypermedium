@@ -25,8 +25,9 @@ const hypermediaOptions = {
         Hypermedia.Processor.self,
         Hypermedia.Processor.tags,
         // Hypermedia.Processor.breadcrumb,
+        Hypermedia.makeIndex('/schema/post'),
         Hypermedia.Processor.curies,
-        Hypermedia.makeIndex('/schema/post')
+        Hypermedia.Processor.embed,
     ]
 };
 
@@ -52,7 +53,7 @@ const sitePath = Path.join(__dirname, '..', 'demo', 'src', 'site');
 
 hypermedia.processDirectory(sitePath).then(() => {
     // hypermedia.reprocessResources(['/index.json']);
-    hypermedia.reprocessResources(['/posts/index.json']);
+    // hypermedia.reprocessResources(['/posts/index.json', '/index.json']);
 }).catch(console.error);
 
 const coreTemplatesPath = Path.join(__dirname, '..', 'src', 'templates');
@@ -68,7 +69,8 @@ const hypermediaRenderer = new HypermediaRenderer({
         title: 'freshr'
     },
     profileLayouts: {
-        '/schema/welcome-page': 'layouts/welcome-page.hbs'
+        '/schema/welcome-page': 'layouts/welcome-page.hbs',
+        '/schema/index/schema/post': 'core/layouts/index.hbs'
     }
 });
 

@@ -15,13 +15,13 @@
     "removeComments": true
   },
   "include": [
-    "src/**/*"
+    "src/**/*",
+    "types/*"
   ],
   "baseUrl": ".",
   "paths": {
     "*": [
-      "node_modules/*",
-      "src/types/*"
+      "node_modules/*"
     ]
   }
 }

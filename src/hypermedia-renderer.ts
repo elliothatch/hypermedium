@@ -9,7 +9,7 @@ import { compile, registerHelper, registerPartial, SafeString, TemplateDelegate 
 
 import { Hypermedia } from './hypermedia';
 import * as HAL from './hal';
-import { getProfiles } from './hal-util';
+import { expandCuri, getProfiles } from './hal-util';
 import { walkDirectory } from './util';
 
 export type Html = string;
@@ -17,10 +17,21 @@ export namespace Html {
     export type Link = string;
 }
 
-// TODO: this doesn't work with link arrays.
-registerHelper('hal-link', (rel, link) => new SafeString(`<a rel=${rel} href=${link.href}>${link.title || link.href}</a>`));
+/**
+ * renders the link as an anchor tag. automatically expands curies based on the root resource. to use a different resource to resolve the curi, pass it as the third parameter
+ * TODO: this doesn't work with link arrays.
+ * */
+registerHelper('hal-link', (rel, link, ...options) => {
+    let resource = options[0];
+    if(options.length === 1) {
+        // no resource provided, use the root resource
+        resource = options[0].data.root;
+    }
+    return new SafeString(`<a rel=${expandCuri(resource, rel)} href=${link.href}>${link.title || link.href}</a>`)
+});
 registerHelper('eq', (lhs, rhs) => lhs == rhs);
 registerHelper('isArray', (val) => Array.isArray(val));
+registerHelper('expandCuri', expandCuri);
 
 // maps uri to a compiled template
 export type TemplateMap = {[uri: string]: TemplateDelegate};

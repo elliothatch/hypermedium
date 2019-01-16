@@ -1,5 +1,6 @@
 import * as HAL from './hal';
 import * as Url from 'url';
+import * as UriTemplate from 'uri-template';
 
 /**
  * @returns only curies that are referenced in the target rels
@@ -15,6 +16,29 @@ export function filterCuries(curies: HAL.Curie[], rels: string[]): HAL.Curie[] {
 
     return curies.filter((curi) => namespaces.indexOf(curi.name) !== -1);
 }
+
+export function expandCuri(resource: HAL.Resource, rel: string): HAL.Uri {
+    if(!rel.includes(':')) {
+        return rel;
+    }
+
+    const resourceCuries = resource._links && resource._links.curies;
+    if(!resourceCuries) {
+        return rel;
+    }
+
+    const curiParts = rel.split(':');
+    const curies = Array.isArray(resourceCuries)? resourceCuries : [resourceCuries];
+
+    const curi = curies.find((curi) => curi.name === curiParts[0]);
+    if(!curi) {
+        return rel;
+    }
+
+    const template = UriTemplate.parse(curi!.href);
+    return template.expand({rel: curiParts[1]});
+}
+
 
 /**
  * check if the resource contains the provided profile link

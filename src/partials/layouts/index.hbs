@@ -1,0 +1,13 @@
+<div>Index:
+	<ul>
+		{{#each _embedded.fs:entries}}
+			<li>
+				<h3><a rel="{{expandCuri @root "fs:entries"}}" href="{{_links.self.href}}">{{title}}</a></h3>
+				<p>{{body}}</p>
+			</li>
+		{{/each}}
+		{{#each _links.fs:entries}}
+			<li>{{hal-link "fs:entries" this}}</li>
+		{{/each}}
+	</ul>
+</div>

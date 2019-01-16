@@ -34,7 +34,8 @@
         "fresh-validation": "^3.0.0",
         "freshlog": "^0.1.2",
         "handlebars": "^4.0.12",
-        "socket.io": "^2.1.1"
+        "socket.io": "^2.1.1",
+        "uri-template": "^1.0.1"
     },
     "jest": {
         "transform": {
