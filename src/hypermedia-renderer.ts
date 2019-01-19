@@ -9,7 +9,7 @@ import { compile, registerHelper, registerPartial, SafeString, TemplateDelegate 
 
 import { Hypermedia } from './hypermedia';
 import * as HAL from './hal';
-import { expandCuri, getProfiles } from './hal-util';
+import { expandCuri, getProfiles, htmlUri } from './hal-util';
 import { walkDirectory } from './util';
 
 export type Html = string;
@@ -20,6 +20,7 @@ export namespace Html {
 /**
  * renders the link as an anchor tag. automatically expands curies based on the root resource. to use a different resource to resolve the curi, pass it as the third parameter
  * TODO: this doesn't work with link arrays.
+ * TODO: add option to not use html-link shortening
  * */
 registerHelper('hal-link', (rel, link, ...options) => {
     let resource = options[0];
@@ -27,10 +28,14 @@ registerHelper('hal-link', (rel, link, ...options) => {
         // no resource provided, use the root resource
         resource = options[0].data.root;
     }
-    return new SafeString(`<a rel=${expandCuri(resource, rel)} href=${link.href}>${link.title || link.href}</a>`)
+
+    return new SafeString(`<a rel=${expandCuri(resource, rel)} href=${htmlUri(link.href)}>${link.title || link.href}</a>`)
 });
 registerHelper('eq', (lhs, rhs) => lhs == rhs);
+registerHelper('startsWith', (str, seq) => str.startsWith(seq));
 registerHelper('isArray', (val) => Array.isArray(val));
+registerHelper('json', (val) => JSON.parse(val));
+registerHelper('html-uri', htmlUri);
 registerHelper('expandCuri', expandCuri);
 
 // maps uri to a compiled template
@@ -117,7 +122,7 @@ export class HypermediaRenderer {
             return layout || this.profileLayouts[profile.href];
         }, undefined as HAL.Uri | undefined);
         const context = Object.assign({}, {
-            site: Object.assign({}, this.siteContext, {layout}),
+            _site: Object.assign({}, this.siteContext, {layout}),
         },
             resource
         );
@@ -129,7 +134,7 @@ export class HypermediaRenderer {
     }
 
     protected middleware = (req: Request, res: Response, next: NextFunction) => {
-        if(Path.extname(req.path) === this.hypermedia.state.suffix) {
+        if(Path.extname(req.path) === this.hypermedia.state.suffix || req.headers.accept === "application/hal+json") {
             return next();
         }
         const resource = this.hypermedia.getResource(req.path);
@@ -152,10 +157,10 @@ export namespace HypermediaRenderer {
     export interface Options {
         hypermedia: Hypermedia;
         defaultTemplate?: HAL.Uri;
-        /** provides dynamic context data that can be accessed in partials as the "site" object
-         * e.g. providing the object {title: "freshr"} allows you to use {{site.title}} in a partial to display "freshr"
-         * WARNING: if the underlying HAL resource contains a "site" property on the root object, it will override these values
-         * TODO: only partially override (e.g. keep site.title if the HAL only contains {site: {author: "elliot"}}
+        /** provides dynamic context data that can be accessed in partials as the "_site" object
+         * e.g. providing the object {title: "freshr"} allows you to use {{_site.title}} in a partial to display "freshr"
+         * WARNING: if the underlying HAL resource contains a "_site" property on the root object, it will override these values
+         * TODO: only partially override (e.g. keep _site.title if the HAL only contains {_site: {author: "elliot"}}
          */
         siteContext?: object;
         profileLayouts?: ProfileLayoutMap;

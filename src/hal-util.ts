@@ -1,6 +1,20 @@
-import * as HAL from './hal';
-import * as Url from 'url';
+import * as Path from 'path';
+
 import * as UriTemplate from 'uri-template';
+import * as Url from 'url';
+
+import * as HAL from './hal';
+
+/**
+ * @returns a copy of the uri pointing to the html version of the resource
+ */
+export function htmlUri(uri: HAL.Uri): HAL.Uri {
+    const extname = Path.extname(uri);
+    if(extname === '.json') {
+        return uri.slice(0, -extname.length);
+    }
+    return uri;
+}
 
 /**
  * @returns only curies that are referenced in the target rels
