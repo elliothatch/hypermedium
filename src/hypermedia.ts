@@ -5,6 +5,7 @@ import * as Url from 'url';
 import { Observable, Observer } from 'rxjs';
 
 import { NextFunction, Router, Request, Response } from 'express';
+import { Graph, Edge } from 'graphlib';
 
 import * as HAL from './hal';
 import { filterCuries, profilesMatch, resourceMatchesProfile } from './hal-util';
@@ -21,16 +22,10 @@ class Hypermedia {
     public state: Hypermedia.State;
     public processors: Hypermedia.Processor[];
     /** maps relative uri to the original resource loaded from the file system */
-    public files: Hypermedia.ResourceMap;
-    /** should ALWAYS be serializable. nothing fancy in the resources */
-    public resources: Hypermedia.ResourceMap;
-    /** tracks which resources are currently being processed.
-     * used to prevent reprocessing cycles */
-    public processing: {[uri: string]: true};
-    /** each value is an set of URIs that depend on the object property's URI */
-    public dependents: Map<HAL.Uri, Set<HAL.Uri>>;
-    /** reverse index of dependents */
-    public dependencies: Map<HAL.Uri, Set<HAL.Uri>>;
+    public files: {[uri: string]: string};
+
+    /** each loaded resource is stored in the graph, and dependencies between resources are tracked here */
+    public resourceGraph: Graph;
 
     public event$: Observable<Hypermedia.Event>;
     protected eventObserver!: Observer<Hypermedia.Event>;
@@ -47,12 +42,9 @@ class Hypermedia {
             indexes: {},
             suffix: options.suffix || '.json',
         };
-        this.processors = options.processors;
         this.files = {};
-        this.resources = {};
-        this.processing = {};
-        this.dependents = new Map();
-        this.dependencies = new Map();
+        this.processors = options.processors;
+        this.resourceGraph = new Graph();
         this.router = Router();
         this.router.get('/*', this.middleware);
     }
@@ -83,14 +75,18 @@ class Hypermedia {
 
     public getResource(relativeUri: HAL.Uri): HAL.Resource | undefined {
         if(relativeUri.slice(-1) === '/') {
-            return this.resources[this.normalizeUri(relativeUri)] || this.resources[relativeUri];
+            const node = this.resourceGraph.node(this.normalizeUri(relativeUri) || this.resourceGraph.node(relativeUri));
+            return node && (node.resource || node.originalResource);
         }
         else if(relativeUri.lastIndexOf('.') < relativeUri.lastIndexOf('/')) {
             // no file extension, try to find a file with the default suffix
             // TODO: store a set of "suffixes", pick based on Accept header, or use default 'suffix' if missing
-            return this.resources[`${relativeUri}${this.state.suffix}`] || this.resources[relativeUri] || this.resources[this.normalizeUri(relativeUri + '/')]
+            const node = this.resourceGraph.node(`${relativeUri}${this.state.suffix}`) || this.resourceGraph.node(relativeUri) || this.resourceGraph.node(this.normalizeUri(relativeUri + '/'));
+            return node && (node.resource || node.originalResource);
+
         }
-        return this.resources[relativeUri];
+        const node = this.resourceGraph.node(relativeUri);
+        return node && (node.resource || node.originalResource);
     }
 
     public getByUri<T>(dict: Map<string, T>, relativeUri: HAL.Uri): T | undefined {
@@ -115,14 +111,64 @@ class Hypermedia {
         return dict.delete(relativeUri);
     }
 
-    public processResource(relativeUri: HAL.Uri, resource: HAL.Resource): HAL.Resource {
-        if(this.processing[relativeUri]) {
-            return resource;
+    /**
+     * @param processor - the processor that formed the dependency
+     * @returns true if the dependency did not exist before for this processor
+     */
+    protected addDependency(relativeUriSource: HAL.Uri, relativeUriTarget: HAL.Uri, processor: Hypermedia.Processor): boolean {
+        const edge: ResourceEdge | undefined = this.resourceGraph.edge(relativeUriSource, relativeUriTarget);
+        if(!edge) {
+            this.resourceGraph.setEdge(relativeUriSource, relativeUriTarget, {
+                processors: [processor]
+            });
+            return true;
         }
 
-        this.processing[relativeUri] = true;
-        const dependencies = new Set<HAL.Uri>();
-        const dirtyResources = new Set<HAL.Uri>();
+        if(!edge.processors.find((p) => processor === p)) {
+            edge.processors.push(processor);
+            return true;
+        }
+
+        return false;
+    }
+
+    public loadResource(relativeUri: HAL.Uri, resource: HAL.Resource): HAL.Resource {
+        const normalizedUri = this.normalizeUri(relativeUri);
+        if(this.resourceGraph.hasNode(normalizedUri)) {
+            throw new Error(`Resource ${normalizedUri} already loaded`);
+        }
+        this.resourceGraph.setNode(normalizedUri, {
+            originalResource: resource,
+            processing: false
+        });
+
+        console.log('load', normalizedUri);
+
+        return resource;
+    }
+
+    public processResource(relativeUri: HAL.Uri): HAL.Resource {
+        const normalizedUri = this.normalizeUri(relativeUri);
+        const node: ResourceNode | undefined = this.resourceGraph.node(normalizedUri);
+        if(!node) {
+            console.log(`Resource ${normalizedUri} has not been loaded, skipping`);
+            return {};
+            // throw new Error(`Resource ${normalizedUri} has not been loaded`);
+        }
+
+        if(node.processing) {
+            console.log(`Resource ${normalizedUri} is already being processed, skipping`);
+            return node.resource!;
+            // throw new Error(`Resource ${normalizedUri} is already being processed`);
+        }
+
+        node.processing = true;
+
+        // reset dependencies
+        const oldDependencies = this.resourceGraph.nodeEdges(normalizedUri) as Edge[];
+        oldDependencies
+            .filter(({v, w}) => v === normalizedUri)
+            .forEach(({v, w}) => this.resourceGraph.removeEdge(v, w));
 
         // TODO: figure out the normalized uri mess
         const result = this.processors.reduce(
@@ -130,97 +176,87 @@ class Hypermedia {
                 return processor({
                     ...d, 
                     calculateFrom: (dependencyUri: HAL.Uri | HAL.Uri[], fn: Hypermedia.CalculateFromResourceFn | Hypermedia.CalculateFromResourcesFn): any => {
-                        if(Array.isArray(dependencyUri)) {
-                            dependencyUri
-                                .filter((uri) => this.normalizeUri(uri) !== relativeUri)
-                                .forEach((uri) => dependencies.add(uri));
-                            return (fn as Hypermedia.CalculateFromResourcesFn)(dependencyUri.map((uri) => ({href: uri, resource: this.getResource(uri)})));
-                        } else if(this.normalizeUri(dependencyUri) !== relativeUri) {
-                            dependencies.add(this.normalizeUri(dependencyUri));
-                            return (fn as Hypermedia.CalculateFromResourceFn)({href: relativeUri, resource: this.getResource(dependencyUri)});
-                        }
+                        const dependencyUris = Array.isArray(dependencyUri)? dependencyUri: [dependencyUri];
+                        // process dependencies
+                        const dependencyResourceParams: Hypermedia.CalculateFromResourceParams[] = dependencyUris.map((uri) => {
+                            const normalizedDependencyUri = this.normalizeUri(uri);
+                            const dependencyResource: ResourceNode = this.resourceGraph.node(normalizedDependencyUri);
+                            if(!dependencyResource) {
+                                throw new Error("Resource ${normalizedDependencyUri} has not been loaded");
+                            }
+
+                            if(normalizedDependencyUri !== normalizedUri) {
+                                this.addDependency(normalizedUri, normalizedDependencyUri, processor);
+
+                                if(!dependencyResource.resource) {
+                                    this.processResource(normalizedDependencyUri);
+                                }
+                            }
+
+                            return {href: normalizedDependencyUri, resource: dependencyResource.resource};
+                        });
+
+                        return Array.isArray(dependencyUri)?
+                            (fn as Hypermedia.CalculateFromResourcesFn)(dependencyResourceParams):
+                            (fn as Hypermedia.CalculateFromResourceFn)(dependencyResourceParams[0]);
                     },
-                    markDirty: (uri: HAL.Uri | HAL.Uri[]) => (
-                        (Array.isArray(uri)?
+                    markDirty: (uri: HAL.Uri | HAL.Uri[]) => {
+                        return (Array.isArray(uri)?
                             uri:
                             [uri]
-                        ).forEach((u) => dirtyResources.add(u))
-                    )
+                        ).forEach((u) => this.addDependency(this.normalizeUri(u), normalizedUri, processor))
+                    }
                 });
-            }, {resource, relativeUri, state: this.state});
+            }, {resource: node.originalResource, relativeUri: normalizedUri, state: this.state});
 
         this.state = result.state;
-        this.resources[relativeUri] = result.resource;
-
-        // delete old dependency relationships
-        const oldDependencies = this.getByUri(this.dependencies, relativeUri);
-        if(oldDependencies) {
-            oldDependencies.forEach((uri) => {
-                const dependents = this.getByUri(this.dependents, uri)!;
-                this.deleteByUri(dependents, relativeUri);
-                if(dependents.size === 0) {
-                    this.deleteByUri(dependents, uri);
-                }
-            });
-        }
-
-        // add new dependency relationships
-        dependencies.forEach((uri) => {
-            const dependents = this.getByUri(this.dependents, uri) || new Set();
-            dependents.add(relativeUri);
-            this.dependents.set(uri, dependents);
-        });
-        if(dependencies.size > 0) {
-            this.dependencies.set(relativeUri, dependencies);
-        }
-
-        // reprocess dependent resources
-        const dependents = this.getByUri(this.dependents, relativeUri);
-        const allDependents = new Set();
-        if(dependents) {
-            dependents.forEach((uri) => allDependents.add(uri));
-        }
-        dirtyResources.forEach((uri) => allDependents.add(uri));
-        this.reprocessResources(Array.from(allDependents.values()));
+        node.resource = result.resource;
 
         this.log({
             type: 'ProcessResource',
-            dependencies,
-            dependents: allDependents,
+            edges: this.resourceGraph.nodeEdges(normalizedUri) as Edge[],
             relativeUri,
             resource: result.resource,
         });
 
-        delete this.processing[relativeUri];
-        return this.getResource(relativeUri)!;
+        node.processing = false;
+
+        // reprocess dependent resources
+        (this.resourceGraph.nodeEdges(normalizedUri) as Edge[])
+            .filter(({v, w}) => v !== normalizedUri)
+            .forEach(({v, w}) => this.processResource(v));
+
+        return node.resource;
     }
 
-    /** recursively process files in a directory */
-     public processDirectory(directoryPath: string, relativeUri: HAL.Uri = ''): Promise<Hypermedia.ResourceMap> {
+    /** processes each loaded resource that has not already been processed */
+    public processLoadedResources() {
+        this.resourceGraph.nodes()
+            .filter((uri) => !this.resourceGraph.node(uri).resource)
+            .forEach((uri) => {
+                // check if this resource was processed as a dependency
+                if(!this.resourceGraph.node(uri).resource) {
+                    console.log('processing', uri);
+                    this.processResource(uri)
+                }
+            });
+    }
+
+    /** recursively load files in a directory */
+     public loadDirectory(directoryPath: string, relativeUri: HAL.Uri = ''): Promise<Hypermedia.ResourceMap> {
          return walkDirectory(
              directoryPath,
              (filePath: string, uri: string, fileContents: string) => {
-                 //  parse twice so we have two distinct copies
-                 this.files[uri] = JSON.parse(fileContents);
-                 return this.processResource(uri, JSON.parse(fileContents));
+                 this.files[uri] = fileContents;
+                 if(Path.extname(filePath) === '.json') {
+                     return this.loadResource(uri, JSON.parse(fileContents));
+                 }
+                 // TODO: don't return empty resource
+                 return {};
              },
              relativeUri,
          );
      }
-
-    /** reprocesses the resource identified by each URI using the original version
-     * of the resource from the file system */
-    public reprocessResources(relativeUris: HAL.Uri[]): HAL.Resource[] {
-        return relativeUris.reduce((resources, relativeUri) => {
-            if(this.files[relativeUri]) {
-                resources.push(this.processResource(
-                    relativeUri,
-                    JSON.parse(JSON.stringify(this.files[relativeUri])), // lazy deep clone
-                ));
-            }
-            return resources;
-        }, [] as HAL.Resource[]);
-    }
 }
 
 namespace Hypermedia {
@@ -434,7 +470,9 @@ namespace Hypermedia {
                     rs.state.indexes[profile] = index;
                 }
 
-                rs.markDirty(rs.state.indexes[indexProfile]);
+                if(rs.state.indexes[indexProfile]) {
+                    rs.markDirty(rs.state.indexes[indexProfile]);
+                }
                 return rs;
             }
             else if(resourceMatchesProfile(rs.resource, indexProfile, rs.state.baseUri)) {
@@ -487,11 +525,24 @@ namespace Hypermedia {
             type: 'ProcessResource'
 
             relativeUri: HAL.Uri;
-            dependents: Set<HAL.Uri>;
-            dependencies: Set<HAL.Uri>;
+            edges: Edge[];
             resource: HAL.Resource;
         }
     }
+}
+
+export interface ResourceNode {
+    /** the parsed resource before any processing has been applied */
+    originalResource: Hypermedia.ExtendedResource;
+    /** the processed resource that will be served to the user
+     * should ALWAYS be serializable. nothing fancy in the resources */
+    resource?: Hypermedia.ExtendedResource;
+    /** true if the resource is currently being processed */
+    processing: boolean;
+}
+
+export interface ResourceEdge {
+    processors: Hypermedia.Processor[];
 }
 
 export type Embed = {[rel: string]: EmbedEntry};

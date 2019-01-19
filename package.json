@@ -19,6 +19,7 @@
     "license": "MIT",
     "devDependencies": {
         "@types/express": "^4.16.0",
+        "@types/graphlib": "^2.1.4",
         "@types/jest": "^23.3.2",
         "jest": "^23.6.0",
         "ts-jest": "^23.1.4",
@@ -33,6 +34,7 @@
         "express": "^4.16.3",
         "fresh-validation": "^3.0.0",
         "freshlog": "^0.1.2",
+        "graphlib": "^2.1.7",
         "handlebars": "^4.0.12",
         "socket.io": "^2.1.1",
         "uri-template": "^1.0.1"

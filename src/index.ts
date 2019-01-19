@@ -39,8 +39,7 @@ hypermedia.event$.subscribe({
         verbose? 
             Log.trace('hypermedia', {
                 ...e,
-                dependencies: Array.from(e.dependencies.values()),
-                dependents: Array.from(e.dependents.values()),
+                edges: Array.from(e.edges),
             }):
             Log.trace('hypermedia', {
                 type: e.type,
@@ -51,7 +50,11 @@ hypermedia.event$.subscribe({
 
 const sitePath = Path.join(__dirname, '..', 'demo', 'src', 'site');
 
-hypermedia.processDirectory(sitePath).then(() => {
+hypermedia.loadDirectory(sitePath).catch((e) => console.error(e)).then(() => {
+    hypermedia.processLoadedResources();
+    // hypermedia.processResource('/index.json');
+    // hypermedia.processResource('/posts/index.json');
+    // hypermedia.processResource('/posts/hello-world.json');
     // hypermedia.reprocessResources(['/index.json']);
     // hypermedia.reprocessResources(['/posts/index.json', '/index.json']);
 }).catch(console.error);
