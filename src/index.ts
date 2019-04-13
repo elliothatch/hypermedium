@@ -7,6 +7,7 @@ import { Log } from 'freshlog';
 import { server } from './server';
 import { Hypermedia } from './hypermedia';
 import { HypermediaRenderer } from './hypermedia-renderer';
+import { BuildManager } from './build';
 
 Log.handlers.get('trace')!.enabled = true;
 
@@ -83,8 +84,13 @@ hypermediaRenderer.loadTemplates(coreTemplatesPath, 'core');
 hypermediaRenderer.loadPartials(demoPartialsPath);
 hypermediaRenderer.loadTemplates(demoTemplatesPath).catch((err) => console.error(err));
 
+const demoBuildPath = Path.join(__dirname, '..', 'demo', 'build');
+
+const buildManager = new BuildManager(demoBuildPath);
+
 app.use(hypermediaRenderer.router);
 app.use(hypermedia.router);
+app.use('/~config', buildManager.router);
 
 app.use(Express.static(Path.join(__dirname, '..', 'demo', 'src', 'site')));
 

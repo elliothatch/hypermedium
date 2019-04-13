@@ -34,7 +34,7 @@
         "cookie-parser": "^1.4.3",
         "express": "^4.16.3",
         "fresh-validation": "^3.0.0",
-        "freshlog": "^0.1.4",
+        "freshlog": "^0.2.2",
         "graphlib": "^2.1.7",
         "handlebars": "^4.0.12",
         "rxjs": "^6.4.0",

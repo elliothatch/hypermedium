@@ -1,9 +1,10 @@
-import { Observable, from, of, forkJoin, concat } from 'rxjs';
-import { map, catchError, toArray } from 'rxjs/operators';
+import { Observable, from, of, forkJoin, concat, Subject } from 'rxjs';
+import { map, catchError, toArray, filter } from 'rxjs/operators';
 import * as fs from 'fs-extra';
 import * as Path from 'path';
+import { Router, RequestHandler } from 'express';
 
-import { Logger } from 'freshlog';
+import { Logger, Target } from 'freshlog';
 
 export type FileMap = {[name: string]: string[]};
 
@@ -71,6 +72,10 @@ export namespace FileSpec {
     }
 }
 
+export type BuildStatus =  BuildStep & {
+    status: 'pending' | 'running' | 'success' | 'warn' | 'error';
+}
+
 /** function that performs a build task (e.g. compiles sass into css)
  * @returns data describing the result. This will be included in the build log.
  */
@@ -128,25 +133,30 @@ export namespace TaskDefinition {
     };
 }
 
+interface BuildStepLog {
+    level: string;
+    message: string;
+    timestamp: string;
+    /** identifies which task created this log. each value in the array is an index into the BuildStep array structure */
+    buildStepPath: number[];
+    /** loggers can add arbitrary properties */
+    [property: string]: any;
+}
+
 /**
  * Static asset build system, e.g. for compiling SASS into CSS, etc.
  */
 export class BuildManager {
     public logger: Logger;
+    public loggerSubject: Subject<BuildStepLog>;
     public taskDefinitions: Map<string, TaskDefinition>;
     /** all task file paths will be relative to this directory */
     public basePath: string;
+    public router: Router;
 
     constructor(basePath: string) {
-        this.logger = new Logger({
-            target: {
-                name: 'buildlog',
-                write: (data: string) => {
-                    console.log(data);
-                    // emit to websocket
-                }
-            }
-        });
+        this.loggerSubject = new Subject();
+        this.logger = this.makeBuildLog(this.loggerSubject, []);
 
         this.taskDefinitions = new Map([
             [TaskDefinition.Clean.name, TaskDefinition.Clean],
@@ -154,6 +164,21 @@ export class BuildManager {
         ]);
 
         this.basePath = basePath;
+        this.router = Router();
+        this.router.get('/*', this.middleware);
+    }
+
+    protected middleware: RequestHandler = (req, res, next) => {
+        this.build(req.body).pipe(
+            filter((event) => event.eType === 'done')
+        ).subscribe({
+            next: (event: BuildEvent) => {
+                res.status(200).json(event);
+            },
+            error: (error) => {
+                next(error);
+            }
+        });
     }
 
     /**
@@ -167,56 +192,93 @@ export class BuildManager {
      *      - 'task/done'{{path}}
      */
     public build(step: BuildStep, logger?: Logger): Observable<BuildEvent> {
-        switch(step.sType) {
-            case 'task':
-                const taskDefinition = this.taskDefinitions.get(step.definition);
-                if(!taskDefinition) {
-                    return of({
-                        eType: 'error',
-                        error: new Error(`There is no task definition registered with the name '{step.definition}'`)
-                    });
-                }
+        // TODO: figure out a good api for passing loggers down to subtasks. pass the BuildStepPath, and no logger?
+        // what if you start two builds at the same time?
+        const stepLogger = logger || this.logger;
+        const buildObservable = (() => {
+            switch(step.sType) {
+                case 'task':
+                    const taskDefinition = this.taskDefinitions.get(step.definition);
+                    if(!taskDefinition) {
+                        return of({
+                            eType: 'error' as const,
+                            error: new Error(`There is no task definition registered with the name '{step.definition}'`)
+                        });
+                    }
 
-                return forkJoin(step.files.map(({inputs, outputs, options}) =>
-                    taskDefinition.func(
-                        prefixPaths(inputs, this.basePath),
-                        prefixPaths(outputs, this.basePath),
-                        Object.assign({}, step.options, options),
-                        this.logger))
-                ).pipe(
-                    map((results) => ({
-                        eType: 'success' as const,
-                        result: results
-                    })),
-                    catchError((error) => of({
-                        eType: 'error' as const,
-                        error: error as Error
-                    }))
-                );
-
-                break;
-            case 'multitask':
-                if(step.sync) {
-                    return concat(step.steps.map((s) => this.build(s))
+                    return forkJoin(step.files.map(({inputs, outputs, options}) =>
+                        taskDefinition.func(
+                            prefixPaths(inputs, this.basePath),
+                            prefixPaths(outputs, this.basePath),
+                            Object.assign({}, step.options, options),
+                            stepLogger))
                     ).pipe(
-                        toArray(),
                         map((results) => ({
-                            eType: 'success',
+                            eType: 'success' as const,
                             result: results
                         }))
                     );
-                }
-                else {
-                    return forkJoin(step.steps.map((s) => this.build(s))
-                    ).pipe(
-                        map((results) => ({
-                            eType: 'success',
-                            result: results
-                        }))
-                    );
-                }
-                break;
+
+                    break;
+                case 'multitask':
+                    if(step.sync) {
+                        return concat(step.steps.map((s) => this.build(s, this.makeBuildLog(stepLogger, [])))
+                        ).pipe(
+                            toArray(),
+                            map((results) => ({
+                                eType: 'success' as const,
+                                result: results
+                            }))
+                        );
+                    }
+                    else {
+                        return forkJoin(step.steps.map((s) => this.build(s, this.makeBuildLog(stepLogger, [])))
+                        ).pipe(
+                            map((results) => ({
+                                eType: 'success' as const,
+                                result: results
+                            }))
+                        );
+                    }
+                    break;
+            }
+        })().pipe(
+            catchError((error) => of({
+                eType: 'error' as const,
+                error: error as Error
+            }))
+        );
+
+
+        if(!logger) {
+            return concat(
+                of({
+                    eType: 'start' as const
+                }),
+                buildObservable,
+                of({
+                    eType: 'done' as const,
+                })
+            );
         }
+
+        return buildObservable;
+
+    }
+
+    /**
+     * @param subject - The subject that log events will be emitted to
+     * @param taskPath - Logs created with this sublogger are identified by their location relative to the root BuildStep.
+     *                   The root task is represented by the empty array
+     */
+    private makeBuildLog(subject: Subject<BuildStepLog>, buildStepPath: number[]): Logger {
+        return new Logger({
+            middleware: [{
+                mw: (data) => Object.assign(data, {buildStepPath}),
+                levels: true
+            }],
+            target: Target.Observable('buildlog', subject).target,
+        });
     }
 }
 
@@ -228,9 +290,17 @@ function prefixPaths(files: FileMap, prefix: string): FileMap {
     }, {} as FileMap);
 }
 
-export type BuildEvent = BuildEvent.BuildError | BuildEvent.Success;
+export type BuildEvent = BuildEvent.BuildError | BuildEvent.Success | BuildEvent.Start | BuildEvent.Done;
 
 export namespace BuildEvent {
+    export interface Start {
+        eType: 'start';
+    }
+
+    export interface Done {
+        eType: 'done';
+    }
+
     export interface BuildError {
         eType: 'error';
         error: Error;
