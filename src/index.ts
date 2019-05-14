@@ -7,7 +7,7 @@ import { Log } from 'freshlog';
 import { server } from './server';
 import { Hypermedia } from './hypermedia';
 import { HypermediaRenderer } from './hypermedia-renderer';
-import { BuildManager } from './build';
+import { BuildManager, BuildStep, TaskDefinition } from './build';
 
 Log.handlers.get('trace')!.enabled = true;
 
@@ -84,9 +84,44 @@ hypermediaRenderer.loadTemplates(coreTemplatesPath, 'core');
 hypermediaRenderer.loadPartials(demoPartialsPath);
 hypermediaRenderer.loadTemplates(demoTemplatesPath).catch((err) => console.error(err));
 
-const demoBuildPath = Path.join(__dirname, '..', 'demo', 'build');
+const demoBuildPath = Path.join(__dirname, '..', 'demo');
 
 const buildManager = new BuildManager(demoBuildPath);
+
+const buildSteps: BuildStep = {
+    sType: 'multitask',
+    sync: true,
+    steps: [
+        {
+            sType: 'task',
+            definition: TaskDefinition.Clean.name,
+            files: [{
+                inputs: {target: ['build']},
+                outputs: {}
+            }]
+        }, {
+            sType: 'task',
+            definition: TaskDefinition.Copy.name,
+            files: [{
+                inputs: {target: ['src']},
+                outputs: {destination: ['build']}
+            }]
+        }
+    ]
+};
+
+buildManager.loggerSubject.subscribe((buildLog) => {
+    Log.info('buildlog', {data: buildLog});
+});
+
+buildManager.build(buildSteps).subscribe({
+    next: (event) => {
+        Log.info('build', event);
+    },
+    error: (error) => {
+        Log.error('build', error);
+    }
+});
 
 app.use(hypermediaRenderer.router);
 app.use(hypermedia.router);

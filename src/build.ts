@@ -147,7 +147,6 @@ interface BuildStepLog {
  * Static asset build system, e.g. for compiling SASS into CSS, etc.
  */
 export class BuildManager {
-    public logger: Logger;
     public loggerSubject: Subject<BuildStepLog>;
     public taskDefinitions: Map<string, TaskDefinition>;
     /** all task file paths will be relative to this directory */
@@ -156,7 +155,6 @@ export class BuildManager {
 
     constructor(basePath: string) {
         this.loggerSubject = new Subject();
-        this.logger = this.makeBuildLog(this.loggerSubject, []);
 
         this.taskDefinitions = new Map([
             [TaskDefinition.Clean.name, TaskDefinition.Clean],
@@ -191,18 +189,17 @@ export class BuildManager {
      *      - 'task/log'{{path, status, log}}
      *      - 'task/done'{{path}}
      */
-    public build(step: BuildStep, logger?: Logger): Observable<BuildEvent> {
-        // TODO: figure out a good api for passing loggers down to subtasks. pass the BuildStepPath, and no logger?
+    public build(step: BuildStep, buildStepPath?: number[]): Observable<BuildEvent> {
         // what if you start two builds at the same time?
-        const stepLogger = logger || this.logger;
-        const buildObservable = (() => {
+        buildStepPath = buildStepPath || [];
+        let buildObservable: Observable<BuildEvent> = (() => {
             switch(step.sType) {
                 case 'task':
                     const taskDefinition = this.taskDefinitions.get(step.definition);
                     if(!taskDefinition) {
                         return of({
                             eType: 'error' as const,
-                            error: new Error(`There is no task definition registered with the name '{step.definition}'`)
+                            error: new Error(`There is no task definition registered with the name '${step.definition}'`)
                         });
                     }
 
@@ -211,8 +208,9 @@ export class BuildManager {
                             prefixPaths(inputs, this.basePath),
                             prefixPaths(outputs, this.basePath),
                             Object.assign({}, step.options, options),
-                            stepLogger))
-                    ).pipe(
+                            this.makeBuildLogger(this.loggerSubject, buildStepPath!)
+                        )
+                    )).pipe(
                         map((results) => ({
                             eType: 'success' as const,
                             result: results
@@ -222,9 +220,11 @@ export class BuildManager {
                     break;
                 case 'multitask':
                     if(step.sync) {
-                        return concat(step.steps.map((s) => this.build(s, this.makeBuildLog(stepLogger, [])))
+                        return concat(...step.steps.map((s, i) => this.build(s, buildStepPath!.concat([i])))
                         ).pipe(
                             toArray(),
+                            // results is an array of observerables. it shouldn't be
+                            // concat should "unroll" the buildObservables passed to it into one observable of BuildEvents...
                             map((results) => ({
                                 eType: 'success' as const,
                                 result: results
@@ -232,7 +232,7 @@ export class BuildManager {
                         );
                     }
                     else {
-                        return forkJoin(step.steps.map((s) => this.build(s, this.makeBuildLog(stepLogger, [])))
+                        return forkJoin(...step.steps.map((s, i) => this.build(s, buildStepPath!.concat([i])))
                         ).pipe(
                             map((results) => ({
                                 eType: 'success' as const,
@@ -242,15 +242,17 @@ export class BuildManager {
                     }
                     break;
             }
-        })().pipe(
+        })();
+
+        // typescript gets confused if we pipe directly off previous statement
+        buildObservable = buildObservable.pipe(
             catchError((error) => of({
                 eType: 'error' as const,
                 error: error as Error
             }))
         );
 
-
-        if(!logger) {
+        if(buildStepPath!.length === 0) {
             return concat(
                 of({
                     eType: 'start' as const
@@ -271,7 +273,7 @@ export class BuildManager {
      * @param taskPath - Logs created with this sublogger are identified by their location relative to the root BuildStep.
      *                   The root task is represented by the empty array
      */
-    private makeBuildLog(subject: Subject<BuildStepLog>, buildStepPath: number[]): Logger {
+    private makeBuildLogger(subject: Subject<BuildStepLog>, buildStepPath: number[]): Logger {
         return new Logger({
             middleware: [{
                 mw: (data) => Object.assign(data, {buildStepPath}),
