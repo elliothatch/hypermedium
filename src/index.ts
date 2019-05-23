@@ -95,8 +95,7 @@ buildManager.taskDefinitions.set(CompileSass.name, CompileSass);
 const buildSteps: BuildStep = {
     sType: 'multitask',
     sync: true,
-    steps: [
-        {
+    steps: [{
             sType: 'task',
             definition: TaskDefinition.Clean.name,
             files: [{
@@ -104,11 +103,19 @@ const buildSteps: BuildStep = {
                 outputs: {}
             }]
         }, {
+        sType: 'multitask',
+        steps: [{
             sType: 'task',
             definition: TaskDefinition.Copy.name,
             files: [{
-                inputs: {target: ['src']},
-                outputs: {destination: ['build']}
+                inputs: {target: [Path.join('src', 'partials')]},
+                outputs: {destination: [Path.join('build', 'partials')]}
+            }, {
+                inputs: {target: [Path.join('src', 'site')]},
+                outputs: {destination: [Path.join('build', 'site')]}
+            }, {
+                inputs: {target: [Path.join('src', 'templates')]},
+                outputs: {destination: [Path.join('build', 'templates')]}
             }]
         }, {
             sType: 'task',
@@ -120,13 +127,18 @@ const buildSteps: BuildStep = {
                     sourceMap: ['build/css/freshr.css.map'],
                 }
             }]
-        }
-    ]
+        }]
+    }]
 };
 
 buildManager.build(buildSteps).subscribe({
     next: (event) => {
-        Log.info('build', event);
+        if(event.eType === 'error') {
+            Log.error('build', event);
+        }
+        else {
+            Log.info('build', event);
+        }
     },
     error: (error) => {
         Log.error('build', error);
@@ -137,8 +149,8 @@ app.use(hypermediaRenderer.router);
 app.use(hypermedia.router);
 app.use('/~config', buildManager.router);
 
-app.use(Express.static(Path.join(__dirname, '..', 'demo', 'src', 'site')));
-app.use(Express.static(Path.join(__dirname, '..', 'demo', 'build')));
+app.use(Express.static(Path.join(__dirname, '..', 'demo', 'build', 'site')));
+app.use(Express.static(Path.join(__dirname, '..', 'demo', 'build', 'css')));
 
 
 server(app).subscribe({

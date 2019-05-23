@@ -230,7 +230,7 @@ export class BuildManager {
         }
         else {
             return concat(
-                forkJoin(...multitask.steps.map((s, i) => this.build(s, buildStepPath.concat([i])))),
+                merge(...multitask.steps.map((s, i) => this.build(s, buildStepPath.concat([i])))),
                 of({
                     eType: 'success' as const,
                     result: [],
