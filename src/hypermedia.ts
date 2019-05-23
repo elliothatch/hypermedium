@@ -142,7 +142,7 @@ class Hypermedia {
             processing: false
         });
 
-        console.log('load', normalizedUri);
+        // console.log('load', normalizedUri);
 
         return resource;
     }
@@ -236,7 +236,7 @@ class Hypermedia {
             .forEach((uri) => {
                 // check if this resource was processed as a dependency
                 if(!this.resourceGraph.node(uri).resource) {
-                    console.log('processing', uri);
+                    // console.log('processing', uri);
                     this.processResource(uri)
                 }
             });

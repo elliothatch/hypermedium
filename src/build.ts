@@ -1,10 +1,10 @@
-import { Observable, from, of, forkJoin, concat, Subject } from 'rxjs';
-import { map, catchError, toArray, filter } from 'rxjs/operators';
+import { defer, Observable, from, of, forkJoin, concat, Subject, merge } from 'rxjs';
+import { map, catchError, toArray, filter, finalize } from 'rxjs/operators';
 import * as fs from 'fs-extra';
 import * as Path from 'path';
 import { Router, RequestHandler } from 'express';
 
-import { Logger, Target } from 'freshlog';
+import { Logger, Target, Serializer } from 'freshlog';
 
 export type FileMap = {[name: string]: string[]};
 
@@ -133,12 +133,10 @@ export namespace TaskDefinition {
     };
 }
 
-interface BuildStepLog {
+export interface BuildStepLog {
     level: string;
     message: string;
     timestamp: string;
-    /** identifies which task created this log. each value in the array is an index into the BuildStep array structure */
-    buildStepPath: number[];
     /** loggers can add arbitrary properties */
     [property: string]: any;
 }
@@ -147,15 +145,12 @@ interface BuildStepLog {
  * Static asset build system, e.g. for compiling SASS into CSS, etc.
  */
 export class BuildManager {
-    public loggerSubject: Subject<BuildStepLog>;
     public taskDefinitions: Map<string, TaskDefinition>;
     /** all task file paths will be relative to this directory */
     public basePath: string;
     public router: Router;
 
     constructor(basePath: string) {
-        this.loggerSubject = new Subject();
-
         this.taskDefinitions = new Map([
             [TaskDefinition.Clean.name, TaskDefinition.Clean],
             [TaskDefinition.Copy.name, TaskDefinition.Copy],
@@ -179,6 +174,72 @@ export class BuildManager {
         });
     }
 
+    protected buildTask(task: Task, buildStepPath: number[]): Observable<BuildEvent> {
+        const taskDefinition = this.taskDefinitions.get(task.definition);
+        if(!taskDefinition) {
+            return of({
+                eType: 'error' as const,
+                error: new Error(`There is no task definition registered with the name '${task.definition}'`),
+                buildStepPath
+            });
+        }
+
+        const taskLogSubject = new Subject<BuildStepLog>();
+        const taskLogTarget = Target.Observable<BuildStepLog>('buildlog', taskLogSubject);
+        const taskLogger = new Logger({
+            target: taskLogTarget.target,
+            serializer: Serializer.identity
+        });
+
+        const taskObservable = forkJoin(task.files.map(({inputs, outputs, options}) =>
+            defer(() => taskDefinition.func(
+                prefixPaths(inputs, this.basePath),
+                prefixPaths(outputs, this.basePath),
+                Object.assign({}, task.options, options),
+                taskLogger
+            ))
+        )).pipe(
+            map((result) => ({
+                eType: 'success' as const,
+                result
+            }))
+        );
+
+        return merge(
+            taskLogSubject.pipe(
+                map((log) => ({
+                    eType: 'log' as const,
+                    log
+                })
+            )),
+            taskObservable.pipe(finalize(() => taskLogSubject.complete()))
+        ).pipe(
+            map((event) => Object.assign(event, {buildStepPath}))
+        );
+    }
+
+    protected buildMultiTask(multitask: MultiTask, buildStepPath: number[]): Observable<BuildEvent> {
+        if(multitask.sync) {
+            return concat(...multitask.steps.map((s, i) => this.build(s, buildStepPath.concat([i]))),
+                of({
+                    eType: 'success' as const,
+                    result: [],
+                    buildStepPath
+                })
+            );
+        }
+        else {
+            return concat(
+                forkJoin(...multitask.steps.map((s, i) => this.build(s, buildStepPath.concat([i])))),
+                of({
+                    eType: 'success' as const,
+                    result: [],
+                    buildStepPath
+                })
+            );
+        }
+    }
+
     /**
      * Builds the project
      * @returns observable
@@ -190,57 +251,15 @@ export class BuildManager {
      *      - 'task/done'{{path}}
      */
     public build(step: BuildStep, buildStepPath?: number[]): Observable<BuildEvent> {
-        // what if you start two builds at the same time?
         buildStepPath = buildStepPath || [];
+
+        // buildObservable events don't have the BuildEvent.Base attributes, since they're added universally at the end of this function
         let buildObservable: Observable<BuildEvent> = (() => {
             switch(step.sType) {
                 case 'task':
-                    const taskDefinition = this.taskDefinitions.get(step.definition);
-                    if(!taskDefinition) {
-                        return of({
-                            eType: 'error' as const,
-                            error: new Error(`There is no task definition registered with the name '${step.definition}'`)
-                        });
-                    }
-
-                    return forkJoin(step.files.map(({inputs, outputs, options}) =>
-                        taskDefinition.func(
-                            prefixPaths(inputs, this.basePath),
-                            prefixPaths(outputs, this.basePath),
-                            Object.assign({}, step.options, options),
-                            this.makeBuildLogger(this.loggerSubject, buildStepPath!)
-                        )
-                    )).pipe(
-                        map((results) => ({
-                            eType: 'success' as const,
-                            result: results
-                        }))
-                    );
-
-                    break;
+                    return this.buildTask(step, buildStepPath);
                 case 'multitask':
-                    if(step.sync) {
-                        return concat(...step.steps.map((s, i) => this.build(s, buildStepPath!.concat([i])))
-                        ).pipe(
-                            toArray(),
-                            // results is an array of observerables. it shouldn't be
-                            // concat should "unroll" the buildObservables passed to it into one observable of BuildEvents...
-                            map((results) => ({
-                                eType: 'success' as const,
-                                result: results
-                            }))
-                        );
-                    }
-                    else {
-                        return forkJoin(...step.steps.map((s, i) => this.build(s, buildStepPath!.concat([i])))
-                        ).pipe(
-                            map((results) => ({
-                                eType: 'success' as const,
-                                result: results
-                            }))
-                        );
-                    }
-                    break;
+                    return this.buildMultiTask(step, buildStepPath);
             }
         })();
 
@@ -248,39 +267,22 @@ export class BuildManager {
         buildObservable = buildObservable.pipe(
             catchError((error) => of({
                 eType: 'error' as const,
-                error: error as Error
+                error: error as Error,
+                buildStepPath: buildStepPath!
             }))
         );
 
-        if(buildStepPath!.length === 0) {
-            return concat(
-                of({
-                    eType: 'start' as const
-                }),
-                buildObservable,
-                of({
-                    eType: 'done' as const,
-                })
-            );
-        }
-
-        return buildObservable;
-
-    }
-
-    /**
-     * @param subject - The subject that log events will be emitted to
-     * @param taskPath - Logs created with this sublogger are identified by their location relative to the root BuildStep.
-     *                   The root task is represented by the empty array
-     */
-    private makeBuildLogger(subject: Subject<BuildStepLog>, buildStepPath: number[]): Logger {
-        return new Logger({
-            middleware: [{
-                mw: (data) => Object.assign(data, {buildStepPath}),
-                levels: true
-            }],
-            target: Target.Observable('buildlog', subject).target,
-        });
+        return concat(
+            of({
+                eType: 'start' as const,
+                buildStepPath: buildStepPath!
+            }),
+            buildObservable,
+            of({
+                eType: 'done' as const,
+                buildStepPath: buildStepPath!
+            })
+        );
     }
 }
 
@@ -292,23 +294,34 @@ function prefixPaths(files: FileMap, prefix: string): FileMap {
     }, {} as FileMap);
 }
 
-export type BuildEvent = BuildEvent.BuildError | BuildEvent.Success | BuildEvent.Start | BuildEvent.Done;
+export type BuildEvent = BuildEvent.BuildError | BuildEvent.Success | BuildEvent.Start | BuildEvent.Log | BuildEvent.Done;
+
+/** a build event without the base properties. Unfortunately, this doesn't work. buildTask/buildMultiTask would have returned this type if it worked, instead we return BuildEvents directly in each sub-build function */
+// export type BuildEventSpecific = Exclude<BuildEvent, {buildStepPath: number[]}>;
 
 export namespace BuildEvent {
-    export interface Start {
+    export interface Base {
+        buildStepPath: number[];
+    }
+    export interface Start extends Base {
         eType: 'start';
     }
 
-    export interface Done {
+    export interface Log extends Base {
+        eType: 'log';
+        log: BuildStepLog;
+    }
+
+    export interface Done extends Base {
         eType: 'done';
     }
 
-    export interface BuildError {
+    export interface BuildError extends Base {
         eType: 'error';
         error: Error;
     }
 
-    export interface Success {
+    export interface Success extends Base {
         eType: 'success';
         result?: any;
     }

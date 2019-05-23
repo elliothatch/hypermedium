@@ -9,6 +9,8 @@ import { Hypermedia } from './hypermedia';
 import { HypermediaRenderer } from './hypermedia-renderer';
 import { BuildManager, BuildStep, TaskDefinition } from './build';
 
+import { CompileSass } from './plugins/sass';
+
 Log.handlers.get('trace')!.enabled = true;
 
     // clientPath: path.join(__dirname, '..', 'demo'),
@@ -32,12 +34,12 @@ const hypermediaOptions = {
     ]
 };
 
-const verbose = true;
+const verbose = false;
 
 const hypermedia = new Hypermedia(hypermediaOptions);
 hypermedia.event$.subscribe({
-    next: (e) =>
-        verbose? 
+    next: (e) => {},
+    /*        verbose? 
             Log.trace('hypermedia', {
                 ...e,
                 edges: Array.from(e.edges),
@@ -46,6 +48,7 @@ hypermedia.event$.subscribe({
                 type: e.type,
                 relativeUri: e.relativeUri,
             }),
+     */
     error: (e) => Log.error('hypermedia', e),
 });
 
@@ -87,6 +90,7 @@ hypermediaRenderer.loadTemplates(demoTemplatesPath).catch((err) => console.error
 const demoBuildPath = Path.join(__dirname, '..', 'demo');
 
 const buildManager = new BuildManager(demoBuildPath);
+buildManager.taskDefinitions.set(CompileSass.name, CompileSass);
 
 const buildSteps: BuildStep = {
     sType: 'multitask',
@@ -106,13 +110,19 @@ const buildSteps: BuildStep = {
                 inputs: {target: ['src']},
                 outputs: {destination: ['build']}
             }]
+        }, {
+            sType: 'task',
+            definition: CompileSass.name,
+            files: [{
+                inputs: {target: ['src/sass/freshr.scss']},
+                outputs: {
+                    css: ['build/css/freshr.css'],
+                    sourceMap: ['build/css/freshr.css.map'],
+                }
+            }]
         }
     ]
 };
-
-buildManager.loggerSubject.subscribe((buildLog) => {
-    Log.info('buildlog', {data: buildLog});
-});
 
 buildManager.build(buildSteps).subscribe({
     next: (event) => {
@@ -128,6 +138,7 @@ app.use(hypermedia.router);
 app.use('/~config', buildManager.router);
 
 app.use(Express.static(Path.join(__dirname, '..', 'demo', 'src', 'site')));
+app.use(Express.static(Path.join(__dirname, '..', 'demo', 'build')));
 
 
 server(app).subscribe({
