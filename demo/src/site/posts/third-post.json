@@ -5,7 +5,7 @@
             "href": "/schema/post"
         },
         "tag": [{
-            "name": "blog",
+            "title": "blog",
             "href": "/tags/blog"
         }]
     },

@@ -29,7 +29,9 @@ registerHelper('hal-link', (rel, link, ...options) => {
         resource = options[0].data.root;
     }
 
-    return new SafeString(`<a rel=${expandCuri(resource, rel)} href=${htmlUri(link.href)}>${link.title || link.href}</a>`)
+    const relHtml = typeof rel === 'string'? `rel=${expandCuri(resource, rel)}`: '';
+
+    return new SafeString(`<a ${relHtml} href=${htmlUri(link.href)}>${link.title || link.href}</a>`)
 });
 registerHelper('eq', (lhs, rhs) => lhs == rhs);
 registerHelper('startsWith', (str, seq) => str.startsWith(seq));

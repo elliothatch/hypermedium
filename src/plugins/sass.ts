@@ -7,16 +7,19 @@ import { TaskDefinition } from '../build';
 
 const render = bindNodeCallback(renderCb);
 
+/**
+ * Compiles a SASS or SCSS file to CSS. options are passed directly to the node-sass render function. file and outFile are always overwitten with the freshr task paths, and sourceMap is always enabled
+ */
 export const CompileSass: TaskDefinition = {
     name: 'sass',
     description: 'Compile Sass and SCSS files into CSS',
     func: (inputs, outputs, options, logger) => {
         logger.info(`Compiling ${inputs.target[0]} to ${outputs.css[0]}`);
-        return render({
+        return render(Object.assign({}, options, {
             file: inputs.target[0],
             outFile: outputs.css[0],
             sourceMap: true
-        }).pipe(
+        })).pipe(
             mergeMap((result) => {
                 return forkJoin(
                     outputFile(outputs.css[0], result.css),

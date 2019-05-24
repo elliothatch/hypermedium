@@ -1,0 +1,13 @@
+<div class="container">
+	<h1>{{title}}</h1>
+	<p>{{body}}</p>
+
+	<div>
+		<h3>Tags</h3>
+		<ul>
+			{{#each _links.tag}}
+				<li>{{hal-link @key this}}</li>
+			{{/each}}
+		</ul>
+	</div>
+</div>

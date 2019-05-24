@@ -73,10 +73,25 @@ const hypermediaRenderer = new HypermediaRenderer({
     hypermedia,
     defaultTemplate: '/freshr.hbs',
     siteContext: {
-        title: 'freshr'
+        title: 'freshr',
+        navLinks: {
+            "author": {
+                "href": "/about",
+                "title": "About"
+            },
+            "fs:posts": {
+                "href": "/posts",
+                "title": "Posts"
+            },
+            "fs:tags": {
+                "href": "/tags",
+                "title": "Tags"
+            }
+        }
     },
     profileLayouts: {
         '/schema/welcome-page': 'layouts/welcome-page.hbs',
+        '/schema/post': 'layouts/post.hbs',
         '/schema/index/schema/post': 'core/layouts/index.hbs'
     }
 });
@@ -120,6 +135,9 @@ const buildSteps: BuildStep = {
         }, {
             sType: 'task',
             definition: CompileSass.name,
+            options: {
+                includePaths: [Path.join(__dirname, '..', 'node_modules')]
+            },
             files: [{
                 inputs: {target: ['src/sass/freshr.scss']},
                 outputs: {
@@ -150,7 +168,7 @@ app.use(hypermedia.router);
 app.use('/~config', buildManager.router);
 
 app.use(Express.static(Path.join(__dirname, '..', 'demo', 'build', 'site')));
-app.use(Express.static(Path.join(__dirname, '..', 'demo', 'build', 'css')));
+app.use('/css', Express.static(Path.join(__dirname, '..', 'demo', 'build', 'css')));
 
 
 server(app).subscribe({

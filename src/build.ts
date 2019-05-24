@@ -192,12 +192,21 @@ export class BuildManager {
         });
 
         const taskObservable = forkJoin(task.files.map(({inputs, outputs, options}) =>
-            defer(() => taskDefinition.func(
-                prefixPaths(inputs, this.basePath),
-                prefixPaths(outputs, this.basePath),
-                Object.assign({}, task.options, options),
-                taskLogger
-            ))
+            defer(() => {
+                const fileOptions = {
+                    inputs: prefixPaths(inputs, this.basePath),
+                    outputs: prefixPaths(outputs, this.basePath),
+                    options: Object.assign({}, task.options, options)
+                };
+
+                taskLogger.info('Process files', fileOptions);
+                return taskDefinition.func(
+                    fileOptions.inputs,
+                    fileOptions.outputs,
+                    fileOptions.options,
+                    taskLogger
+                );
+            })
         )).pipe(
             map((result) => ({
                 eType: 'success' as const,
