@@ -29,6 +29,7 @@ const hypermediaOptions = {
         Hypermedia.Processor.tags,
         // Hypermedia.Processor.breadcrumb,
         Hypermedia.makeIndex('/schema/post'),
+        Hypermedia.makeIndex('/schema/index/tags'),
         Hypermedia.Processor.curies,
         Hypermedia.Processor.embed,
     ]
@@ -38,8 +39,8 @@ const verbose = false;
 
 const hypermedia = new Hypermedia(hypermediaOptions);
 hypermedia.event$.subscribe({
-    next: (e) => {},
-    /*        verbose? 
+    next: (e) =>
+        verbose? 
             Log.trace('hypermedia', {
                 ...e,
                 edges: Array.from(e.edges),
@@ -48,7 +49,6 @@ hypermedia.event$.subscribe({
                 type: e.type,
                 relativeUri: e.relativeUri,
             }),
-     */
     error: (e) => Log.error('hypermedia', e),
 });
 
@@ -92,7 +92,8 @@ const hypermediaRenderer = new HypermediaRenderer({
     profileLayouts: {
         '/schema/welcome-page': 'layouts/welcome-page.hbs',
         '/schema/post': 'layouts/post.hbs',
-        '/schema/index/schema/post': 'core/layouts/index.hbs'
+        '/schema/index/schema/post': 'core/layouts/index.hbs',
+        '/schema/index/schema/index/tags': 'core/layouts/tags-index.hbs'
     }
 });
 

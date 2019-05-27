@@ -5,10 +5,10 @@
             "href": "/schema/post"
         },
         "tag": [{
-            "name": "blog",
+            "title": "blog",
             "href": "/tags/blog"
         }, {
-            "name": "hello",
+            "title": "hello",
             "href": "/tags/hello"
         }]
     },

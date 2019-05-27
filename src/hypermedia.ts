@@ -8,7 +8,7 @@ import { NextFunction, Router, Request, Response } from 'express';
 import { Graph, Edge } from 'graphlib';
 
 import * as HAL from './hal';
-import { filterCuries, profilesMatch, resourceMatchesProfile } from './hal-util';
+import { filterCuries, profilesMatch, resourceMatchesProfile, getProfiles } from './hal-util';
 import { walkDirectory } from './util';
 
 /** augments a hypermedia site with dynamic properties and resources
@@ -69,6 +69,9 @@ class Hypermedia {
     public normalizeUri(relativeUri: HAL.Uri): HAL.Uri {
         if(relativeUri.slice(-1) === '/') {
             return `${relativeUri}index${this.state.suffix}`;
+        }
+        else if(relativeUri.lastIndexOf('.') < relativeUri.lastIndexOf('/')) {
+            return relativeUri + this.state.suffix;
         }
         return relativeUri;
     }
@@ -200,11 +203,22 @@ class Hypermedia {
                             (fn as Hypermedia.CalculateFromResourcesFn)(dependencyResourceParams):
                             (fn as Hypermedia.CalculateFromResourceFn)(dependencyResourceParams[0]);
                     },
-                    markDirty: (uri: HAL.Uri | HAL.Uri[]) => {
+                    markDirty: (uri: HAL.Uri | HAL.Uri[], template?: string | Hypermedia.ExtendedResource) => {
                         return (Array.isArray(uri)?
                             uri:
                             [uri]
-                        ).forEach((u) => this.addDependency(this.normalizeUri(u), normalizedUri, processor))
+                        ).forEach((u) => {
+                            if(template && !this.getResource(u)) {
+                                const newResource = typeof template === 'string'?
+                                    this.getResource(template):
+                                    template;
+
+                                if(newResource) {
+                                    this.loadResource(u, newResource);
+                                }
+                            }
+                            this.addDependency(this.normalizeUri(u), normalizedUri, processor)
+                        })
                     }
                 });
             }, {resource: node.originalResource, relativeUri: normalizedUri, state: this.state});
@@ -294,7 +308,13 @@ namespace Hypermedia {
          * if a resource is not found, it is replaced with `undefined`
          */
         calculateFrom: CalculateFromResource;
-        markDirty: (relativeUri: HAL.Uri | HAL.Uri[]) => void;
+        /** notify that a change in the resource has cascading effects on another resource.
+         * @param relativeUri - a uri or array of uris that should be reprocessed
+         * @param template - if provided, will create a resource for each relativeUri if no resource exists.
+         *          if a string, copies the resource at the given url if it exists
+         *          if an object, a deep copy is made from this resource to create each new resource.
+         */
+        markDirty: (relativeUri: HAL.Uri | HAL.Uri[], template?: string | ExtendedResource) => void;
     }
 
     export type CalculateFromResource = {
@@ -339,6 +359,31 @@ namespace Hypermedia {
         };
 
         export const tags = (rs: ResourceState): ResourceState => {
+            const tagIndexProfile = '/schema/index/tags';
+            const tagIndex = getProfiles(rs.resource)
+                .reduce((tIndex, profile) => {
+                    if(tIndex) {
+                        return tIndex;
+                    }
+
+                    if(profile.href.startsWith(tagIndexProfile) && profile.href.length > tagIndexProfile.length) {
+                        return '/tags' + profile.href.substring(tagIndexProfile.length);
+                    }
+
+                    return undefined;
+                }, undefined as string | undefined);
+
+            if(tagIndex) {
+                return { ...rs, 
+                    resource: {
+                    ...rs.resource, _links: {
+                        'fs:entries': (rs.state.tags[tagIndex] || []).map((href: HAL.Uri) => ({
+                            href,
+                            title: rs.calculateFrom(href, ({resource}) => { return resource && resource.title;}),
+                        })),
+                        ...rs.resource._links,
+                }}};
+            }
             const tags = getTags(rs.resource);
             tags.forEach((t) => {
                 if(!rs.state.tags[t.href]) {
@@ -347,7 +392,18 @@ namespace Hypermedia {
                 rs.state.tags[t.href].push(rs.relativeUri);
             });
 
-            rs.markDirty(tags.map((t) => t.href));
+            tags.map((t) => {
+                rs.markDirty(t.href, {
+                    "title": t.href.substring('/tags/'.length),
+                    "_links": {
+                        "profile": [{
+                            "href": `/schema/index${t.href}`
+                        }, {
+                            "href": `/schema/index/tags`
+                        }]
+                    }
+                });
+            });
             return rs;
         };
 
