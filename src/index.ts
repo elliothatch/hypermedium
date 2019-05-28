@@ -10,6 +10,7 @@ import { HypermediaRenderer } from './hypermedia-renderer';
 import { BuildManager, BuildStep, TaskDefinition } from './build';
 
 import { CompileSass } from './plugins/sass';
+import { ReactRollup } from './plugins/react';
 
 Log.handlers.get('trace')!.enabled = true;
 
@@ -107,6 +108,7 @@ const demoBuildPath = Path.join(__dirname, '..', 'demo');
 
 const buildManager = new BuildManager(demoBuildPath);
 buildManager.taskDefinitions.set(CompileSass.name, CompileSass);
+buildManager.taskDefinitions.set(ReactRollup.name, ReactRollup);
 
 const buildSteps: BuildStep = {
     sType: 'multitask',
@@ -133,7 +135,7 @@ const buildSteps: BuildStep = {
                 inputs: {target: [Path.join('src', 'templates')]},
                 outputs: {destination: [Path.join('build', 'templates')]}
             }]
-        }, {
+        },  {
             sType: 'task',
             definition: CompileSass.name,
             options: {
@@ -144,6 +146,17 @@ const buildSteps: BuildStep = {
                 outputs: {
                     css: ['build/css/freshr.css'],
                     sourceMap: ['build/css/freshr.css.map'],
+                }
+            }]
+        }, {
+            sType: 'task',
+            definition: ReactRollup.name,
+            options: {
+            },
+            files: [{
+                inputs: {target: ['src/jsx/main.jsx']},
+                outputs: {
+                    js: ['build/js/main.js'],
                 }
             }]
         }]
@@ -166,7 +179,7 @@ buildManager.build(buildSteps).subscribe({
 
 app.use(hypermediaRenderer.router);
 app.use(hypermedia.router);
-app.use('/~config', buildManager.router);
+// app.use('/~config', buildManager.router);
 
 app.use(Express.static(Path.join(__dirname, '..', 'demo', 'build', 'site')));
 app.use('/css', Express.static(Path.join(__dirname, '..', 'demo', 'build', 'css')));
