@@ -2341,9 +2341,9 @@ fresh@0.5.2:
   resolved "https://registry.yarnpkg.com/fresh/-/fresh-0.5.2.tgz#3d8cadd90d976569fa835ab1f8e4b23a105605a7"
 
 freshlog@^0.2.2:
-  version "0.2.3"
-  resolved "https://registry.yarnpkg.com/freshlog/-/freshlog-0.2.3.tgz#0a64b7d93b9c216508d5443bb3c0fcc2568fcd83"
-  integrity sha512-x3BRFUW4ZPqyRDqx63CWYUFIt1hTDe+L70dvxwQ95gMJHDE3cS9NnN162CDodnvltHrslRYVAA0oA882upkdEA==
+  version "0.2.4"
+  resolved "https://registry.yarnpkg.com/freshlog/-/freshlog-0.2.4.tgz#7894ba262baee6ef7259c2af62377cc121d9030f"
+  integrity sha512-r0ub/tozHnyuL0qxYH3Iw0a9wqI5pVJSSPpqPK7vjTa5xSHHTCiQwyRD3DujiZnNOlS4sc9x5GQaKYFiOWfIRw==
   dependencies:
     json-stringify-safe "^5.0.1"
     rxjs "^6.5.1"
