@@ -183,6 +183,7 @@ app.use(hypermedia.router);
 
 app.use(Express.static(Path.join(__dirname, '..', 'demo', 'build', 'site')));
 app.use('/css', Express.static(Path.join(__dirname, '..', 'demo', 'build', 'css')));
+app.use('/js', Express.static(Path.join(__dirname, '..', 'demo', 'build', 'js')));
 
 
 server(app).subscribe({

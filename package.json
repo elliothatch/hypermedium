@@ -52,7 +52,7 @@
         "rollup-plugin-commonjs": "^10.0.0",
         "rollup-plugin-node-builtins": "^2.1.2",
         "rollup-plugin-node-globals": "^1.4.0",
-        "rollup-plugin-node-resolve": "^5.0.0",
+        "rollup-plugin-node-resolve": "^5.0.1",
         "rxjs": "^6.4.0",
         "socket.io": "^2.1.1",
         "uri-template": "^1.0.1"

@@ -10,6 +10,8 @@ const commonjs = require('rollup-plugin-commonjs');
 // import * as rollupNodeBuiltins from 'rollup-plugin-node-builtins';
 // import * as rollupNodeGlobals from 'rollup-plugin-node-globals';
 const resolve = require('rollup-plugin-node-resolve');
+var nodeBuiltins = require('rollup-plugin-node-builtins');
+var nodeGlobals = require('rollup-plugin-node-globals');
 
 /**
  * Compiles a SASS or SCSS file to CSS. options are passed directly to the node-sass render function. file and outFile are always overwitten with the freshr task paths, and sourceMap is always enabled
@@ -21,29 +23,7 @@ export const ReactRollup: TaskDefinition = {
         const rollupOptions = Object.assign({}, options, {
             rollup: Object.assign({}, options && options.rollup, {
                 plugins: [
-                    commonjs({
-                        exclude: [
-                            // 'node_modules/process-es6/**',
-                            // 'node_modules/buffer-es6/**',
-                        ],
-                        include: [
-                            // 'node_modules/dijkstrajs/**',
-                            // 'node_modules/qrcode/**',
-
-                            // 'node_modules/create-react-class/**',
-                            // 'node_modules/fbjs/**',
-                            
-                            // 'node_modules/object-assign/**',
-                            'node_modules/object-assign/index.js',
-                            // 'node_modules/prop-types/**',
-                            // 'node_modules/scheduler/**',
-
-                            'node_modules/react/**',
-                            'node_modules/react-dom/**',
-                            // 'node_modules/**'
-                        ]
-                    }),
-
+                    commonjs(),
                     babel({
                         exclude: 'node_modules/**',
                         babelrc: false,
@@ -55,9 +35,10 @@ export const ReactRollup: TaskDefinition = {
                     }),
                     resolve({
                         browser: true,
-                        extensions: ['js', 'jsx'],
-                        // mainFields: ['module', 'main', 'files']
+                        extensions: ['.js', '.jsx'],
                     }),
+                    nodeBuiltins(),
+                    nodeGlobals(),
                 ].concat(options && options.rollup && options.rollup.plugins || [])
             }),
         });
