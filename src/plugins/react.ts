@@ -1,3 +1,4 @@
+import * as Path from 'path';
 import { from } from 'rxjs';
 import { mergeMap, map } from 'rxjs/operators';
 
@@ -9,9 +10,18 @@ import * as babel from 'rollup-plugin-babel';
 const commonjs = require('rollup-plugin-commonjs');
 // import * as rollupNodeBuiltins from 'rollup-plugin-node-builtins';
 // import * as rollupNodeGlobals from 'rollup-plugin-node-globals';
-const resolve = require('rollup-plugin-node-resolve');
-var nodeBuiltins = require('rollup-plugin-node-builtins');
-var nodeGlobals = require('rollup-plugin-node-globals');
+// const resolve = require('rollup-plugin-node-resolve');
+// var nodeBuiltins = require('rollup-plugin-node-builtins');
+// var nodeGlobals = require('rollup-plugin-node-globals');
+const alias = require('rollup-plugin-alias');
+
+
+let reactPath = Path.join(__dirname, '..', '..', 'node_modules/react/umd/react.production.min.js');
+let reactDomPath = Path.join(__dirname, '..', '..', 'node_modules/react-dom/umd/react-dom.production.min.js');
+if (process.env.NODE_ENV !== 'production') {
+    reactPath =  Path.join(__dirname, '..', '..', 'node_modules/react/umd/react.development.js');
+    reactDomPath = Path.join(__dirname, '..', '..', 'node_modules/react-dom/umd/react-dom.development.js');
+}
 
 /**
  * Compiles a SASS or SCSS file to CSS. options are passed directly to the node-sass render function. file and outFile are always overwitten with the freshr task paths, and sourceMap is always enabled
@@ -23,9 +33,28 @@ export const ReactRollup: TaskDefinition = {
         const rollupOptions = Object.assign({}, options, {
             rollup: Object.assign({}, options && options.rollup, {
                 plugins: [
-                    commonjs(),
+                    alias({
+                        // resolve: ['.jsx', 'js'],
+                        'react': reactPath,
+                        'react-dom': reactDomPath
+                    }),
+                    commonjs({
+                        exclude: ['node_modules/**'],
+                        include: [
+                            'node_modules/react/umd/**',
+                            'node_modules/react-dom/umd/**',
+                            // reactPath,
+                            // reactDomPath,
+                        ],
+                        namedExports: {
+                            // [reactPath]: ['default'],
+                            // [reactDomPath]: ['default'],
+                            // 'react': ['default'],
+                            // 'react-dom': ['default'],
+                        }
+                    }),
                     babel({
-                        exclude: 'node_modules/**',
+                        exclude: ['node_modules/**/*'],
                         babelrc: false,
                         presets: [
                             '@babel/preset-react',
@@ -33,12 +62,12 @@ export const ReactRollup: TaskDefinition = {
                         ],
                         plugins: []
                     }),
-                    resolve({
-                        browser: true,
-                        extensions: ['.js', '.jsx'],
-                    }),
-                    nodeBuiltins(),
-                    nodeGlobals(),
+                    // resolve({
+                        // browser: true,
+                        // extensions: ['.js', '.jsx'],
+                    // }),
+                    // nodeBuiltins(),
+                    // nodeGlobals(),
                 ].concat(options && options.rollup && options.rollup.plugins || [])
             }),
         });
