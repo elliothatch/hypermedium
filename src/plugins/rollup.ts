@@ -1,5 +1,5 @@
 import { from } from 'rxjs';
-import { mergeMap } from 'rxjs/operators';
+import { mergeMap, map } from 'rxjs/operators';
 
 import { TaskDefinition } from '../build';
 
@@ -26,7 +26,8 @@ export const RollupTask: TaskDefinition = {
         return from(rollup(rollupOptions)).pipe(
             mergeMap((bundle) => {
                 return from(bundle.write(bundleOptions));
-            })
+            }),
+            map((result) => null) //TODO: return useful output. silenced because it logs the entire output file and source map
         );
     },
     inputs: {

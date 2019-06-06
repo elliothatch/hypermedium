@@ -37,6 +37,7 @@ registerHelper('eq', (lhs, rhs) => lhs == rhs);
 registerHelper('startsWith', (str, seq) => str.startsWith(seq));
 registerHelper('isArray', (val) => Array.isArray(val));
 registerHelper('json', (val) => JSON.parse(val));
+registerHelper('json-stringify', (val) => new SafeString(JSON.stringify(val)));
 registerHelper('html-uri', htmlUri);
 registerHelper('expandCuri', expandCuri);
 

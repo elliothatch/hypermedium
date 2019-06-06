@@ -34,24 +34,14 @@ export const ReactRollup: TaskDefinition = {
             rollup: Object.assign({}, options && options.rollup, {
                 plugins: [
                     alias({
-                        // resolve: ['.jsx', 'js'],
                         'react': reactPath,
                         'react-dom': reactDomPath
                     }),
                     commonjs({
-                        exclude: ['node_modules/**'],
+                        // exclude: ['node_modules/**'],
                         include: [
-                            'node_modules/react/umd/**',
-                            'node_modules/react-dom/umd/**',
-                            // reactPath,
-                            // reactDomPath,
+                            'node_modules/**',
                         ],
-                        namedExports: {
-                            // [reactPath]: ['default'],
-                            // [reactDomPath]: ['default'],
-                            // 'react': ['default'],
-                            // 'react-dom': ['default'],
-                        }
                     }),
                     babel({
                         exclude: ['node_modules/**/*'],
@@ -72,7 +62,7 @@ export const ReactRollup: TaskDefinition = {
             }),
         });
 
-        return RollupTask.func(inputs, outputs, rollupOptions, logger).pipe(map(() => null));
+        return RollupTask.func(inputs, outputs, rollupOptions, logger);
     },
     inputs: {
         target: {

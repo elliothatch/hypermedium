@@ -11,6 +11,11 @@ import { BuildManager, BuildStep, TaskDefinition } from './build';
 
 import { CompileSass } from './plugins/sass';
 import { ReactRollup } from './plugins/react';
+import { RollupTask } from './plugins/rollup';
+import { ConfigProcessor } from './plugins/config';
+
+const rollupAlias = require('rollup-plugin-alias');
+const rollupCommonjs = require('rollup-plugin-commonjs');
 
 Log.handlers.get('trace')!.enabled = true;
 
@@ -26,6 +31,7 @@ const hypermediaOptions = {
         templated: true,
     }],
     processors: [
+        Hypermedia.Processor.resourceGraph,
         Hypermedia.Processor.self,
         Hypermedia.Processor.tags,
         // Hypermedia.Processor.breadcrumb,
@@ -33,6 +39,7 @@ const hypermediaOptions = {
         Hypermedia.makeIndex('/schema/index/tags'),
         Hypermedia.Processor.curies,
         Hypermedia.Processor.embed,
+        ConfigProcessor
     ]
 };
 
@@ -40,16 +47,19 @@ const verbose = false;
 
 const hypermedia = new Hypermedia(hypermediaOptions);
 hypermedia.event$.subscribe({
-    next: (e) =>
-        verbose? 
-            Log.trace('hypermedia', {
-                ...e,
-                edges: Array.from(e.edges),
-            }):
-            Log.trace('hypermedia', {
-                type: e.type,
-                relativeUri: e.relativeUri,
-            }),
+    next: (e) => {
+        if(verbose) {
+            Log.trace('hypermedia', e);
+        }
+        else {
+            const event = Object.assign({}, e);
+            if(event.eType === 'ProcessResource') {
+                delete event.edges;
+                delete event.resource;
+            }
+            Log.trace('hypermedia', event);
+        }
+    },
     error: (e) => Log.error('hypermedia', e),
 });
 
@@ -91,15 +101,17 @@ const hypermediaRenderer = new HypermediaRenderer({
         }
     },
     profileLayouts: {
+        '/schema/freshr/resource-graph': 'core/layouts/resource-graph.hbs',
         '/schema/welcome-page': 'layouts/welcome-page.hbs',
         '/schema/post': 'layouts/post.hbs',
         '/schema/index/schema/post': 'core/layouts/index.hbs',
-        '/schema/index/schema/index/tags': 'core/layouts/tags-index.hbs'
+        '/schema/index/schema/index/tags': 'core/layouts/tags-index.hbs',
     }
 });
 
 hypermediaRenderer.loadPartials(corePartialsPath, 'core');
 hypermediaRenderer.loadTemplates(coreTemplatesPath, 'core');
+console.log(hypermediaRenderer.partials);
 
 hypermediaRenderer.loadPartials(demoPartialsPath);
 hypermediaRenderer.loadTemplates(demoTemplatesPath).catch((err) => console.error(err));
@@ -109,6 +121,7 @@ const demoBuildPath = Path.join(__dirname, '..', 'demo');
 const buildManager = new BuildManager(demoBuildPath);
 buildManager.taskDefinitions.set(CompileSass.name, CompileSass);
 buildManager.taskDefinitions.set(ReactRollup.name, ReactRollup);
+buildManager.taskDefinitions.set(RollupTask.name, RollupTask);
 
 const buildSteps: BuildStep = {
     sType: 'multitask',
@@ -150,11 +163,41 @@ const buildSteps: BuildStep = {
             }]
         }, {
             sType: 'task',
+            definition: RollupTask.name,
+            options: {
+                rollup: {
+                    plugins: [
+                        rollupCommonjs({
+                            include: [
+                                'node_modules/**',
+                            ],
+                        }),
+                        rollupAlias({
+                            'cytoscape': Path.join(__dirname, '..', 'node_modules/cytoscape/dist/cytoscape.umd.js'),
+                            'dagre': Path.join(__dirname, '..', 'node_modules/dagre/dist/dagre.min.js'),
+                            'cytoscape-dagre': Path.join(__dirname, '..', 'node_modules/cytoscape-dagre/cytoscape-dagre.js'),
+                        })
+                    ]
+                }
+            },
+            files: [{
+                inputs: {target: ['src/jsx/resource-graph.jsx']},
+                outputs: {
+                    js: ['build/js/resource-graph.js'],
+                }
+            }]
+        }, {
+            sType: 'task',
             definition: ReactRollup.name,
             options: {
             },
             files: [{
                 inputs: {target: ['src/jsx/main.jsx']},
+                outputs: {
+                    js: ['build/js/main.js'],
+                }
+            }, {
+                inputs: {target: ['src/jsx/~config/main.jsx']},
                 outputs: {
                     js: ['build/js/main.js'],
                 }

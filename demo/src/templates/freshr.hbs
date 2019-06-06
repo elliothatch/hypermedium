@@ -10,6 +10,9 @@
 		<link rel="stylesheet" href="/css/freshr.css">
 	</head>
 	<body>
+		<script>
+			window.freshrResource = {{ json-stringify this }};
+		</script>
 		{{> includes/header.hbs }}
 		<div class="page-content">
 			{{#> (lookup _site 'layout') }}

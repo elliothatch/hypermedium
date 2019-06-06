@@ -1,11 +1,12 @@
 import * as Path from 'path';
 import { promises as fs } from 'fs';
 import * as Url from 'url';
+import { hrtime } from 'process';
 
 import { Observable, Observer } from 'rxjs';
 
 import { NextFunction, Router, Request, Response } from 'express';
-import { Graph, Edge } from 'graphlib';
+import { Graph, Edge, json as graphJson } from 'graphlib';
 
 import * as HAL from './hal';
 import { filterCuries, profilesMatch, resourceMatchesProfile, getProfiles } from './hal-util';
@@ -35,16 +36,18 @@ class Hypermedia {
             this.eventObserver = observer;
         });
 
+        this.resourceGraph = new Graph();
+
         this.state = {
             baseUri: options.baseUri,
             curies: options.curies,
             tags: {},
             indexes: {},
+            resourceGraph: this.resourceGraph,
             suffix: options.suffix || '.json',
         };
         this.files = {};
         this.processors = options.processors;
-        this.resourceGraph = new Graph();
         this.router = Router();
         this.router.get('/*', this.middleware);
     }
@@ -124,11 +127,26 @@ class Hypermedia {
             this.resourceGraph.setEdge(relativeUriSource, relativeUriTarget, {
                 processors: [processor]
             });
+
+            this.log({
+                eType: 'AddDependency',
+
+                v: relativeUriSource,
+                w: relativeUriTarget,
+                processor: processor.name,
+            });
             return true;
         }
 
         if(!edge.processors.find((p) => processor === p)) {
             edge.processors.push(processor);
+            this.log({
+                eType: 'AddDependency',
+
+                v: relativeUriSource,
+                w: relativeUriTarget,
+                processor: processor.name,
+            });
             return true;
         }
 
@@ -145,13 +163,20 @@ class Hypermedia {
             processing: false
         });
 
-        // console.log('load', normalizedUri);
+        this.log({
+            eType: 'LoadResource',
+
+            relativeUri: normalizedUri,
+            resource,
+        });
 
         return resource;
     }
 
     public processResource(relativeUri: HAL.Uri): HAL.Resource {
+        const startTime = hrtime.bigint();
         const normalizedUri = this.normalizeUri(relativeUri);
+
         const node: ResourceNode | undefined = this.resourceGraph.node(normalizedUri);
         if(!node) {
             console.log(`Resource ${normalizedUri} has not been loaded, skipping`);
@@ -166,6 +191,11 @@ class Hypermedia {
         }
 
         node.processing = true;
+
+        this.log({
+            eType: 'ProcessResourceStart',
+            relativeUri: normalizedUri,
+        });
 
         // reset dependencies
         const oldDependencies = this.resourceGraph.nodeEdges(normalizedUri) as Edge[];
@@ -226,8 +256,11 @@ class Hypermedia {
         this.state = result.state;
         node.resource = result.resource;
 
+        const endTime = hrtime.bigint();
+
         this.log({
-            type: 'ProcessResource',
+            eType: 'ProcessResource',
+            duration: Number(endTime - startTime)/1000000,
             edges: this.resourceGraph.nodeEdges(normalizedUri) as Edge[],
             relativeUri,
             resource: result.resource,
@@ -292,6 +325,7 @@ namespace Hypermedia {
         /** maps profiles to list of hrefs that have that profile */
         indexes: {[profile: string]: HAL.Uri[]};
         suffix: string;
+        resourceGraph: Graph;
     }
 
     export interface ExtendedResource extends HAL.Resource {
@@ -344,6 +378,19 @@ namespace Hypermedia {
                 })
             })
         );
+
+        /** updates the resource graph resource */
+        export const resourceGraph: Processor = (rs) => {
+            rs.markDirty('/freshr/resource-graph', {
+                "_links": {
+                    "profile": {
+                        "href": "/schema/freshr/resource-graph",
+                    }
+                },
+                "graph": graphJson.write(rs.state.resourceGraph),
+            });
+            return rs;
+        };
 
         // TODO: detect rels that use curies that haven't been defined
         // TODO: record local curie rels so we can generate warnings for rels that have no documentation resource */
@@ -575,14 +622,39 @@ namespace Hypermedia {
         return tags;
     }
 
-    export type Event = Event.ProcessResource;
+    export type Event = Event.ProcessResource | Event.ProcessResourceStart | Event.LoadResource | Event.AddDependency;
     export namespace Event {
         export interface ProcessResource {
-            type: 'ProcessResource'
+            eType: 'ProcessResource';
 
+            /** execution time in milliseconds */
+            duration: number;
             relativeUri: HAL.Uri;
             edges: Edge[];
             resource: HAL.Resource;
+        }
+
+        export interface ProcessResourceStart {
+            eType: 'ProcessResourceStart';
+
+            relativeUri: HAL.Uri;
+        }
+
+        export interface LoadResource {
+            eType: 'LoadResource';
+
+            relativeUri: HAL.Uri;
+            resource: HAL.Resource;
+        }
+
+        export interface AddDependency {
+            eType: 'AddDependency';
+
+            v: string;
+            w: string;
+
+            /** name of the processor */
+            processor: string;
         }
     }
 }

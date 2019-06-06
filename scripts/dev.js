@@ -24,9 +24,31 @@ const freshrLogs = readline.createInterface({
     terminal: false
 });
 
+/** Interactive log filtering
+ * typing automatically starts the filtering. ex:
+ *     format: property-selector:value-selector
+ *
+ *     property (level): shows all logs containing "property" at any nesting
+ *     'property ('level): shows all logs containing "property" at top level
+ *     property:value (level:info): shows all logs where "property" at any nesting has value that fuzzy matches "value"
+ *     property:'value (level:'info): shows all logs where "property" at any testing has value that substring matches "value"
+ *     'property:value ('level:info): shows all logs where "property" at top level has value that fuzzy-matches "value"
+ *     property.child (error.stack): shows all logs containing "property" at any nesting with "child" property
+ *     'property.child ('error.stack): shows all logs containing "property" at top level with "child" property
+ */
+
+/** array of { log: object, index: */
+const logs = [];
+
+/** maps all properties to a flattened index, chronologically ordered */
+// const logIndex = {};
+// const indexProperties
+
 freshrLogs.on('line', function(line) {
     try {
-        var log = JSON.parse(line);
+        const log = JSON.parse(line);
+		const originalLog = Object.assign({}, log); // this copy is safe as long as we only modify the top level for printing purposes
+
         // we don't care about some fields when pretty printing
         delete log.pid;
         var output = '';
@@ -54,6 +76,11 @@ freshrLogs.on('line', function(line) {
             output += '\n' + colors.dim(JSON.stringify(log, null, 4));
         }
         console.log(output);
+
+		logs.push({
+			log: originalLog,
+			output,
+		});
     }
     catch(err) {
         console.error(line);
