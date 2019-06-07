@@ -49,8 +49,11 @@ const resourceGraph = cytoscape({
 			style: {
 				'width': 3,
 				'line-color': '#ccc',
-				'target-arrow-color': '#ccc',
-				'target-arrow-shape': 'triangle'
+				// 'target-arrow-color': '#ccc',
+				// 'target-arrow-shape': 'triangle'
+				'arrow-scale': 2,
+				'mid-target-arrow-color': '#ccc',
+				'mid-target-arrow-shape': 'triangle',
 			}
 		}
 	],
