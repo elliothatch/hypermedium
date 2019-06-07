@@ -381,13 +381,39 @@ namespace Hypermedia {
 
         /** updates the resource graph resource */
         export const resourceGraph: Processor = (rs) => {
-            rs.markDirty('/freshr/resource-graph', {
+            const resourceGraphProfile = '/schema/freshr/resource-graph';
+            const resourceGraphUri = '/freshr/resource-graph';
+            if(resourceMatchesProfile(rs.resource, resourceGraphProfile)) {
+                const graph = graphJson.write(rs.state.resourceGraph) as any;
+                // create a copy of the resource-graph node without the "resource" property, to prevent circular reference
+                graph.nodes = graph.nodes.map((node: any) => {
+                    if(node.v !== `${resourceGraphUri}.json`) { // TODO: uri normalization
+                        return node;
+                    }
+
+                    const newNodeValue = Object.assign({}, node.value);
+                    delete newNodeValue.resource;
+
+                    return {
+                        ...node,
+                        value: newNodeValue
+                    };
+                });
+                return {
+                    ...rs,
+                    resource: {
+                        ...rs.resource,
+                        graph
+                    }
+                };
+            }
+
+            rs.markDirty(resourceGraphUri, {
                 "_links": {
                     "profile": {
-                        "href": "/schema/freshr/resource-graph",
+                        "href": resourceGraphProfile
                     }
-                },
-                "graph": graphJson.write(rs.state.resourceGraph),
+                }
             });
             return rs;
         };

@@ -67,6 +67,8 @@ const sitePath = Path.join(__dirname, '..', 'demo', 'src', 'site');
 
 hypermedia.loadDirectory(sitePath).catch((e) => console.error(e)).then(() => {
     hypermedia.processLoadedResources();
+    console.log(hypermedia.getResource('/freshr/resource-graph.json'));
+    // hypermedia.processResource('/freshr/resource-graph.json');
     // hypermedia.processResource('/index.json');
     // hypermedia.processResource('/posts/index.json');
     // hypermedia.processResource('/posts/hello-world.json');

@@ -1,19 +1,41 @@
 import cytoscape from 'cytoscape';
-import dagre from 'dagre';
+// import dagre from 'dagre';
 import cytoscapeDagre from 'cytoscape-dagre';
 
-// cytoscape.use(cytoscapeDagre);
+cytoscape.use(cytoscapeDagre);
 
-const graph = dagre.graphlib.json.read(window.freshrResource.graph);
-graph.setGraph({});
-graph.setDefaultEdgeLabel(() => ({}));
+// const graph = dagre.graphlib.json.read(window.freshrResource.graph);
+// graph.setGraph({});
+// graph.setDefaultEdgeLabel(() => ({}));
 
-dagre.layout(graph);
+// dagre.layout(graph);
 // console.log(graph);
+
+
+const graphData = window.freshrResource.graph;
+const nodes = graphData.nodes.map((node) => {
+	return {
+		data: {
+			id: node.v,
+		}
+	};
+});
+
+const edges = graphData.edges.map((edge) => {
+	return {
+		data: {
+			source: edge.v,
+			target: edge.w,
+		}
+	};
+});
 
 const resourceGraph = cytoscape({
 	container: document.getElementById('resource-graph'),
-	elements: graph,
+	elements: {
+		nodes,
+		edges,
+	},
 	style: [
 		{
 			selector: 'node',
@@ -32,8 +54,8 @@ const resourceGraph = cytoscape({
 			}
 		}
 	],
-	layout: {
-		name: 'grid',
-		rows: 1
-	}
+	// layout: {
+		// name: 'grid',
+		// rows: 1
+	// }
 });
