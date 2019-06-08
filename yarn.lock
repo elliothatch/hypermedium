@@ -1777,12 +1777,24 @@ currently-unhandled@^0.4.1:
   dependencies:
     array-find-index "^1.0.1"
 
+cytoscape-cose-bilkent@^4.0.0:
+  version "4.0.0"
+  resolved "https://registry.yarnpkg.com/cytoscape-cose-bilkent/-/cytoscape-cose-bilkent-4.0.0.tgz#5f0afbe5c55a7a026442b756ca388ce77c262967"
+  integrity sha1-Xwr75cVaegJkQrdWyjiM53wmKWc=
+
 cytoscape-dagre@^2.2.2:
   version "2.2.2"
   resolved "https://registry.yarnpkg.com/cytoscape-dagre/-/cytoscape-dagre-2.2.2.tgz#5f32a85c0ba835f167efee531df9e89ac58ff411"
   integrity sha512-zsg36qNwua/L2stJSWkcbSDcvW3E6VZf6KRe6aLnQJxuXuz89tMqI5EVYVKEcNBgzTEzFMFv0PE3T0nD4m6VDw==
   dependencies:
     dagre "^0.8.2"
+
+cytoscape-klay@^3.1.2:
+  version "3.1.2"
+  resolved "https://registry.yarnpkg.com/cytoscape-klay/-/cytoscape-klay-3.1.2.tgz#02d1c699d03ee23ae7f57c1b9c2358cf1f847b0b"
+  integrity sha512-CrHwBxQohyAi5FxpwGio36zlGfKYbM7tUe1CxSkQKoYy5Cv2SmjORCPihl46sCCgttyp1b8ohprCI0r934yDqQ==
+  dependencies:
+    klayjs "^0.4.1"
 
 cytoscape@^3.7.0:
   version "3.7.0"
@@ -3514,6 +3526,11 @@ kind-of@^5.0.0:
 kind-of@^6.0.0, kind-of@^6.0.2:
   version "6.0.2"
   resolved "https://registry.yarnpkg.com/kind-of/-/kind-of-6.0.2.tgz#01146b36a6218e64e58f3a8d66de5d7fc6f6d051"
+
+klayjs@^0.4.1:
+  version "0.4.1"
+  resolved "https://registry.yarnpkg.com/klayjs/-/klayjs-0.4.1.tgz#5bf9fadc7a3e44b94082bba501e7d803076dcfc2"
+  integrity sha1-W/n63Ho+RLlAgrulAefYAwdtz8I=
 
 kleur@^2.0.1:
   version "2.0.2"

@@ -16,6 +16,7 @@ import { ConfigProcessor } from './plugins/config';
 
 const rollupAlias = require('rollup-plugin-alias');
 const rollupCommonjs = require('rollup-plugin-commonjs');
+const rollupResolve = require('rollup-plugin-node-resolve');
 
 Log.handlers.get('trace')!.enabled = true;
 
@@ -67,7 +68,7 @@ const sitePath = Path.join(__dirname, '..', 'demo', 'src', 'site');
 
 hypermedia.loadDirectory(sitePath).catch((e) => console.error(e)).then(() => {
     hypermedia.processLoadedResources();
-    console.log(hypermedia.getResource('/freshr/resource-graph.json'));
+    // console.log(hypermedia.getResource('/freshr/resource-graph.json'));
     // hypermedia.processResource('/freshr/resource-graph.json');
     // hypermedia.processResource('/index.json');
     // hypermedia.processResource('/posts/index.json');
@@ -174,11 +175,17 @@ const buildSteps: BuildStep = {
                                 'node_modules/**',
                             ],
                         }),
-                        rollupAlias({
-                            'cytoscape': Path.join(__dirname, '..', 'node_modules/cytoscape/dist/cytoscape.umd.js'),
-                            'dagre': Path.join(__dirname, '..', 'node_modules/dagre/dist/dagre.min.js'),
-                            'cytoscape-dagre': Path.join(__dirname, '..', 'node_modules/cytoscape-dagre/cytoscape-dagre.js'),
-                        })
+                        rollupResolve({
+                            browser: true,
+                            extensions: ['.js', '.jsx'],
+                        }),
+
+                        // rollupAlias({
+                        //     'cytoscape': Path.join(__dirname, '..', 'node_modules/cytoscape/dist/cytoscape.umd.js'),
+                        //     'dagre': Path.join(__dirname, '..', 'node_modules/dagre/dist/dagre.min.js'),
+                        //     'cytoscape-dagre': Path.join(__dirname, '..', 'node_modules/cytoscape-dagre/cytoscape-dagre.js'),
+                        //     'cytoscape-dagre': Path.join(__dirname, '..', 'node_modules/cytoscape-dagre/cytoscape-dagre.js'),
+                        // })
                     ]
                 }
             },
