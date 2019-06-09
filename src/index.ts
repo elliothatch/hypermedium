@@ -242,7 +242,7 @@ server(app).subscribe({
     next: (server) => {
         Log.info('server-listening', {port: server.port});
     }, 
-    error: (error) => Log.error('server-start', error),
+    error: (error) => Log.error('server-start', {error}),
 });
 
 // setting wsEngine prevents crash when starting more than one websocket instance (e.g. in tests)
