@@ -16,6 +16,7 @@ const levelColors = {
 const freshr = child_process.spawn(
     'node',
     [Path.join(__dirname, '..', 'build', 'index.js'), '--', ...process.argv.slice(1)]);
+    // [Path.join(__dirname, 'dev.test.js'), '--', ...process.argv.slice(1)]);
 
 
 process.stdin.pipe(freshr.stdin);
@@ -37,20 +38,34 @@ const screenBuffer = new termkit.ScreenBuffer({
 	y: 1,
 });
 
-const resultsBuffer = new termkit.TextBuffer({
+const resultsPanelBuffer = new termkit.ScreenBuffer({
 	dst: screenBuffer,
-	x: 5,
-	y: 0,
-	width: screenBuffer.width - 5,
 	height: screenBuffer.height - 2,
 });
 
-const gutterBuffer = new termkit.TextBuffer({
+const queryPanelBuffer = new termkit.ScreenBuffer({
 	dst: screenBuffer,
+	y: screenBuffer.height - 1,
+	height: 1
+});
+
+const gutterBufferWidth = 5;
+
+const resultsBuffer = new termkit.TextBuffer({
+	dst: resultsPanelBuffer,
+	x: 5,
+	y: 0,
+	width: resultsPanelBuffer.width - gutterBufferWidth,
+	// height: screenBuffer.height - 2,
+	forceInBound: true,
+});
+
+const gutterBuffer = new termkit.TextBuffer({
+	dst: resultsPanelBuffer,
 	x: 0,
 	y: 0,
-	width: 5,
-	height: screenBuffer.height - 2,
+	width: gutterBufferWidth,
+	// height: screenBuffer.height - 2,
 });
 
 const statusBuffer = new termkit.TextBuffer({
@@ -61,24 +76,34 @@ const statusBuffer = new termkit.TextBuffer({
 	height: 1,
 });
 
+const queryTextBufferWidth = 10;
 const queryTextBuffer = new termkit.TextBuffer({
-	dst: screenBuffer,
+	dst: queryPanelBuffer,
 	x: 2,
-	y: screenBuffer.height - 1,
-	width: screenBuffer.width - 2,
-	height: 1
+	width: queryTextBufferWidth,
+});
+
+const parsedQueryTextBuffer = new termkit.TextBuffer({
+	dst: queryPanelBuffer,
+	x: 2 + queryTextBufferWidth,
+	width: queryPanelBuffer.width - (2+queryTextBufferWidth),
 });
 
 function draw() {
 	queryTextBuffer.draw();
-	queryTextBuffer.drawCursor();
+	parsedQueryTextBuffer.draw();
+	queryPanelBuffer.draw();
 	screenBuffer.draw();
+
+	queryTextBuffer.drawCursor();
+	parsedQueryTextBuffer.drawCursor();
+	queryPanelBuffer.drawCursor();
 	screenBuffer.drawCursor();
 }
 
-screenBuffer.put({
+queryPanelBuffer.put({
 	x: 0,
-	y: screenBuffer.height - 1,
+	y: 0,
 	// attr: {},
 }, '>');
 queryTextBuffer.moveTo(0, 0);
@@ -88,7 +113,6 @@ const displayOptions = {
 	json: false,
 };
 
-let query = '';
 term.on('key', (name, matches, data) => {
 	if(name === 'CTRL_C') {
 		freshr.kill();
@@ -113,6 +137,22 @@ term.on('key', (name, matches, data) => {
 	else if(name === 'TAB') {
 		displayOptions.json = !displayOptions.json;
 		filterLogs(queryTextBuffer.getText());
+	}
+	else if(name === 'PAGE_UP') {
+		resultsBuffer.y = Math.min(resultsBuffer.y + 12, 0);
+		gutterBuffer.y = Math.min(gutterBuffer.y+12, 0);
+		drawResults();
+	}
+	else if(name === 'PAGE_DOWN') {
+		resultsBuffer.y = Math.max(resultsBuffer.y - 12, -resultsBuffer.cy + screenBuffer.height - 2);
+		gutterBuffer.y = Math.max(gutterBuffer.y-12, -gutterBuffer.cy + screenBuffer.height - 2);
+		resultsPanelBuffer.fill({char: ' '});
+		drawResults();
+	}
+	else if(name === 'ESCAPE') {
+		queryTextBuffer.backDelete(queryTextBuffer.cx);
+		filterLogs(queryTextBuffer.getText());
+		draw();
 	}
 	else if(name === 'BACKSPACE') {
 		queryTextBuffer.backDelete(1);
@@ -160,7 +200,7 @@ const indexProperties = [];
  */
 const logValues = [];
 
-freshrLogs.on('exit', (code, signal) => {
+freshrLogs.on('close', (code, signal) => {
 	term.fullscreen(false);
 	console.error(`Process exited: ${code} ${signal}`);
 	process.exit();
@@ -175,6 +215,7 @@ freshrLogs.on('error', (err) => {
 freshrLogs.on('line', function(line) {
     try {
         const log = JSON.parse(line);
+		/*
 		const originalLog = Object.assign({}, log); // this copy is safe as long as we only modify the top level for printing purposes
 
         // we don't care about some fields when pretty printing
@@ -205,14 +246,14 @@ freshrLogs.on('line', function(line) {
         }
         // console.log(output);
 
+		*/
 		const logOffset = logs.length;
 		logs.push({
-			log: originalLog,
-			output,
+			log,
 		});
 
 		indexLog(log, logOffset);
-		filterLogs(queryTextBuffer.getText());
+		filterSingleLog(queryTextBuffer.getText(), logOffset);
 		// const findPropertyResults = fuzzysort.go('level', indexProperties, {
 		// 	limit: 100,
 		// 	threshold: -10000
@@ -266,7 +307,8 @@ function indexLog(log, logOffset, propertyPrefixes) {
 
 				logValues.push({
 					value,
-					property: propertyId
+					property: propertyId,
+					logOffset
 				});
 			});
 			return;
@@ -279,7 +321,8 @@ function indexLog(log, logOffset, propertyPrefixes) {
 			
 		logValues.push({
 			value,
-			property: propertyId
+			property: propertyId,
+			logOffset
 		});
 		return;
 	}
@@ -287,8 +330,32 @@ function indexLog(log, logOffset, propertyPrefixes) {
 	Object.keys(log).forEach((p) => indexLog(log[p], logOffset, propertyPrefixes.concat([p])));
 }
 
+function filterSingleLog(query, logOffset) {
+	if(query.length > 0 || query === ':') {
+		return;
+	}
+	printLog(logs[logOffset].log, logOffset);
+	const resultsLineOffset = logs.length;
+
+	resultsBuffer.y = -resultsBuffer.cy + screenBuffer.height - 2 ;
+	gutterBuffer.y = -gutterBuffer.cy + screenBuffer.height - 2 ;
+
+	if(query.length === 0) {
+		statusBuffer.setText(`${logs.length}/${logs.length}`);
+	}
+
+	// resultsBuffer.setText(matchedLogs.join('\n'));
+	drawResults();
+}
+
+
 function filterLogs(query) {
+
+	const logLimit = displayOptions.json? 50: 200;
+
 	const queryParts = query.split(':');
+	parsedQueryTextBuffer.backDelete(parsedQueryTextBuffer.cx);
+	parsedQueryTextBuffer.insert(`${queryParts[0]}`, {color: 'red'});
 
 	let findPropertyResults;
 	if(queryParts[0].length > 0) {
@@ -300,17 +367,18 @@ function filterLogs(query) {
 
 	let findValueResults;
 	if(queryParts.length > 1) {
-
+		parsedQueryTextBuffer.moveRight();
+		parsedQueryTextBuffer.insert(`${queryParts[1]}`, {color: 'blue'});
 		findValueResults = fuzzysort.go(queryParts[1], logValues, {
 			key: 'value',
 			limit: 100,
 			threshold: -100,
 		});
 
-		if(findPropertyResults) {
-			const propertySet = new Set(findPropertyResults.map((result) => result.target));
-			findValueResults = findValueResults.filter((result) => propertySet.has(result.obj.property));
-		}
+		// if(findPropertyResults) {
+		// 	const propertySet = new Set(findPropertyResults.map((result) => result.target));
+		// 	findValueResults = findValueResults.filter((result) => propertySet.has(result.obj.property));
+		// }
 	}
 
 	const logOffsets = new Set();
@@ -323,84 +391,132 @@ function filterLogs(query) {
 	}
 	if(findValueResults) {
 		findValueResults.forEach((result) => {
-			logIndex[result.obj.property].forEach((logOffset) => {
-				logOffsets.add(logOffset);
-			});
+			logOffsets.add(result.obj.logOffset);
 		});
 	}
 
-	const matchedLogs = query.length !== 0?
-		Array.from(logOffsets.values()).sort().map((logOffset) => ({log: logs[logOffset].log, offset: logOffset})):
-		logs.slice(-200).map((log, i) => ({log: log.log, offset: Math.max(0, logs.length - 200) + i}));
+	// TODO: a property:value query should only show logs that have the value set on the specified property, but we are displaying the union of any logs containing the matching property or value
 
+	const matchedLogs = query.length !== 0 && query !== ':'?
+		Array.from(logOffsets.values()).sort().slice(-logLimit).map((logOffset) => ({log: logs[logOffset].log, offset: logOffset})):
+		logs.slice(-logLimit).map((log, i) => ({log: log.log, offset: Math.max(0, logs.length - logLimit) + i}));
+
+	statusBuffer.backDelete(statusBuffer.cx);
 	if(query.length === 0) {
-		statusBuffer.setText(`${logs.length}/${logs.length}`);
+		statusBuffer.insert(`${logs.length}/${logs.length}`);
 	}
 	else {
-		statusBuffer.setText(`${matchedLogs.length}/${logs.length}`);
+		statusBuffer.insert(`${matchedLogs.length}/${logs.length}`);
+		if(findPropertyResults) {
+			statusBuffer.moveRight();
+			statusBuffer.insert(`${findPropertyResults.length}`, {color: 'red'});
+		}
+		if(findValueResults) {
+			statusBuffer.moveRight();
+			statusBuffer.insert(`${findValueResults.length}`, {color: 'blue'});
+		}
 	}
-	resultsBuffer.setText('');
+	resultsPanelBuffer.fill({char: ' '});
 	resultsBuffer.moveTo(0, 0);
-	gutterBuffer.setText('');
+	// resultsBuffer.setText('');
 	gutterBuffer.moveTo(0, 0);
+	// gutterBuffer.setText('');
+	// resultsBuffer.buffer[0] = [];
+	// resultsBuffer.buffer.length = 1;
+	// gutterBuffer.buffer[0] = [];
+	// gutterBuffer.buffer.length = 1;
 
 	matchedLogs.forEach(({log, offset}) => {
-		let color = levelColors[log.level];
-		resultsBuffer.insert(offset.toString(), {color, dim: true});
-		gutterBuffer.insert(offset.toString());
-
-		// prefix with dim timestamp
-		if(log.timestamp) {
-			resultsBuffer.insert(`[${log.timestamp}]`, {color, dim: true});
-		}
-
-		if(log.level) {
-			resultsBuffer.insert(`[${log.level}] `, {color, dim: true});
-		}
-
-		if(log.message) {
-			resultsBuffer.insert(log.message, {color});
-		}
-
-		const logJson = Object.assign({}, log); // this copy is safe as long as we only modify the top level for printing purposes
-
-		// don't include some fields in json printout
-		delete logJson.level;
-		delete logJson.message;
-		delete logJson.pid;
-		delete logJson.timestamp;
-
-		if(displayOptions.json && Object.keys(logJson).length > 0) {
-			resultsBuffer.newLine();
-			gutterBuffer.newLine();
-			const logJsonStr = JSON.stringify(logJson, null, 4);
-			resultsBuffer.insert(logJsonStr, {dim: true});
-
-			const jsonLineCount = logJsonStr.split('\n').length;
-			for(let i = 0; i < jsonLineCount - 1; i++) {
-				gutterBuffer.newLine();
-			}
-		}
-		resultsBuffer.newLine();
-		gutterBuffer.newLine();
+		printLog(log, offset);
 	});
 
 	const resultsLineOffset = logs.length;
 
-	// resultsBuffer.setText(matchedLogs.join('\n'));
-	resultsBuffer.draw();
-	// resultsBuffer.draw({
-	// 	dstClipRect: new termkit.Rect({
-	// 		xmin: 0,
-	// 		xmax: resultsBuffer.width,
-	// 		ymin: 0 + 21,
-	// 		ymax: resultsBuffer.height + 21
-	// 	})
-	// });
-	statusBuffer.draw();
-	gutterBuffer.draw();
-	screenBuffer.draw();
+	resultsBuffer.y = -resultsBuffer.cy + screenBuffer.height - 2 ;
+	gutterBuffer.y = -gutterBuffer.cy + screenBuffer.height - 2 ;
 
-	queryTextBuffer.drawCursor();
-	screenBuffer.drawCursor();
+	// resultsBuffer.setText(matchedLogs.join('\n'));
+	drawResults();
+
+	// resultsBuffer.draw();
+	// statusBuffer.draw();
+	// gutterBuffer.draw();
+	// screenBuffer.draw();
+
+	// resultsBuffer.drawCursor();
+	// screenBuffer.drawCursor();
+	// gutterBuffer.drawCursor();
+	// screenBuffer.drawCursor();
+
+	// queryTextBuffer.drawCursor();
+	// screenBuffer.drawCursor();
+}
+
+function drawResults() {
+	resultsBuffer.draw({
+		dstClipRect: new termkit.Rect({
+			xmin: 0,
+			xmax: resultsBuffer.width,
+			ymin: 0,
+			ymax: screenBuffer.height - 3
+		})
+	});
+
+	gutterBuffer.draw({
+		dstClipRect: new termkit.Rect({
+			xmin: 0,
+			xmax: gutterBuffer.width,
+			ymin: 0,
+			ymax: screenBuffer.height - 3
+		})
+	});
+	resultsPanelBuffer.draw();
+	statusBuffer.draw();
+	screenBuffer.draw();
+}
+
+function printLog(log, offset) {
+	let color = levelColors[log.level];
+	// resultsBuffer.insert(offset.toString(), {color, dim: true});
+	if((offset+1) % 10 === 0) {
+		gutterBuffer.insert((offset+1).toString(), {color: 'blue'});
+	}
+	else {
+	gutterBuffer.insert((offset+1).toString());
+	}
+
+	// prefix with dim timestamp
+	if(log.timestamp) {
+		resultsBuffer.insert(`[${log.timestamp}]`, {color, dim: true});
+	}
+
+	if(log.level) {
+		resultsBuffer.insert(`[${log.level}] `, {color, dim: true});
+	}
+
+	if(log.message) {
+		resultsBuffer.insert(`${log.message}`, {color});
+	}
+
+	const logJson = Object.assign({}, log); // this copy is safe as long as we only modify the top level for printing purposes
+
+	// don't include some fields in json printout
+	delete logJson.level;
+	delete logJson.message;
+	delete logJson.pid;
+	delete logJson.timestamp;
+
+	if(displayOptions.json && Object.keys(logJson).length > 0) {
+		resultsBuffer.newLine();
+		gutterBuffer.newLine();
+		const logJsonStr = JSON.stringify(logJson, null, 4);
+		resultsBuffer.insert(logJsonStr, {dim: true});
+
+		const jsonLineCount = logJsonStr.split('\n').length;
+		for(let i = 0; i < jsonLineCount - 1; i++) {
+			gutterBuffer.newLine();
+		}
+	}
+	resultsBuffer.newLine();
+	gutterBuffer.newLine();
 }
