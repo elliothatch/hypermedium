@@ -114,72 +114,78 @@ const displayOptions = {
 };
 
 term.on('key', (name, matches, data) => {
-	if(name === 'CTRL_C') {
-		freshr.kill();
-	}
+	try {
+		if(name === 'CTRL_C') {
+			freshr.kill();
+		}
 
-	// if(name === 'UP') {
-	// }
-	// else if(name === 'DOWN') {
-	// }
-	if(name === 'LEFT') {
-		queryTextBuffer.moveBackward();
-		draw();
+		// if(name === 'UP') {
+		// }
+		// else if(name === 'DOWN') {
+		// }
+		if(name === 'LEFT') {
+			queryTextBuffer.moveBackward();
+			draw();
+		}
+		else if(name === 'RIGHT') {
+			// term.getCursorLocation().then(({x, y}) => {
+				if(queryTextBuffer.cx <= queryTextBuffer.getContentSize().width) {
+					queryTextBuffer.moveForward();
+					draw();
+				}
+			// });
+		}
+		else if(name === 'TAB') {
+			displayOptions.json = !displayOptions.json;
+			filterLogs(queryTextBuffer.getText());
+		}
+		else if(name === 'HOME') {
+			resultsBuffer.y = 0;
+			gutterBuffer.y = 0;
+			drawResults();
+		}
+		else if(name === 'END') {
+			resultsBuffer.y = -resultsBuffer.cy + screenBuffer.height - 2;
+			gutterBuffer.y = -gutterBuffer.cy + screenBuffer.height - 2;
+			drawResults();
+		}
+		else if(name === 'PAGE_UP') {
+			resultsBuffer.y = Math.min(resultsBuffer.y + 12, 0);
+			gutterBuffer.y = Math.min(gutterBuffer.y+12, 0);
+			drawResults();
+		}
+		else if(name === 'PAGE_DOWN') {
+			resultsBuffer.y = Math.max(resultsBuffer.y - 12, -resultsBuffer.cy + screenBuffer.height - 2);
+			gutterBuffer.y = Math.max(gutterBuffer.y-12, -gutterBuffer.cy + screenBuffer.height - 2);
+			resultsPanelBuffer.fill({char: ' '});
+			drawResults();
+		}
+		else if(name === 'ESCAPE') {
+			queryTextBuffer.backDelete(queryTextBuffer.cx);
+			filterLogs(queryTextBuffer.getText());
+			draw();
+		}
+		else if(name === 'BACKSPACE') {
+			queryTextBuffer.backDelete(1);
+			filterLogs(queryTextBuffer.getText());
+			draw();
+		}
+		else if(name === 'DELETE') {
+			queryTextBuffer.delete(1);
+			filterLogs(queryTextBuffer.getText());
+			draw();
+		}
+		else if(data.isCharacter) {
+			queryTextBuffer.insert(name);
+			filterLogs(queryTextBuffer.getText());
+			draw();
+		}
 	}
-	else if(name === 'RIGHT') {
-		// term.getCursorLocation().then(({x, y}) => {
-			if(queryTextBuffer.cx <= queryTextBuffer.getContentSize().width) {
-				queryTextBuffer.moveForward();
-				draw();
-			}
-		// });
+	catch(err) {
+		term.fullscreen(false);
+        console.error(err);
+        freshr.kill();
 	}
-	else if(name === 'TAB') {
-		displayOptions.json = !displayOptions.json;
-		filterLogs(queryTextBuffer.getText());
-	}
-	else if(name === 'HOME') {
-		resultsBuffer.y = 0;
-		gutterBuffer.y = 0;
-		drawResults();
-	}
-	else if(name === 'END') {
-		resultsBuffer.y = -resultsBuffer.cy + screenBuffer.height - 2;
-		gutterBuffer.y = -gutterBuffer.cy + screenBuffer.height - 2;
-		drawResults();
-	}
-	else if(name === 'PAGE_UP') {
-		resultsBuffer.y = Math.min(resultsBuffer.y + 12, 0);
-		gutterBuffer.y = Math.min(gutterBuffer.y+12, 0);
-		drawResults();
-	}
-	else if(name === 'PAGE_DOWN') {
-		resultsBuffer.y = Math.max(resultsBuffer.y - 12, -resultsBuffer.cy + screenBuffer.height - 2);
-		gutterBuffer.y = Math.max(gutterBuffer.y-12, -gutterBuffer.cy + screenBuffer.height - 2);
-		resultsPanelBuffer.fill({char: ' '});
-		drawResults();
-	}
-	else if(name === 'ESCAPE') {
-		queryTextBuffer.backDelete(queryTextBuffer.cx);
-		filterLogs(queryTextBuffer.getText());
-		draw();
-	}
-	else if(name === 'BACKSPACE') {
-		queryTextBuffer.backDelete(1);
-		filterLogs(queryTextBuffer.getText());
-		draw();
-	}
-	else if(name === 'DELETE') {
-		queryTextBuffer.delete(1);
-		filterLogs(queryTextBuffer.getText());
-		draw();
-	}
-	else if(data.isCharacter) {
-		queryTextBuffer.insert(name);
-		filterLogs(queryTextBuffer.getText());
-		draw();
-	}
-
 });
 
 /** Interactive log filtering
@@ -361,9 +367,9 @@ function indexLog(log, logOffset, propertyPrefixes) {
 }
 
 function filterSingleLog(query, logOffset, properties, values) {
-	const matchedLogs = query.length === 0? 
-		[{log: logs[logOffset].log, offset: logOffset, propertySearchResults: [], valueSearchResults: []}]:
-		findMatchingLogs(query, properties, values).filter((l) => l.offset === logOffset);
+	const matchedLogs = query.length > 0 && query !== ':'? 
+		findMatchingLogs(query, properties, values).filter((l) => l.offset === logOffset):
+		[{log: logs[logOffset].log, offset: logOffset, propertySearchResults: [], valueSearchResults: []}];
 
 	matchedLogs.forEach((logMatch) => {
 		printLog(logMatch);
@@ -383,76 +389,119 @@ function filterSingleLog(query, logOffset, properties, values) {
 }
 
 function findMatchingLogs(query, searchProperties, searchValues) {
-	const queries = query.split(',');
 
+	// level:error&message:hello,level:warning
+	// [[level:error, message:hello], [level:warning]]
+	const queries = query.split(',').map((q) => q.split('&'));
+
+	const matchResultSets = queries.map((orQuery) => {
+		const andMatches = orQuery.filter((andQuery) => andQuery.length > 0 && andQuery !== ':').map((andQuery) => {
+			return findMatchingLogsSingleQuery(andQuery, searchProperties, searchValues);
+		});
+			// NOTE: we calculate an AND query by performing all searches on all logs, then finding the intersection of those result sets. it may be beneficial to instead perform each subsequent AND query on the already filtered result set.
+
+		const andMatchesIntersection = {};
+		if(andMatches.length > 0) {
+			Object.keys(andMatches[0]).forEach((logOffset) => {
+				const logOffsetMatches = andMatches.filter((andMatch) => andMatch[logOffset]);
+				if(logOffsetMatches.length === andMatches.length) {
+					andMatchesIntersection[logOffset] = {
+						log: andMatches[0][logOffset].log,
+						propertySearchResults: andMatches.reduce((arr, andMatch) => arr.concat(andMatch[logOffset].propertySearchResults), []),
+						valueSearchResults: andMatches.reduce((arr, andMatch) => arr.concat(andMatch[logOffset].valueSearchResults), []),
+					};
+				}
+			});
+		}
+
+		return andMatchesIntersection;
+	});
+
+
+	// calculate union of result sets
+	const matchResults = matchResultSets.reduce((allResults, nextResults) => {
+		Object.keys(nextResults).forEach((logOffset) => {
+			if(!allResults[logOffset]) {
+				allResults[logOffset] = nextResults[logOffset];
+			}
+			else {
+				allResults[logOffset].propertySearchResults.push(...nextResults[logOffset].propertySearchResults);
+				allResults[logOffset].valueSearchResults.push(...nextResults[logOffset].valueSearchResults);
+			}
+		});
+		return allResults;
+	}, {});
+
+	return Object.keys(matchResults).map((logOffset)=> parseInt(logOffset)).sort((a, b) => (a - b)).map((logOffset) => ({
+		...matchResults[logOffset],
+		offset: logOffset
+	}));
+}
+
+function findMatchingLogsSingleQuery(query, searchProperties, searchValues) {
 	// a de-duped index of logs, with all fuzzysort results that contained that log
 	// key: logOffset, value: { log: object, results: object[] }
 	const matchResults = {};
 
-	queries.forEach((qStr) => {
-		const q = parseQuery(qStr);
-		let propertyResults;
+	const q = parseQuery(query);
+	let propertyResults;
+	if(q.property) {
+		propertyResults = fuzzysort.go(q.property, searchProperties, {
+			limit: 100,
+			threshold: -100
+		});
+	}
+
+	let valueResults;
+	if(q.value) {
+		let filteredLogValues = searchValues;
 		if(q.property) {
-			propertyResults = fuzzysort.go(q.property, searchProperties, {
-				limit: 100,
-				threshold: -100
-			});
+			// only search for values set on matched properties
+			filteredLogValues = filteredLogValues.filter((logValue) => propertyResults.find((propertyResult) => propertyResult.target === logValue.property));
 		}
 
-		let valueResults;
-		if(q.value) {
-			let filteredLogValues = searchValues;
-			if(q.property) {
-				// only search for values set on matched properties
-				filteredLogValues = filteredLogValues.filter((logValue) => propertyResults.find((propertyResult) => propertyResult.target === logValue.property));
+		valueResults = fuzzysort.go(q.value, filteredLogValues, {
+			key: 'value',
+			limit: 100,
+			threshold: -100,
+		});
+	}
+
+	if(q.value) {
+		valueResults.forEach((result) => {
+			const logOffset = result.obj.logOffset;
+			if(!matchResults[logOffset]) {
+				matchResults[logOffset] = {
+					log: logs[logOffset].log,
+					propertySearchResults: [],
+					valueSearchResults: []
+				};
 			}
+			matchResults[logOffset].valueSearchResults.push(result);
+		});
+	}
 
-			valueResults = fuzzysort.go(q.value, filteredLogValues, {
-				key: 'value',
-				limit: 100,
-				threshold: -100,
-			});
-		}
-
-		if(q.value) {
-			valueResults.forEach((result) => {
-				const logOffset = result.obj.logOffset;
+	if(q.property) {
+		propertyResults.forEach((result) => {
+			logIndex[result.target].forEach((logOffset) => {
 				if(!matchResults[logOffset]) {
+					if(q.value) {
+						// when filtering by property and value, only include results that were already found in the value search
+						// this gives us propety highlighting information for those logs
+						return;
+					}
 					matchResults[logOffset] = {
 						log: logs[logOffset].log,
 						propertySearchResults: [],
 						valueSearchResults: []
 					};
 				}
-				matchResults[logOffset].valueSearchResults.push(result);
+				matchResults[logOffset].propertySearchResults.push(result);
 			});
-		}
+		});
+	}
 
-		if(q.property) {
-			propertyResults.forEach((result) => {
-				logIndex[result.target].forEach((logOffset) => {
-					if(!matchResults[logOffset]) {
-						if(q.value) {
-							// when filtering by property and value, only include results that were already found in the value search
-							// this gives us propety highlighting information for those logs
-							return;
-						}
-						matchResults[logOffset] = {
-							log: logs[logOffset].log,
-							propertySearchResults: [],
-							valueSearchResults: []
-						};
-					}
-					matchResults[logOffset].propertySearchResults.push(result);
-				});
-			});
-		}
-	});
-
-	return Object.keys(matchResults).map((logOffset)=> parseInt(logOffset)).sort((a, b) => (a - b)).map((logOffset) => ({
-		...matchResults[logOffset],
-		offset: logOffset
-	}));
+	return matchResults;
 }
 
 function parseQuery(query) {
@@ -465,21 +514,21 @@ function parseQuery(query) {
 
 function filterLogs(query) {
 	const matchedLogs = query.length === 0? 
-			logs.map((log, i) => ({log: log.log, offset: i, propertySearchResults: [], valueSearchResults: []})):
+		logs.map((log, i) => ({log: log.log, offset: i, propertySearchResults: [], valueSearchResults: []})):
 		findMatchingLogs(query, indexProperties, logValues);
 	// const matchedLogs = query.length === 0? 
-			// logs.slice(-logLimit).map((log, i) => ({log: log.log, offset: Math.max(0, logs.length - logLimit) + i, propertySearchResults: [], valueSearchResults: []})):
-		// findMatchingLogs(query, indexProperties, logValues).slice(-logLimit);
+	// logs.slice(-logLimit).map((log, i) => ({log: log.log, offset: Math.max(0, logs.length - logLimit) + i, propertySearchResults: [], valueSearchResults: []})):
+	// findMatchingLogs(query, indexProperties, logValues).slice(-logLimit);
 
 	// if(query.length > 0) {
-		// debugger;
+	// debugger;
 	// }
 
 	// parsedQueryTextBuffer.backDelete(parsedQueryTextBuffer.cx);
 	// parsedQueryTextBuffer.insert(`${queryParts[0]}`, {color: 'red'});
 
-		// parsedQueryTextBuffer.moveRight();
-		// parsedQueryTextBuffer.insert(`${queryParts[1]}`, {color: 'blue'});
+	// parsedQueryTextBuffer.moveRight();
+	// parsedQueryTextBuffer.insert(`${queryParts[1]}`, {color: 'blue'});
 
 	// const matchedLogs = query.length !== 0 && query !== ':'?
 	// 	Array.from(logOffsets.values()).sort().slice(-logLimit).map((logOffset) => ({log: logs[logOffset].log, offset: logOffset})):
@@ -571,7 +620,7 @@ function printLog({log, offset, propertySearchResults, valueSearchResults}) {
 		gutterBuffer.insert((offset+1).toString(), {color: 'blue'});
 	}
 	else {
-	gutterBuffer.insert((offset+1).toString());
+		gutterBuffer.insert((offset+1).toString());
 	}
 
 	// prefix with dim timestamp
