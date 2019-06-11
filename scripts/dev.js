@@ -76,27 +76,27 @@ const statusBuffer = new termkit.TextBuffer({
 	height: 1,
 });
 
-const queryTextBufferWidth = 10;
+// const queryTextBufferWidth = 30;
 const queryTextBuffer = new termkit.TextBuffer({
 	dst: queryPanelBuffer,
 	x: 2,
-	width: queryTextBufferWidth,
+	// width: queryTextBufferWidth,
 });
 
-const parsedQueryTextBuffer = new termkit.TextBuffer({
-	dst: queryPanelBuffer,
-	x: 2 + queryTextBufferWidth,
-	width: queryPanelBuffer.width - (2+queryTextBufferWidth),
-});
+// const parsedQueryTextBuffer = new termkit.TextBuffer({
+// 	dst: queryPanelBuffer,
+// 	x: 2 + queryTextBufferWidth,
+// 	width: queryPanelBuffer.width - (2+queryTextBufferWidth),
+// });
 
 function draw() {
 	queryTextBuffer.draw();
-	parsedQueryTextBuffer.draw();
+	// parsedQueryTextBuffer.draw();
 	queryPanelBuffer.draw();
 	screenBuffer.draw();
 
 	queryTextBuffer.drawCursor();
-	parsedQueryTextBuffer.drawCursor();
+	// parsedQueryTextBuffer.drawCursor();
 	queryPanelBuffer.drawCursor();
 	screenBuffer.drawCursor();
 }
@@ -137,6 +137,16 @@ term.on('key', (name, matches, data) => {
 	else if(name === 'TAB') {
 		displayOptions.json = !displayOptions.json;
 		filterLogs(queryTextBuffer.getText());
+	}
+	else if(name === 'HOME') {
+		resultsBuffer.y = 0;
+		gutterBuffer.y = 0;
+		drawResults();
+	}
+	else if(name === 'END') {
+		resultsBuffer.y = -resultsBuffer.cy + screenBuffer.height - 2;
+		gutterBuffer.y = -gutterBuffer.cy + screenBuffer.height - 2;
+		drawResults();
 	}
 	else if(name === 'PAGE_UP') {
 		resultsBuffer.y = Math.min(resultsBuffer.y + 12, 0);
@@ -252,8 +262,9 @@ freshrLogs.on('line', function(line) {
 			log,
 		});
 
-		indexLog(log, logOffset);
-		filterSingleLog(queryTextBuffer.getText(), logOffset);
+		const indexResults = indexLog(log, logOffset);
+		filterSingleLog(queryTextBuffer.getText(), logOffset, indexResults.properties, indexResults.values);
+		// filterLogs(queryTextBuffer.getText());
 		// const findPropertyResults = fuzzysort.go('level', indexProperties, {
 		// 	limit: 100,
 		// 	threshold: -10000
@@ -278,8 +289,9 @@ freshrLogs.on('line', function(line) {
 
     }
     catch(err) {
-        console.error(line);
-        throw err;
+		term.fullscreen(false);
+        console.error(err);
+        freshr.kill();
     }
 });
 
@@ -288,6 +300,9 @@ function indexLog(log, logOffset, propertyPrefixes) {
 		propertyPrefixes = [];
 	}
 
+	const properties = [];
+	const values = []; 
+
 	if (typeof log !== 'object' || !log) {
 		// index property
 		const propertyId = propertyPrefixes.join('.');
@@ -295,6 +310,7 @@ function indexLog(log, logOffset, propertyPrefixes) {
 			indexProperties.push(propertyId);
 			logIndex[propertyId] = [];
 		}
+		properties.push(propertyId);
 		logIndex[propertyId].push(logOffset);
 
 		// index value
@@ -305,36 +321,54 @@ function indexLog(log, logOffset, propertyPrefixes) {
 					v === undefined? 'undefined':
 					v.toString();
 
-				logValues.push({
+				values.push({
 					value,
 					property: propertyId,
 					logOffset
 				});
 			});
-			return;
+		}
+		else {
+			const value =
+				log === null? 'null':
+				log === undefined? 'undefined':
+				log.toString();
+				
+			values.push({
+				value,
+				property: propertyId,
+				logOffset
+			});
 		}
 
-		const value =
-			log === null? 'null':
-			log === undefined? 'undefined':
-			log.toString();
-			
-		logValues.push({
-			value,
-			property: propertyId,
-			logOffset
-		});
-		return;
+		// indexProperties.push(...properties);
+		// logValues.push(...values);
+		return {
+			properties,
+			values
+		};
 	}
 
-	Object.keys(log).forEach((p) => indexLog(log[p], logOffset, propertyPrefixes.concat([p])));
+	const fields = Object.keys(log).reduce((obj, p) => {
+		const results = indexLog(log[p], logOffset, propertyPrefixes.concat([p]));
+		obj.properties.push(...results.properties);
+		obj.values.push(...results.values);
+		return obj;
+	}, {properties: [], values: []});
+
+	logValues.push(...fields.values);
+	return fields;
 }
 
-function filterSingleLog(query, logOffset) {
-	if(query.length > 0 || query === ':') {
-		return;
-	}
-	printLog(logs[logOffset].log, logOffset);
+function filterSingleLog(query, logOffset, properties, values) {
+	const matchedLogs = query.length === 0? 
+		[{log: logs[logOffset].log, offset: logOffset, propertySearchResults: [], valueSearchResults: []}]:
+		findMatchingLogs(query, properties, values).filter((l) => l.offset === logOffset);
+
+	matchedLogs.forEach((logMatch) => {
+		printLog(logMatch);
+	});
+
 	const resultsLineOffset = logs.length;
 
 	resultsBuffer.y = -resultsBuffer.cy + screenBuffer.height - 2 ;
@@ -348,58 +382,108 @@ function filterSingleLog(query, logOffset) {
 	drawResults();
 }
 
+function findMatchingLogs(query, searchProperties, searchValues) {
+	const queries = query.split(',');
+
+	// a de-duped index of logs, with all fuzzysort results that contained that log
+	// key: logOffset, value: { log: object, results: object[] }
+	const matchResults = {};
+
+	queries.forEach((qStr) => {
+		const q = parseQuery(qStr);
+		let propertyResults;
+		if(q.property) {
+			propertyResults = fuzzysort.go(q.property, searchProperties, {
+				limit: 100,
+				threshold: -100
+			});
+		}
+
+		let valueResults;
+		if(q.value) {
+			let filteredLogValues = searchValues;
+			if(q.property) {
+				// only search for values set on matched properties
+				filteredLogValues = filteredLogValues.filter((logValue) => propertyResults.find((propertyResult) => propertyResult.target === logValue.property));
+			}
+
+			valueResults = fuzzysort.go(q.value, filteredLogValues, {
+				key: 'value',
+				limit: 100,
+				threshold: -100,
+			});
+		}
+
+		if(q.value) {
+			valueResults.forEach((result) => {
+				const logOffset = result.obj.logOffset;
+				if(!matchResults[logOffset]) {
+					matchResults[logOffset] = {
+						log: logs[logOffset].log,
+						propertySearchResults: [],
+						valueSearchResults: []
+					};
+				}
+				matchResults[logOffset].valueSearchResults.push(result);
+			});
+		}
+
+		if(q.property) {
+			propertyResults.forEach((result) => {
+				logIndex[result.target].forEach((logOffset) => {
+					if(!matchResults[logOffset]) {
+						if(q.value) {
+							// when filtering by property and value, only include results that were already found in the value search
+							// this gives us propety highlighting information for those logs
+							return;
+						}
+						matchResults[logOffset] = {
+							log: logs[logOffset].log,
+							propertySearchResults: [],
+							valueSearchResults: []
+						};
+					}
+					matchResults[logOffset].propertySearchResults.push(result);
+				});
+			});
+		}
+	});
+
+	return Object.keys(matchResults).map((logOffset)=> parseInt(logOffset)).sort((a, b) => (a - b)).map((logOffset) => ({
+		...matchResults[logOffset],
+		offset: logOffset
+	}));
+}
+
+function parseQuery(query) {
+	const queryParts = query.split(':');
+	return {
+		property: queryParts[0].length > 0? queryParts[0]: undefined,
+		value: queryParts.length > 1 && queryParts[1].length > 0? queryParts[1]: undefined,
+	};
+}
 
 function filterLogs(query) {
+	const matchedLogs = query.length === 0? 
+			logs.map((log, i) => ({log: log.log, offset: i, propertySearchResults: [], valueSearchResults: []})):
+		findMatchingLogs(query, indexProperties, logValues);
+	// const matchedLogs = query.length === 0? 
+			// logs.slice(-logLimit).map((log, i) => ({log: log.log, offset: Math.max(0, logs.length - logLimit) + i, propertySearchResults: [], valueSearchResults: []})):
+		// findMatchingLogs(query, indexProperties, logValues).slice(-logLimit);
 
-	const logLimit = displayOptions.json? 50: 200;
+	// if(query.length > 0) {
+		// debugger;
+	// }
 
-	const queryParts = query.split(':');
-	parsedQueryTextBuffer.backDelete(parsedQueryTextBuffer.cx);
-	parsedQueryTextBuffer.insert(`${queryParts[0]}`, {color: 'red'});
+	// parsedQueryTextBuffer.backDelete(parsedQueryTextBuffer.cx);
+	// parsedQueryTextBuffer.insert(`${queryParts[0]}`, {color: 'red'});
 
-	let findPropertyResults;
-	if(queryParts[0].length > 0) {
-		findPropertyResults = fuzzysort.go(queryParts[0], indexProperties, {
-			limit: 100,
-			threshold: -100
-		});
-	}
+		// parsedQueryTextBuffer.moveRight();
+		// parsedQueryTextBuffer.insert(`${queryParts[1]}`, {color: 'blue'});
 
-	let findValueResults;
-	if(queryParts.length > 1) {
-		parsedQueryTextBuffer.moveRight();
-		parsedQueryTextBuffer.insert(`${queryParts[1]}`, {color: 'blue'});
-		findValueResults = fuzzysort.go(queryParts[1], logValues, {
-			key: 'value',
-			limit: 100,
-			threshold: -100,
-		});
-
-		// if(findPropertyResults) {
-		// 	const propertySet = new Set(findPropertyResults.map((result) => result.target));
-		// 	findValueResults = findValueResults.filter((result) => propertySet.has(result.obj.property));
-		// }
-	}
-
-	const logOffsets = new Set();
-	if(findPropertyResults) {
-		findPropertyResults.forEach((result) => {
-			logIndex[result.target].forEach((logOffset) => {
-				logOffsets.add(logOffset);
-			});
-		});
-	}
-	if(findValueResults) {
-		findValueResults.forEach((result) => {
-			logOffsets.add(result.obj.logOffset);
-		});
-	}
-
-	// TODO: a property:value query should only show logs that have the value set on the specified property, but we are displaying the union of any logs containing the matching property or value
-
-	const matchedLogs = query.length !== 0 && query !== ':'?
-		Array.from(logOffsets.values()).sort().slice(-logLimit).map((logOffset) => ({log: logs[logOffset].log, offset: logOffset})):
-		logs.slice(-logLimit).map((log, i) => ({log: log.log, offset: Math.max(0, logs.length - logLimit) + i}));
+	// const matchedLogs = query.length !== 0 && query !== ':'?
+	// 	Array.from(logOffsets.values()).sort().slice(-logLimit).map((logOffset) => ({log: logs[logOffset].log, offset: logOffset})):
+	// 	logs.slice(-logLimit).map((log, i) => ({log: log.log, offset: Math.max(0, logs.length - logLimit) + i}));
 
 	statusBuffer.backDelete(statusBuffer.cx);
 	if(query.length === 0) {
@@ -407,6 +491,7 @@ function filterLogs(query) {
 	}
 	else {
 		statusBuffer.insert(`${matchedLogs.length}/${logs.length}`);
+		/*
 		if(findPropertyResults) {
 			statusBuffer.moveRight();
 			statusBuffer.insert(`${findPropertyResults.length}`, {color: 'red'});
@@ -415,6 +500,7 @@ function filterLogs(query) {
 			statusBuffer.moveRight();
 			statusBuffer.insert(`${findValueResults.length}`, {color: 'blue'});
 		}
+		*/
 	}
 	resultsPanelBuffer.fill({char: ' '});
 	resultsBuffer.moveTo(0, 0);
@@ -426,8 +512,11 @@ function filterLogs(query) {
 	// gutterBuffer.buffer[0] = [];
 	// gutterBuffer.buffer.length = 1;
 
-	matchedLogs.forEach(({log, offset}) => {
-		printLog(log, offset);
+	// only print recent logs
+	const logLimit = displayOptions.json? 100: 1000;
+
+	matchedLogs.slice(-logLimit).forEach((logMatch) => {
+		printLog(logMatch);
 	});
 
 	const resultsLineOffset = logs.length;
@@ -475,7 +564,7 @@ function drawResults() {
 	screenBuffer.draw();
 }
 
-function printLog(log, offset) {
+function printLog({log, offset, propertySearchResults, valueSearchResults}) {
 	let color = levelColors[log.level];
 	// resultsBuffer.insert(offset.toString(), {color, dim: true});
 	if((offset+1) % 10 === 0) {
@@ -509,14 +598,131 @@ function printLog(log, offset) {
 	if(displayOptions.json && Object.keys(logJson).length > 0) {
 		resultsBuffer.newLine();
 		gutterBuffer.newLine();
-		const logJsonStr = JSON.stringify(logJson, null, 4);
-		resultsBuffer.insert(logJsonStr, {dim: true});
+		const jsonLineCount = printLogJson({log: logJson, propertySearchResults, valueSearchResults});
+		// const logJsonStr = JSON.stringify(logJson, null, 4);
+		// resultsBuffer.insert(logJsonStr, {dim: true});
 
-		const jsonLineCount = logJsonStr.split('\n').length;
-		for(let i = 0; i < jsonLineCount - 1; i++) {
+		// const jsonLineCount = logJsonStr.split('\n').length - 1;
+		for(let i = 0; i < jsonLineCount; i++) {
 			gutterBuffer.newLine();
 		}
 	}
 	resultsBuffer.newLine();
 	gutterBuffer.newLine();
+}
+
+const jsonIndentStr = ' '.repeat(4);
+function printLogJson({log, propertySearchResults, valueSearchResults}, propertyPath) {
+	let linesPrinted = 0;
+	if(!propertyPath) {
+		propertyPath = [];
+	}
+
+	const style = {dim: true};
+
+	if(typeof log === 'number') {
+		log = log.toString();
+	}
+
+	if(typeof log === 'undefined') {
+		log = 'undefined';
+	}
+
+	if(log === null) {
+		log = 'null';
+	}
+
+	if(typeof log === 'string') {
+		resultsBuffer.insert('"', style);
+		const matchingValueResults = valueSearchResults.filter((valueResult) => valueResult.target === log);
+		const highlightIndexes = matchingValueResults.length > 0? matchingValueResults[0].indexes: [];
+		printHighlightedResult(log, highlightIndexes, style, {color: 'blue'});
+		resultsBuffer.insert('"', style);
+	}
+	else if(Array.isArray(log)) {
+		resultsBuffer.insert('[', style);
+		if(log.length > 0) {
+			resultsBuffer.newLine();
+			linesPrinted++;
+		}
+		log.forEach((value, index) => {
+			resultsBuffer.insert(jsonIndentStr.repeat(propertyPath.length + 1), style);
+
+			linesPrinted += printLogJson({
+				log: value,
+				propertySearchResults,
+				valueSearchResults,
+			}, propertyPath.concat([index.toString()]));
+
+			if(index < log.length - 1) {
+				resultsBuffer.insert(',', style);
+				resultsBuffer.newLine();
+				linesPrinted++;
+			}
+			else if(log.length > 0) {
+				resultsBuffer.newLine();
+				linesPrinted++;
+				resultsBuffer.insert(jsonIndentStr.repeat(propertyPath.length), style);
+			}
+		});
+		resultsBuffer.insert(']', style);
+	}
+	else if(typeof log === 'object') {
+		resultsBuffer.insert('{', style);
+		resultsBuffer.newLine();
+		linesPrinted++;
+		Object.keys(log).forEach((prop, index) => {
+			const value = log[prop];
+
+			let propertyIdPrefix = propertyPath.join('.');
+			if(propertyPath.length !== 0) {
+				propertyIdPrefix += '.';
+			}
+
+			const propertyId = propertyIdPrefix + prop;
+			const matchingPropertyResults = propertySearchResults.filter((propertyResult) => propertyResult.target.split('.')[propertyPath.length] === prop);
+
+			// indent
+			resultsBuffer.insert(jsonIndentStr.repeat(propertyPath.length + 1), style);
+
+			// print property
+			resultsBuffer.insert('"', style);
+			if(matchingPropertyResults.length === 0) {
+				resultsBuffer.insert(prop, style);
+			}
+			else {
+				const highlightIndex = matchingPropertyResults[0].indexes.map((i) => i - propertyIdPrefix.length).filter((i) => i >= 0 && i < prop.length);
+				printHighlightedResult(prop, highlightIndex, style, {color: 'red'});
+			}
+			resultsBuffer.insert('": ', style);
+
+			// print value
+			linesPrinted += printLogJson({
+				log: value,
+				propertySearchResults,
+				valueSearchResults,
+			}, propertyPath.concat([prop]));
+
+			if(index < Object.keys(log).length - 1) {
+				resultsBuffer.insert(',', style);
+			}
+			resultsBuffer.newLine();
+			linesPrinted++;
+		});
+		resultsBuffer.insert(jsonIndentStr.repeat(propertyPath.length), style);
+		resultsBuffer.insert('}', style);
+	}
+
+	return linesPrinted;
+}
+
+function printHighlightedResult(str, highlightIndexes, style, highlightStyle) {
+	for(let i = 0; i < str.length; i++) {
+		if(highlightIndexes.includes(i)) {
+			resultsBuffer.insert(str[i], highlightStyle);
+		}
+		else {
+			resultsBuffer.insert(str[i], style);
+		}
+	}
 }
