@@ -13,6 +13,13 @@ const levelColors = {
     error: 'red',
 };
 
+// TODO: help page
+// TODO: infintie scroll. store scroll position data separately from terminal-kit. only print lines that are visible on the screen
+// TODO: command to display and fuzzy search all properties and values
+// TODO: query history
+// TODO: improved status display
+// TODO: make fuzzyfind async, display spinner
+
 const freshr = child_process.spawn(
     'node',
     [Path.join(__dirname, '..', 'build', 'index.js'), '--', ...process.argv.slice(1)]);
@@ -199,6 +206,8 @@ term.on('key', (name, matches, data) => {
  *     'property:value ('level:info): shows all logs where "property" at top level has value that fuzzy-matches "value"
  *     property.child (error.stack): shows all logs containing "property" at any nesting with "child" property, edge
  *     'property.child ('error.stack): shows all logs containing "property" at top level with "child" property
+ *     !property:value (!timestamp:2019): exclude property from being considered in value search. logs containing this property may still be shown
+ *     property:!value (level:!trace): exclude documents where "value" matches the searched property's value
  */
 
 /** array of { log: object, index: */
@@ -381,7 +390,8 @@ function filterSingleLog(query, logOffset, properties, values) {
 	gutterBuffer.y = -gutterBuffer.cy + screenBuffer.height - 2 ;
 
 	if(query.length === 0) {
-		statusBuffer.setText(`${logs.length}/${logs.length}`);
+		statusBuffer.backDelete(statusBuffer.cx);
+		statusBuffer.insert(`${logs.length}/${logs.length}`);
 	}
 
 	// resultsBuffer.setText(matchedLogs.join('\n'));
@@ -435,24 +445,27 @@ function findMatchingLogs(query, searchProperties, searchValues) {
 	}));
 }
 
+const fuzzysortThreshold = -100;
 function findMatchingLogsSingleQuery(query, searchProperties, searchValues) {
 	// a de-duped index of logs, with all fuzzysort results that contained that log
 	// key: logOffset, value: { log: object, results: object[] }
 	const matchResults = {};
 
 	const q = parseQuery(query);
+
+	// fuzzy find matching documents
 	let propertyResults;
-	if(q.property) {
+	if(q.property && !q.excludeProperty) {
 		propertyResults = fuzzysort.go(q.property, searchProperties, {
 			limit: 100,
-			threshold: -100
+			threshold: fuzzysortThreshold
 		});
 	}
 
 	let valueResults;
-	if(q.value) {
+	if(q.value && !q.excludeValue) {
 		let filteredLogValues = searchValues;
-		if(q.property) {
+		if(q.property && !q.excludeProperty) {
 			// only search for values set on matched properties
 			filteredLogValues = filteredLogValues.filter((logValue) => propertyResults.find((propertyResult) => propertyResult.target === logValue.property));
 		}
@@ -460,13 +473,22 @@ function findMatchingLogsSingleQuery(query, searchProperties, searchValues) {
 		valueResults = fuzzysort.go(q.value, filteredLogValues, {
 			key: 'value',
 			limit: 100,
-			threshold: -100,
+			threshold: fuzzysortThreshold,
 		});
 	}
 
-	if(q.value) {
+	// add results to output
+	if(q.value && !q.excludeValue) {
 		valueResults.forEach((result) => {
 			const logOffset = result.obj.logOffset;
+			if(q.excludeProperty) {
+				// don't include documents that matched the value search but were in an excluded property
+				const propMatch = fuzzysort.go(q.property, [result.obj.property], {threshold: fuzzysortThreshold});
+				if(propMatch.length > 0) {
+					return;
+				}
+			}
+
 			if(!matchResults[logOffset]) {
 				matchResults[logOffset] = {
 					log: logs[logOffset].log,
@@ -478,11 +500,19 @@ function findMatchingLogsSingleQuery(query, searchProperties, searchValues) {
 		});
 	}
 
-	if(q.property) {
+	if(q.property && !q.excludeProperty) {
 		propertyResults.forEach((result) => {
 			logIndex[result.target].forEach((logOffset) => {
+				if(q.excludeValue) {
+					const value = getProperty(logs[logOffset].log, result.target);
+					// don't include documents that matched the property search but matched an excluded value
+					const valueMatch = fuzzysort.go(q.value, [value], {threshold: fuzzysortThreshold});
+					if(valueMatch.length > 0) {
+						return;
+					}
+				}
 				if(!matchResults[logOffset]) {
-					if(q.value) {
+					if(q.value && !q.excludeValue) {
 						// when filtering by property and value, only include results that were already found in the value search
 						// this gives us propety highlighting information for those logs
 						return;
@@ -501,12 +531,49 @@ function findMatchingLogsSingleQuery(query, searchProperties, searchValues) {
 	return matchResults;
 }
 
+/** Gets a property from an object if it exists. Supports nested properties
+ * @argument obj - root object
+ * @argument propertyName - name of the property to retrieved. Nested properties are specified with dot notation ('a.b.c')
+ */
+function getProperty(obj, propertyName) {
+    if(!obj) {
+        return undefined;
+    }
+
+    const properties = propertyName.split('.');
+    const value = obj[properties[0]];
+    if(properties.length === 1) {
+        return value;
+    }
+
+    return getProperty(value, properties.slice(1).join('.'));
+}
+
 function parseQuery(query) {
 	const queryParts = query.split(':');
-	return {
-		property: queryParts[0].length > 0? queryParts[0]: undefined,
-		value: queryParts.length > 1 && queryParts[1].length > 0? queryParts[1]: undefined,
-	};
+	const output = {};
+	if(queryParts[0].length > 0) {
+		if(queryParts[0][0] === '!') {
+			output.excludeProperty = true;
+			output.property = queryParts[0].substring(1);
+		}
+		else {
+			output.excludeProperty = false;
+			output.property = queryParts[0];
+		}
+	}
+
+	if(queryParts.length > 1 && queryParts[1].length > 0) {
+		if(queryParts[1][0] === '!') {
+			output.excludeValue = true;
+			output.value = queryParts[1].substring(1);
+		}
+		else {
+			output.excludeValue = false;
+			output.value = queryParts[1];
+		}
+	}
+	return output;
 }
 
 function filterLogs(query) {
@@ -625,14 +692,18 @@ function printLog({log, offset, propertySearchResults, valueSearchResults}) {
 
 		const matchingValueResults = valueSearchResults.filter((valueResult) => valueResult.target === log.timestamp);
 		const highlightIndexes = matchingValueResults.length > 0? matchingValueResults[0].indexes: [];
-		printHighlightedResult(`[${log.timestamp}]`, highlightIndexes, {color, dim: true}, {color: 'blue'});
+		resultsBuffer.insert('[', {color, dim: true});
+		printHighlightedResult(log.timestamp, highlightIndexes, {color, dim: true}, {color: 'blue'});
+		resultsBuffer.insert(']', {color, dim: true});
 		// resultsBuffer.insert(`[${log.timestamp}]`, {color, dim: true});
 	}
 
 	if(log.level) {
 		const matchingValueResults = valueSearchResults.filter((valueResult) => valueResult.target === log.level);
 		const highlightIndexes = matchingValueResults.length > 0? matchingValueResults[0].indexes: [];
-		printHighlightedResult(`[${log.level}]`, highlightIndexes, {color, dim: true}, {color: 'blue'});
+		resultsBuffer.insert('[', {color, dim: true});
+		printHighlightedResult(log.level, highlightIndexes, {color, dim: true}, {color: 'blue'});
+		resultsBuffer.insert(']', {color, dim: true});
 		// resultsBuffer.insert(`[${log.level}] `, {color, dim: true});
 	}
 
@@ -676,10 +747,6 @@ function printLogJson({log, propertySearchResults, valueSearchResults}, property
 
 	const style = {dim: true};
 
-	if(typeof log === 'number') {
-		log = log.toString();
-	}
-
 	if(typeof log === 'undefined') {
 		log = 'undefined';
 	}
@@ -688,12 +755,19 @@ function printLogJson({log, propertySearchResults, valueSearchResults}, property
 		log = 'null';
 	}
 
-	if(typeof log === 'string') {
-		resultsBuffer.insert('"', style);
-		const matchingValueResults = valueSearchResults.filter((valueResult) => valueResult.target === log);
+	if(typeof log === 'string' || typeof log === 'number') {
+		const isString = typeof log === 'string';
+		if(isString) {
+			resultsBuffer.insert('"', style);
+		}
+
+		const matchingValueResults = valueSearchResults.filter((valueResult) => valueResult.target === log.toString());
 		const highlightIndexes = matchingValueResults.length > 0? matchingValueResults[0].indexes: [];
-		printHighlightedResult(log, highlightIndexes, style, {color: 'blue'});
-		resultsBuffer.insert('"', style);
+		printHighlightedResult(log.toString(), highlightIndexes, style, {color: 'blue'});
+
+		if(isString) {
+			resultsBuffer.insert('"', style);
+		}
 	}
 	else if(Array.isArray(log)) {
 		resultsBuffer.insert('[', style);
