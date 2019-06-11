@@ -389,9 +389,6 @@ function filterSingleLog(query, logOffset, properties, values) {
 }
 
 function findMatchingLogs(query, searchProperties, searchValues) {
-
-	// level:error&message:hello,level:warning
-	// [[level:error, message:hello], [level:warning]]
 	const queries = query.split(',').map((q) => q.split('&'));
 
 	const matchResultSets = queries.map((orQuery) => {
@@ -513,9 +510,9 @@ function parseQuery(query) {
 }
 
 function filterLogs(query) {
-	const matchedLogs = query.length === 0? 
-		logs.map((log, i) => ({log: log.log, offset: i, propertySearchResults: [], valueSearchResults: []})):
-		findMatchingLogs(query, indexProperties, logValues);
+	const matchedLogs = query.length > 0 && query !== ':'? 
+		findMatchingLogs(query, indexProperties, logValues):
+		logs.map((log, i) => ({log: log.log, offset: i, propertySearchResults: [], valueSearchResults: []}));
 	// const matchedLogs = query.length === 0? 
 	// logs.slice(-logLimit).map((log, i) => ({log: log.log, offset: Math.max(0, logs.length - logLimit) + i, propertySearchResults: [], valueSearchResults: []})):
 	// findMatchingLogs(query, indexProperties, logValues).slice(-logLimit);
@@ -625,15 +622,25 @@ function printLog({log, offset, propertySearchResults, valueSearchResults}) {
 
 	// prefix with dim timestamp
 	if(log.timestamp) {
-		resultsBuffer.insert(`[${log.timestamp}]`, {color, dim: true});
+
+		const matchingValueResults = valueSearchResults.filter((valueResult) => valueResult.target === log.timestamp);
+		const highlightIndexes = matchingValueResults.length > 0? matchingValueResults[0].indexes: [];
+		printHighlightedResult(`[${log.timestamp}]`, highlightIndexes, {color, dim: true}, {color: 'blue'});
+		// resultsBuffer.insert(`[${log.timestamp}]`, {color, dim: true});
 	}
 
 	if(log.level) {
-		resultsBuffer.insert(`[${log.level}] `, {color, dim: true});
+		const matchingValueResults = valueSearchResults.filter((valueResult) => valueResult.target === log.level);
+		const highlightIndexes = matchingValueResults.length > 0? matchingValueResults[0].indexes: [];
+		printHighlightedResult(`[${log.level}]`, highlightIndexes, {color, dim: true}, {color: 'blue'});
+		// resultsBuffer.insert(`[${log.level}] `, {color, dim: true});
 	}
 
 	if(log.message) {
-		resultsBuffer.insert(`${log.message}`, {color});
+		const matchingValueResults = valueSearchResults.filter((valueResult) => valueResult.target === log.message);
+		const highlightIndexes = matchingValueResults.length > 0? matchingValueResults[0].indexes: [];
+		printHighlightedResult(`${log.message}`, highlightIndexes, {color}, {color: 'blue'});
+		// resultsBuffer.insert(`${log.message}`, {color});
 	}
 
 	const logJson = Object.assign({}, log); // this copy is safe as long as we only modify the top level for printing purposes
