@@ -40,6 +40,7 @@ const hypermediaOptions = {
         Hypermedia.makeIndex('/schema/index/tags'),
         Hypermedia.Processor.curies,
         Hypermedia.Processor.embed,
+        Hypermedia.Processor.schema,
         ConfigProcessor
     ]
 };

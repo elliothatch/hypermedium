@@ -10,7 +10,7 @@ import { Graph, Edge, json as graphJson } from 'graphlib';
 
 import * as HAL from './hal';
 import { filterCuries, profilesMatch, resourceMatchesProfile, getProfiles } from './hal-util';
-import { walkDirectory } from './util';
+import { createSchema, walkDirectory, objectDifference } from './util';
 
 /** augments a hypermedia site with dynamic properties and resources
  * for example, adds "self" links and "breadcrumb"
@@ -208,6 +208,7 @@ class Hypermedia {
             (d, processor) => {
                 return processor({
                     ...d, 
+                    hypermedia: this,
                     calculateFrom: (dependencyUri: HAL.Uri | HAL.Uri[], fn: Hypermedia.CalculateFromResourceFn | Hypermedia.CalculateFromResourcesFn): any => {
                         const dependencyUris = Array.isArray(dependencyUri)? dependencyUri: [dependencyUri];
                         // process dependencies
@@ -215,7 +216,12 @@ class Hypermedia {
                             const normalizedDependencyUri = this.normalizeUri(uri);
                             const dependencyResource: ResourceNode = this.resourceGraph.node(normalizedDependencyUri);
                             if(!dependencyResource) {
-                                throw new Error("Resource ${normalizedDependencyUri} has not been loaded");
+                                this.log({
+                                    eType: 'ProcessorError',
+                                    relativeUri: normalizedUri,
+                                    error: new Error(`Resource ${normalizedDependencyUri} has not been loaded`)
+                                });
+                                return {href: normalizedDependencyUri, resource: undefined};
                             }
 
                             if(normalizedDependencyUri !== normalizedUri) {
@@ -349,6 +355,8 @@ namespace Hypermedia {
          *          if an object, a deep copy is made from this resource to create each new resource.
          */
         markDirty: (relativeUri: HAL.Uri | HAL.Uri[], template?: string | ExtendedResource) => void;
+        /** the hypermedia engine instance */
+        hypermedia: Hypermedia;
     }
 
     export type CalculateFromResource = {
@@ -378,6 +386,78 @@ namespace Hypermedia {
                 })
             })
         );
+
+        /** try to auto-generate missing schema
+         *
+         * If a schema is missing and can be generated, the schema resource is initialized with a blueprint it will use to generate the full schema when it is processed
+         *
+         * schema generation steps:
+         *  1. if the resource only has one profile: create schema describing all fields and links in the resource, excluding self and profile links. 
+         u  2. if the resource has multiple profiles: if all profiles are already defined except one, create a schema describing fields and links that are not defined in the other profile schemas (set difference).
+         *  3. if the resource has multiple undefined profiles: emit a warning and do not generate any schemas.
+         * */
+        export const schema: Processor = (rs) => {
+            const ignoredSchemas = ['/schema/freshr/resource-graph'];
+            const schemaProfile = '/schema';
+            if(rs.relativeUri.startsWith(schemaProfile)) {
+                // generate the schema if it was initialized with a schema-source
+                const schemaSourceLink = rs.resource._links && rs.resource._links['fs:schema-source'] as HAL.Link | undefined;
+                if(schemaSourceLink) {
+                    const schemaSource = rs.calculateFrom(schemaSourceLink.href, ({resource}) => resource);
+                    const otherSchemaHrefs = getProfiles(schemaSource)
+                        .map((profile) => profile.href)
+                        .filter((href) => rs.hypermedia.normalizeUri(href) !== rs.relativeUri);
+
+                    const otherSchemas = rs.calculateFrom(otherSchemaHrefs, (r) => r.filter(({resource}) => resource));
+                    const prunedObject = otherSchemas.reduce((obj: ExtendedResource, schema: CalculateFromResourceParams) => {
+                        return objectDifference(obj, schema.resource!.schema);
+                    }, schemaSource);
+
+                    const schema = createSchema(prunedObject);
+                    return {
+                        ...rs,
+                        resource: {
+                            ...rs.resource,
+                            schema,
+                        }
+                    };
+                }
+            }
+            else {
+                // initialize a schema if there isn't already one and we can generate it, or emit a warning if the resource does not conform to the schema
+                // TODO: add option to disable schema validation
+                const profileHrefs = getProfiles(rs.resource).map((p) => p.href);
+                const missingProfiles = profileHrefs;
+                // const missingProfiles = rs.calculateFrom(profileHrefs, (r) => r.filter(({resource}) => !resource).map(({href}) => href));
+                if(missingProfiles.length === 0) {
+                    // TODO: validate the schema
+                }
+                else if(missingProfiles.length === 1) {
+                    // only one missing schema, initialize so it will be auto-generated
+                    if(!ignoredSchemas.includes(missingProfiles[0])) {
+                        rs.markDirty(missingProfiles[0], {
+                            "_links": {
+                                "profile": {
+                                    "href": schemaProfile
+                                },
+                                "fs:schema-source": {
+                                    "href": rs.relativeUri
+                                }
+                            }
+                        });
+                    }
+                }
+                else {
+                    // TODO: add logging capabilities to processors
+                    console.log(JSON.stringify({
+                        level: 'warn',
+                        message: `processor.schema: ${rs.relativeUri} has ${missingProfiles.length} unspecified profiles: ${missingProfiles.join(', ')}`
+                    }));
+                }
+
+            }
+            return rs;
+        };
 
         /** updates the resource graph resource */
         export const resourceGraph: Processor = (rs) => {
@@ -648,7 +728,7 @@ namespace Hypermedia {
         return tags;
     }
 
-    export type Event = Event.ProcessResource | Event.ProcessResourceStart | Event.LoadResource | Event.AddDependency;
+    export type Event = Event.ProcessResource | Event.ProcessResourceStart | Event.LoadResource | Event.AddDependency | Event.ProcessorError;
     export namespace Event {
         export interface ProcessResource {
             eType: 'ProcessResource';
@@ -681,6 +761,13 @@ namespace Hypermedia {
 
             /** name of the processor */
             processor: string;
+        }
+
+        export interface ProcessorError {
+            eType: 'ProcessorError';
+
+            relativeUri: HAL.Uri;
+            error: Error;
         }
     }
 }
