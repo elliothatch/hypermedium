@@ -170,3 +170,9 @@ cy.on('mouseout', 'node', (event) => {
 
 	event.target.removeClass('hover');
 });
+
+cy.on('click', 'node', (event) => {
+	if(event.originalEvent.ctrlKey) {
+		window.open(event.target.id());
+	}
+});

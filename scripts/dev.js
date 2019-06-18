@@ -35,6 +35,12 @@ const freshrLogs = readline.createInterface({
     terminal: false
 });
 
+const freshrErrors = readline.createInterface({
+    input: freshr.stderr,
+    output: process.stderr,
+    terminal: false
+});
+
 const term = termkit.terminal;
 term.fullscreen(true);
 term.grabInput();
@@ -302,6 +308,27 @@ freshrLogs.on('line', function(line) {
 			// });
 		// });
 
+    }
+    catch(err) {
+		term.fullscreen(false);
+        console.error(err);
+        freshr.kill();
+    }
+});
+
+freshrErrors.on('line', function(line) {
+    try {
+		const log = {
+			level: line.match(/warn/i)? 'warn': 'error',
+			message: line,
+		};
+		const logOffset = logs.length;
+		logs.push({
+			log,
+		});
+
+		const indexResults = indexLog(log, logOffset);
+		filterSingleLog(queryTextBuffer.getText(), logOffset, indexResults.properties, indexResults.values);
     }
     catch(err) {
 		term.fullscreen(false);

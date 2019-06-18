@@ -6,6 +6,7 @@ import { Log } from 'freshlog';
 
 import { server } from './server';
 import { Hypermedia } from './hypermedia';
+import { Processor, tags, makeIndex } from './hypermedia/processor';
 import { HypermediaRenderer } from './hypermedia-renderer';
 import { BuildManager, BuildStep, TaskDefinition } from './build';
 
@@ -32,15 +33,15 @@ const hypermediaOptions = {
         templated: true,
     }],
     processors: [
-        Hypermedia.Processor.resourceGraph,
-        Hypermedia.Processor.self,
-        Hypermedia.Processor.tags,
-        // Hypermedia.Processor.breadcrumb,
-        Hypermedia.makeIndex('/schema/post'),
-        Hypermedia.makeIndex('/schema/index/tags'),
-        Hypermedia.Processor.curies,
-        Hypermedia.Processor.embed,
-        Hypermedia.Processor.schema,
+        Processor.resourceGraph,
+        Processor.self,
+        tags.tags,
+        // Processor.breadcrumb,
+        makeIndex.makeIndex('/schema/post'),
+        makeIndex.makeIndex('/schema/index/tags'),
+        Processor.curies,
+        Processor.embed,
+        Processor.schema,
         ConfigProcessor
     ]
 };
