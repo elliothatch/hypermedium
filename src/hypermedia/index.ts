@@ -155,14 +155,15 @@ export class Hypermedia {
         return false;
     }
 
-    public loadResource(relativeUri: HAL.Uri, resource: HAL.Resource): HAL.Resource {
+    public loadResource(relativeUri: HAL.Uri, resource: HAL.Resource, origin: string): HAL.Resource {
         const normalizedUri = this.normalizeUri(relativeUri);
         if(this.resourceGraph.hasNode(normalizedUri)) {
             throw new Error(`Resource ${normalizedUri} already loaded`);
         }
         this.resourceGraph.setNode(normalizedUri, {
             originalResource: resource,
-            processing: false
+            processing: false,
+            origin
         });
 
         this.log({
@@ -252,7 +253,7 @@ export class Hypermedia {
                                     template;
 
                                 if(newResource) {
-                                    this.loadResource(u, newResource);
+                                    this.loadResource(u, newResource, processor.name);
                                 }
                             }
                             this.addDependency(this.normalizeUri(u), normalizedUri, processor)
@@ -304,7 +305,7 @@ export class Hypermedia {
              (filePath: string, uri: string, fileContents: string) => {
                  this.files[uri] = fileContents;
                  if(Path.extname(filePath) === '.json') {
-                     return this.loadResource(uri, JSON.parse(fileContents));
+                     return this.loadResource(uri, JSON.parse(fileContents), 'fs');
                  }
                  // TODO: don't return empty resource
                  return {};
@@ -427,6 +428,8 @@ export interface ResourceNode {
     resource?: Hypermedia.ExtendedResource;
     /** true if the resource is currently being processed */
     processing: boolean;
+    /** indicates how the original resource was created */
+    origin: string;
 }
 
 export interface ResourceEdge {

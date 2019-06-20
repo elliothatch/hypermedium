@@ -20,6 +20,7 @@ const nodes = graphData.nodes.map((node) => {
 	return {
 		data: {
 			id: node.v,
+			origin: node.value.origin,
 		}
 	};
 });
@@ -52,6 +53,12 @@ const cy = cytoscape({
 
 				'color': '#fff',
 				'text-valign': 'center',
+			}
+		},
+		{
+			selector: "node[origin != 'fs']",
+			style: {
+				'background-color': '#557',
 			}
 		},
 		{
