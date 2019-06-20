@@ -245,7 +245,16 @@ freshrLogs.on('error', (err) => {
 
 freshrLogs.on('line', function(line) {
     try {
-        const log = JSON.parse(line);
+    	let log;
+    	try {
+			log = JSON.parse(line);
+		}
+		catch(e) {
+			log = {
+				level: 'info',
+				message: line
+			};
+		}
 		/*
 		const originalLog = Object.assign({}, log); // this copy is safe as long as we only modify the top level for printing purposes
 

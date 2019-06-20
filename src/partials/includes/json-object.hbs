@@ -1,0 +1,12 @@
+<dl class="json-object">
+	{{#each this}}
+		<dt>{{@key}}</dt>
+		<dd>
+			{{#if (eq (typeof this) 'object')}}
+				{{> core/includes/json-object.hbs this}}
+			{{else}}
+				{{this}}
+			{{/if}}
+		</dd>
+	{{/each}}
+</dl>

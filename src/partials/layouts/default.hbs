@@ -16,7 +16,11 @@
 	<div>
 		{{#unless (startsWith @key '_')}}
 			<h2>{{@key}}</h2>
-			<div>{{this}}</div>
+			{{#if (eq (typeof this) 'object')}}
+				{{> core/includes/json-object.hbs this}}
+			{{else}}
+				<div>{{this}}</div>
+			{{/if}}
 		{{/unless}}
 	</div>
 	{{/each}}
