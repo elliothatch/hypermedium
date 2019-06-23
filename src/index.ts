@@ -15,6 +15,8 @@ import { ReactRollup } from './plugins/react';
 import { RollupTask } from './plugins/rollup';
 import { ConfigProcessor } from './plugins/config';
 
+import { FileSystem } from './plugins/filesystem';
+
 const rollupAlias = require('rollup-plugin-alias');
 const rollupCommonjs = require('rollup-plugin-commonjs');
 const rollupResolve = require('rollup-plugin-node-resolve');
