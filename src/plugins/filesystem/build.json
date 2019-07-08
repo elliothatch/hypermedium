@@ -1,0 +1,12 @@
+{
+	"sType": "task",
+	"definition": "react-rollup",
+	"files": [{
+		"inputs": {
+			"target": ["src/jsx/file-explorer.jsx"]
+		},
+		"outputs": {
+			"js": ["build/js/file-explorer.js"]
+		}
+	}]
+}

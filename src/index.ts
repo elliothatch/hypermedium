@@ -10,12 +10,8 @@ import { Processor, tags, makeIndex } from './hypermedia/processor';
 import { HypermediaRenderer } from './hypermedia-renderer';
 import { BuildManager, BuildStep, TaskDefinition } from './build';
 
-import { CompileSass } from './plugins/sass';
-import { ReactRollup } from './plugins/react';
-import { RollupTask } from './plugins/rollup';
-import { ConfigProcessor } from './plugins/config';
-
-import { FileSystem } from './plugins/filesystem';
+import { Plugin } from './plugin';
+import { Freshr } from './freshr';
 
 const rollupAlias = require('rollup-plugin-alias');
 const rollupCommonjs = require('rollup-plugin-commonjs');
@@ -27,6 +23,7 @@ Log.handlers.get('trace')!.enabled = true;
     // env: 'dev',
 const app = Express();
 
+/*
 const hypermediaOptions = {
     baseUri: 'https://freshr.io',
     curies: [{
@@ -47,11 +44,16 @@ const hypermediaOptions = {
         ConfigProcessor
     ]
 };
+ */
+
+const demoPath = Path.join(__dirname, '..', 'demo');
+const freshr = new Freshr(demoPath);
+
+const pluginsPath = Path.join(__dirname, 'plugins');
 
 const verbose = false;
 
-const hypermedia = new Hypermedia(hypermediaOptions);
-hypermedia.event$.subscribe({
+freshr.hypermedia.event$.subscribe({
     next: (e) => {
         if(verbose) {
             Log.trace('hypermedia', e);
@@ -68,19 +70,129 @@ hypermedia.event$.subscribe({
     error: (e) => Log.error('hypermedia', e),
 });
 
-const sitePath = Path.join(__dirname, '..', 'demo', 'src', 'site');
+freshr.loadAndRegisterPlugins(['core', 'filesystem'], pluginsPath).subscribe({
+    complete: () => {
+        const buildSteps: BuildStep = {
+            sType: 'multitask',
+            sync: true,
+            steps: [{
+                sType: 'task',
+                definition: 'clean',
+                files: [{
+                    inputs: {target: ['build']},
+                    outputs: {}
+                }]
+            }, {
+                sType: 'multitask',
+                steps: [{
+                    sType: 'task',
+                    definition: 'copy',
+                    files: [{
+                        inputs: {target: [Path.join('src', 'partials')]},
+                        outputs: {destination: [Path.join('build', 'partials')]}
+                    }, {
+                        inputs: {target: [Path.join('src', 'site')]},
+                        outputs: {destination: [Path.join('build', 'site')]}
+                    }, {
+                        inputs: {target: [Path.join('src', 'templates')]},
+                        outputs: {destination: [Path.join('build', 'templates')]}
+                    }]
+                },  {
+                    sType: 'task',
+                    definition: 'sass',
+                    options: {
+                        includePaths: [Path.join(__dirname, '..', 'node_modules')]
+                    },
+                    files: [{
+                        inputs: {target: ['src/sass/freshr.scss']},
+                        outputs: {
+                            css: ['build/css/freshr.css'],
+                            sourceMap: ['build/css/freshr.css.map'],
+                        }
+                    }]
+                }, {
+                    sType: 'task',
+                    definition: 'rollup',
+                    options: {
+                        rollup: {
+                            plugins: [
+                                rollupCommonjs({
+                                    include: [
+                                        'node_modules/**',
+                                    ],
+                                }),
+                                rollupResolve({
+                                    browser: true,
+                                    extensions: ['.js', '.jsx'],
+                                }),
 
-hypermedia.loadDirectory(sitePath).catch((e) => console.error(e)).then(() => {
-    hypermedia.processLoadedResources();
-    // console.log(hypermedia.getResource('/freshr/resource-graph.json'));
-    // hypermedia.processResource('/freshr/resource-graph.json');
-    // hypermedia.processResource('/index.json');
-    // hypermedia.processResource('/posts/index.json');
-    // hypermedia.processResource('/posts/hello-world.json');
-    // hypermedia.reprocessResources(['/index.json']);
-    // hypermedia.reprocessResources(['/posts/index.json', '/index.json']);
-}).catch(console.error);
+                                // rollupAlias({
+                                //     'cytoscape': Path.join(__dirname, '..', 'node_modules/cytoscape/dist/cytoscape.umd.js'),
+                                //     'dagre': Path.join(__dirname, '..', 'node_modules/dagre/dist/dagre.min.js'),
+                                //     'cytoscape-dagre': Path.join(__dirname, '..', 'node_modules/cytoscape-dagre/cytoscape-dagre.js'),
+                                //     'cytoscape-dagre': Path.join(__dirname, '..', 'node_modules/cytoscape-dagre/cytoscape-dagre.js'),
+                                // })
+                            ]
+                        }
+                    },
+                    files: [{
+                        inputs: {target: ['src/jsx/resource-graph.jsx']},
+                        outputs: {
+                            js: ['build/js/resource-graph.js'],
+                        }
+                    }]
+                }, {
+                    sType: 'task',
+                    definition: 'react-rollup',
+                    options: {
+                    },
+                    files: [{
+                        inputs: {target: ['src/jsx/main.jsx']},
+                        outputs: {
+                            js: ['build/js/main.js'],
+                        }
+                    }, {
+                        inputs: {target: ['src/jsx/~config/main.jsx']},
+                        outputs: {
+                            js: ['build/js/main.js'],
+                        }
+                    }]
+                }]
+            }]
+        };
 
+        freshr.build.build(buildSteps).subscribe({
+            next: (event) => {
+                if(event.eType === 'error') {
+                    Log.error('build', event);
+                }
+                else {
+                    Log.info('build', event);
+                }
+            },
+            error: (error) => {
+                Log.error('build', error);
+            }
+        });
+    }
+});
+
+
+
+// const sitePath = Path.join(__dirname, '..', 'demo', 'src', 'site');
+
+// hypermedia.loadDirectory(sitePath).catch((e) => console.error(e)).then(() => {
+// hypermedia.processLoadedResources();
+// console.log(hypermedia.getResource('/freshr/resource-graph.json'));
+// hypermedia.processResource('/freshr/resource-graph.json');
+// hypermedia.processResource('/index.json');
+// hypermedia.processResource('/posts/index.json');
+// hypermedia.processResource('/posts/hello-world.json');
+// hypermedia.reprocessResources(['/index.json']);
+// hypermedia.reprocessResources(['/posts/index.json', '/index.json']);
+// }).catch(console.error);
+
+/*
 const coreTemplatesPath = Path.join(__dirname, '..', 'src', 'templates');
 const corePartialsPath = Path.join(__dirname, '..', 'src', 'partials');
 
@@ -123,118 +235,17 @@ console.log(hypermediaRenderer.partials);
 hypermediaRenderer.loadPartials(demoPartialsPath);
 hypermediaRenderer.loadTemplates(demoTemplatesPath).catch((err) => console.error(err));
 
-const demoBuildPath = Path.join(__dirname, '..', 'demo');
+ */
 
-const buildManager = new BuildManager(demoBuildPath);
-buildManager.taskDefinitions.set(CompileSass.name, CompileSass);
-buildManager.taskDefinitions.set(ReactRollup.name, ReactRollup);
-buildManager.taskDefinitions.set(RollupTask.name, RollupTask);
+// const demoBuildPath = Path.join(__dirname, '..', 'demo');
 
-const buildSteps: BuildStep = {
-    sType: 'multitask',
-    sync: true,
-    steps: [{
-            sType: 'task',
-            definition: TaskDefinition.Clean.name,
-            files: [{
-                inputs: {target: ['build']},
-                outputs: {}
-            }]
-        }, {
-        sType: 'multitask',
-        steps: [{
-            sType: 'task',
-            definition: TaskDefinition.Copy.name,
-            files: [{
-                inputs: {target: [Path.join('src', 'partials')]},
-                outputs: {destination: [Path.join('build', 'partials')]}
-            }, {
-                inputs: {target: [Path.join('src', 'site')]},
-                outputs: {destination: [Path.join('build', 'site')]}
-            }, {
-                inputs: {target: [Path.join('src', 'templates')]},
-                outputs: {destination: [Path.join('build', 'templates')]}
-            }]
-        },  {
-            sType: 'task',
-            definition: CompileSass.name,
-            options: {
-                includePaths: [Path.join(__dirname, '..', 'node_modules')]
-            },
-            files: [{
-                inputs: {target: ['src/sass/freshr.scss']},
-                outputs: {
-                    css: ['build/css/freshr.css'],
-                    sourceMap: ['build/css/freshr.css.map'],
-                }
-            }]
-        }, {
-            sType: 'task',
-            definition: RollupTask.name,
-            options: {
-                rollup: {
-                    plugins: [
-                        rollupCommonjs({
-                            include: [
-                                'node_modules/**',
-                            ],
-                        }),
-                        rollupResolve({
-                            browser: true,
-                            extensions: ['.js', '.jsx'],
-                        }),
+// const buildManager = new BuildManager(demoBuildPath);
+// buildManager.taskDefinitions.set(CompileSass.name, CompileSass);
+// buildManager.taskDefinitions.set(ReactRollup.name, ReactRollup);
+// buildManager.taskDefinitions.set(RollupTask.name, RollupTask);
 
-                        // rollupAlias({
-                        //     'cytoscape': Path.join(__dirname, '..', 'node_modules/cytoscape/dist/cytoscape.umd.js'),
-                        //     'dagre': Path.join(__dirname, '..', 'node_modules/dagre/dist/dagre.min.js'),
-                        //     'cytoscape-dagre': Path.join(__dirname, '..', 'node_modules/cytoscape-dagre/cytoscape-dagre.js'),
-                        //     'cytoscape-dagre': Path.join(__dirname, '..', 'node_modules/cytoscape-dagre/cytoscape-dagre.js'),
-                        // })
-                    ]
-                }
-            },
-            files: [{
-                inputs: {target: ['src/jsx/resource-graph.jsx']},
-                outputs: {
-                    js: ['build/js/resource-graph.js'],
-                }
-            }]
-        }, {
-            sType: 'task',
-            definition: ReactRollup.name,
-            options: {
-            },
-            files: [{
-                inputs: {target: ['src/jsx/main.jsx']},
-                outputs: {
-                    js: ['build/js/main.js'],
-                }
-            }, {
-                inputs: {target: ['src/jsx/~config/main.jsx']},
-                outputs: {
-                    js: ['build/js/main.js'],
-                }
-            }]
-        }]
-    }]
-};
-
-buildManager.build(buildSteps).subscribe({
-    next: (event) => {
-        if(event.eType === 'error') {
-            Log.error('build', event);
-        }
-        else {
-            Log.info('build', event);
-        }
-    },
-    error: (error) => {
-        Log.error('build', error);
-    }
-});
-
-app.use(hypermediaRenderer.router);
-app.use(hypermedia.router);
+app.use(freshr.renderer.router);
+app.use(freshr.hypermedia.router);
 // app.use('/~config', buildManager.router);
 
 app.use(Express.static(Path.join(__dirname, '..', 'demo', 'build', 'site')));

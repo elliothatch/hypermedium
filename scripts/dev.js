@@ -25,8 +25,9 @@ const freshr = child_process.spawn(
     [Path.join(__dirname, '..', 'build', 'index.js'), '--', ...process.argv.slice(1)]);
     // [Path.join(__dirname, 'dev.test.js'), '--', ...process.argv.slice(1)]);
 
+let freshrRunning = true;
 
-process.stdin.pipe(freshr.stdin);
+// process.stdin.pipe(freshr.stdin);
 // freshr.stderr.pipe(process.stderr);
 
 const freshrLogs = readline.createInterface({
@@ -129,7 +130,13 @@ const displayOptions = {
 term.on('key', (name, matches, data) => {
 	try {
 		if(name === 'CTRL_C') {
-			freshr.kill();
+			if(freshrRunning) {
+				freshr.kill();
+			}
+			else {
+				term.fullscreen(false);
+				process.exit();
+			}
 		}
 
 		// if(name === 'UP') {
@@ -231,19 +238,25 @@ const indexProperties = [];
  */
 const logValues = [];
 
-freshrLogs.on('close', (code, signal) => {
-	term.fullscreen(false);
-	console.error(`Process exited: ${code} ${signal}`);
-	process.exit();
+freshr.on('close', (code, signal) => {
+	freshrRunning = false;
+	parseLog(JSON.stringify({
+		level: 'warn',
+		message: 'Process exited. Press CTRL_C to exit.',
+		code,
+		signal
+	}) + '\n');
 });
 
 freshrLogs.on('error', (err) => {
-	term.fullscreen(false);
-	console.error('Process error:', err);
-	process.exit();
+	parseLog(JSON.stringify({
+		level: 'error',
+		message: 'Process exited with error. Press CTRL_C to exit.',
+		error: err
+	}) + '\n');
 });
 
-freshrLogs.on('line', function(line) {
+function parseLog(line) {
     try {
     	let log;
     	try {
@@ -323,6 +336,10 @@ freshrLogs.on('line', function(line) {
         console.error(err);
         freshr.kill();
     }
+}
+
+freshrLogs.on('line', function(line) {
+	parseLog(line);
 });
 
 freshrErrors.on('line', function(line) {

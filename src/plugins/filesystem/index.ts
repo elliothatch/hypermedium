@@ -1,21 +1,22 @@
-import { Processor } from '../hypermedia/processor';
 import * as Path from 'path';
 import { promises as fs } from 'fs';
 
-import { Plugin } from '../plugin';
+import { Processor } from '../../hypermedia/processor';
+import { Plugin } from '../../plugin';
+
+const fileSystemModuleFactory: Plugin.Module.Factory = (options) => {
+    return {
+        websocketMiddleware: (socket, next) => {
+            socket.on('filesystem/files', (data) => {
+                socket.emit('filesystem/files', FileSystem.getEntry(options.basePath, ''));
+            });
+        },
+    };
+};
+
+export default fileSystemModuleFactory;
 
 export namespace FileSystem {
-    export const Plugin: Plugin.Factory = (options) => {
-        return {
-            name: 'filesystem',
-            websocketMiddleware: (socket, next) => {
-                socket.on('filesystem/files', (data) => {
-                    socket.emit('filesystem/files', getEntry(options.basePath, ''));
-                });
-            },
-        };
-    };
-
     export type Entry = Entry.File | Entry.Directory | Entry.Unknown;
     export namespace Entry {
         export interface Base {

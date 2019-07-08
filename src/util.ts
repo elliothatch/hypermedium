@@ -2,10 +2,61 @@ import * as Path from 'path';
 import { promises as fs } from 'fs';
 import * as Url from 'url';
 
+import { merge, forkJoin, Observable, of, from, empty } from 'rxjs';
+import { map, mergeMap, catchError } from 'rxjs/operators';
+
 import { Hypermedia } from './hypermedia';
 import * as HAL from './hal';
 
 export type FileProcessor<T> = (filePath: string, relativeUri: string, fileContents: string) => T;
+
+export interface File {
+    path: string;
+    uri: string;
+    contents: string;
+}
+
+/** finds all files at the specified paths. all files in a directory are read, recursively
+ */
+export function loadFiles(paths: string[], baseUri: HAL.Uri = ''): Observable<File> {
+    return merge(...paths.map((path) => {
+        return from(fs.lstat(path)).pipe(
+            mergeMap((stat) => {
+                if(stat.isFile()) {
+                    return from(fs.readFile(path, 'utf')).pipe(
+                        map((contents) => ({
+                            path,
+                            uri: `${baseUri}/${Path.basename(path)}`,
+                            contents: contents as string,
+                        })),
+                        catchError((error) => {
+                            // warning: failed to read file
+                            return empty() as Observable<File>;
+                        })
+                    );
+                }
+                else {
+                    return from(fs.readdir(path)).pipe(
+                        mergeMap((files) => {
+                            return loadFiles(
+                                files.map((file) => Path.join(path, file)),
+                                `${baseUri}/${Path.basename(path)}`
+                            );
+                        }),
+                        catchError((error) => {
+                            // warning, failed to load directory
+                            return empty() as Observable<File>;
+                        })
+                    );
+                }
+            }),
+            catchError((error) => {
+                // warning: failed to load path
+                return empty() as Observable<File>;
+            })
+        );
+    }));
+}
 
 export function walkDirectory<T>(directoryPath: string, f: FileProcessor<T>, relativeUri: HAL.Uri = ''): Promise<{[uri: string]: T}> {
     return fs.readdir(directoryPath).then((files) => {

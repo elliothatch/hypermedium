@@ -2,7 +2,7 @@ import * as Path from 'path';
 import { from } from 'rxjs';
 import { mergeMap, map } from 'rxjs/operators';
 
-import { TaskDefinition } from '../build';
+import { TaskDefinition } from '../../../build';
 
 import { RollupTask } from './rollup';
 
@@ -16,11 +16,11 @@ const commonjs = require('rollup-plugin-commonjs');
 const alias = require('rollup-plugin-alias');
 
 
-let reactPath = Path.join(__dirname, '..', '..', 'node_modules/react/umd/react.production.min.js');
-let reactDomPath = Path.join(__dirname, '..', '..', 'node_modules/react-dom/umd/react-dom.production.min.js');
+let reactPath = Path.join(__dirname, '..', '..', '..', '..', 'node_modules/react/umd/react.production.min.js');
+let reactDomPath = Path.join(__dirname, '..', '..', '..', '..', 'node_modules/react-dom/umd/react-dom.production.min.js');
 if (process.env.NODE_ENV !== 'production') {
-    reactPath =  Path.join(__dirname, '..', '..', 'node_modules/react/umd/react.development.js');
-    reactDomPath = Path.join(__dirname, '..', '..', 'node_modules/react-dom/umd/react-dom.development.js');
+    reactPath =  Path.join(__dirname, '..', '..', '..', '..', 'node_modules/react/umd/react.development.js');
+    reactDomPath = Path.join(__dirname, '..', '..', '..', '..', 'node_modules/react-dom/umd/react-dom.development.js');
 }
 
 /**

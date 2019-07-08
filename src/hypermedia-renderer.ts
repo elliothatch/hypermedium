@@ -5,12 +5,12 @@ import * as Url from 'url';
 import { Observable, Observer } from 'rxjs';
 
 import { NextFunction, Router, Request, Response } from 'express';
-import { compile, registerHelper, registerPartial, SafeString, TemplateDelegate } from 'handlebars';
+import { compile, registerHelper, registerPartial as handlebarsRegisterPartial, SafeString, TemplateDelegate } from 'handlebars';
 
 import { Hypermedia } from './hypermedia';
 import * as HAL from './hal';
 import { expandCuri, getProfiles, htmlUri } from './hal-util';
-import { walkDirectory } from './util';
+import { File, walkDirectory } from './util';
 
 export type Html = string;
 export namespace Html {
@@ -78,18 +78,26 @@ export class HypermediaRenderer {
         this.router.get('/*', this.middleware);
     }
 
-    /** recursively load partials */
+    /** recursively load partials
+     * @deprecated
+     * */
     public loadPartials(partialsPath: string, uriPrefix?: HAL.Uri): Promise<PartialMap> {
         return walkDirectory(
             partialsPath,
             (filePath: string, uri: string, fileContents: string) => {
                 // strip leading slash, since partials can't start with a slash
                 const partialName = uri.replace(/^\//, '');
-                registerPartial(partialName, fileContents);
+                handlebarsRegisterPartial(partialName, fileContents);
                 this.partials[partialName] = fileContents;
                 return fileContents;
             },
             uriPrefix);
+    }
+
+    public registerPartial(file: File, namespace: string): void {
+        const partialName = `${namespace}/${file.uri.replace(/^\//g, '')}`;
+        handlebarsRegisterPartial(partialName, file.contents);
+        this.partials[partialName] = file.contents;
     }
 
     /**
@@ -108,6 +116,15 @@ export class HypermediaRenderer {
                 return template;
             },
             uriPrefix);
+    }
+
+    public registerTemplate(file: File, namespace: string): void {
+
+        const uri = `${namespace}/${file.uri.replace(/^\//g, '')}`;
+        const template = compile(file.contents);
+        // execute the template to check for compile errors
+        // template({});
+        this.templates[uri] = template;
     }
 
     public render(resource: Hypermedia.ExtendedResource): Html {
