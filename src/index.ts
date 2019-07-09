@@ -51,13 +51,19 @@ const demoPath = Path.join(__dirname, '..', 'demo');
 const sitePath = Path.join(demoPath, 'src', 'site');
 const freshr = new Freshr(demoPath, {
     renderer: {
-        defaultTemplate: '/freshr.hbs',
+        // defaultTemplate: '/freshr.hbs',
     }
 });
 
 const pluginsPath = Path.join(__dirname, 'plugins');
 
 const verbose = false;
+
+freshr.watchEvent$.subscribe({
+    next: (e) => {
+        Log.trace('resource changed', e);
+    }
+});
 
 freshr.hypermedia.event$.subscribe({
     next: (e) => {
@@ -96,9 +102,12 @@ freshr.loadAndRegisterPlugins(['core', 'filesystem'], pluginsPath).subscribe({
         freshr.addProcessor('core/embed');
         // freshr.addProcessor('core/schema');
 
-        freshr.hypermedia.loadDirectory(sitePath).catch((e) => console.error(e)).then(() => {
-            freshr.hypermedia.processLoadedResources();
-        }).catch(console.error);
+        // freshr.hypermedia.loadDirectory(sitePath).catch((e) => console.error(e)).then(() => {
+            // freshr.hypermedia.processLoadedResources();
+        // }).catch(console.error);
+
+        freshr.watchResources(sitePath).subscribe();
+        // freshr.watcher.add(sitePath);
 
         const buildSteps: BuildStep = {
             sType: 'multitask',

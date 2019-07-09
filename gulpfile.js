@@ -2,7 +2,7 @@ const Path = require('path');
 const { src, dest, parallel, series } = require('gulp');
 // const rename = require('gulp-rename');
 // const gulpif = require('gulp-if');
-const del = require('del');
+// const del = require('del');
 
 function createPluginTask(pluginName) {
 	return parallel(
@@ -17,9 +17,9 @@ function createPluginTask(pluginName) {
 	);
 }
 
-function clean() {
-	return del('build');
-}
+// function clean() {
+	// return del('build');
+// }
 
 function corePlugin() {
 	return src([
@@ -28,7 +28,7 @@ function corePlugin() {
 	]).pipe(dest('build/plugins/core'));
 }
 
-exports.clean = clean;
+// exports.clean = clean;
 exports.corePlugin = createPluginTask('core');
 exports.default = exports.corePlugin;
 // exports.default = series(clean, corePlugin);

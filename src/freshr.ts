@@ -1,6 +1,9 @@
+import * as chokidar from 'chokidar';
+import * as Path from 'path';
+import { promises as fs } from 'fs';
 import { Socket } from 'socket.io';
-import { merge, Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { forkJoin, of, from, fromEventPattern, merge, Observable, Subject } from 'rxjs';
+import { filter, mergeMap, map, publish, tap } from 'rxjs/operators';
 
 import { Hypermedia } from './hypermedia';
 import { HypermediaRenderer } from './hypermedia-renderer';
@@ -12,10 +15,15 @@ import { TaskDefinition } from './build';
 
 import { FileError, NotFoundError } from './util';
 
+// const watchObservable = bindCallback<fs.PathLike, {recursive?: boolean}, string, string>(fs.watch);
+
 export class Freshr {
     public hypermedia: Hypermedia;
     public renderer: HypermediaRenderer;
     public build: BuildManager;
+
+    // public watcher: chokidar.FSWatcher;
+    public watchEvent$: Subject<WatchEvent>;
 
     public processorGenerators: Map<string, Plugin.ProcessorGenerator>;
 
@@ -44,6 +52,39 @@ export class Freshr {
         this.build = new BuildManager(sitePath);
 
         this.processorGenerators = new Map();
+
+        this.watchEvent$ = new Subject();
+        this.watchEvent$.pipe(
+            filter((watchEvent) => watchEvent.eType === 'add'),
+            mergeMap((watchEvent) => forkJoin(
+                of(watchEvent),
+                from(fs.readFile(watchEvent.path, 'utf-8'))
+            )),
+            map(([watchEvent, fileContents]) => {
+                this.hypermedia.loadResource(watchEvent.uri, JSON.parse(fileContents), 'fs');
+                this.hypermedia.processResource(watchEvent.uri);
+            })
+        ).subscribe();
+    }
+
+    watchResources(path: string): Observable<WatchEvent> {
+        return fromEventPattern<[string, string]>((addHandler) => {
+            const watcher = chokidar.watch(path);
+            ['add', 'change', 'unlink', 'addDir', 'unlinkDir'].forEach((eventName) => {
+                watcher.on(eventName, (...args: any[]) => addHandler(eventName, ...args));
+            });
+        }).pipe(
+            map(([eventType, filename]) => {
+                return {
+                    eType: eventType,
+                    path: filename,
+                    uri: '/' + Path.relative(path, filename).replace(/\\/g, '/'),
+                } as WatchEvent;
+            }),
+            publish((multicasted$) =>
+                multicasted$.pipe(tap((watchEvent) => this.watchEvent$.next(watchEvent)))
+            ),
+        );
     }
 
     loadAndRegisterPlugins(names: string[], searchPath: string): Observable<{plugin: Plugin, module: Plugin.Module, errors: FileError[]}> {
@@ -84,7 +125,6 @@ export class Freshr {
 
         if(plugin.templates) {
             plugin.templates.forEach((template) => {
-                console.log(plugin.name, template);
                 this.renderer.registerTemplate(template, plugin.name);
             });
         }
@@ -110,6 +150,12 @@ export namespace Freshr {
         hypermedia: Partial<Hypermedia.Options>;
         renderer: Partial<HypermediaRenderer.Options>;
     }
+}
+
+export interface WatchEvent {
+    eType: 'add' | 'change' | 'unlink' | 'addDir' | 'unlinkDir';
+    path: string;
+    uri: string;
 }
 
 
