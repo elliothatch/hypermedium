@@ -3,20 +3,20 @@ import { promises as fs } from 'fs';
 
 import { Socket } from 'socket.io';
 import { forkJoin, Observable, of, from } from 'rxjs';
-import { toArray, map, mergeMap, catchError } from 'rxjs/operators';
+import { filter, toArray, map, mergeMap, catchError } from 'rxjs/operators';
 
 import { Processor } from './hypermedia/processor';
 import { PartialMap, ProfileLayoutMap, TemplateMap } from './hypermedia-renderer';
 import { TaskDefinition } from './build';
 
-import { File, loadFiles } from './util';
+import { File, FileError, loadFiles } from './util';
 
 export interface Plugin {
     name: string;
 
     packageOptions: Plugin.PackageOptions;
 
-    moduleFactory: Plugin.Module.Factory;
+    moduleFactory?: Plugin.Module.Factory;
 
     partials?: File[],
     templates?: File[],
@@ -29,8 +29,7 @@ export namespace Plugin {
      * @param name - name of the plugin
      * @param searchPath - path to the directory we will search for 'name' in
      */
-    export function load(name: string, searchPath: string): Observable<Plugin> {
-        debugger;
+    export function load(name: string, searchPath: string): Observable<{plugin: Plugin, errors: FileError[]}> {
         const pluginPath = Path.join(searchPath, name);
 
         // read the directory to make sure it's there and give better error message
@@ -63,7 +62,7 @@ export namespace Plugin {
             }),
             mergeMap((packageOptions) => {
                 const mainPath = Path.join(pluginPath, packageOptions.main || 'index.js');
-                let moduleFactory: Module.Factory = () => ({});
+                let moduleFactory: Module.Factory | undefined;
                 try {
                     moduleFactory = require(mainPath);
                     if(moduleFactory && (moduleFactory as any).default) {
@@ -71,7 +70,7 @@ export namespace Plugin {
                     }
                 }
                 catch(error) {
-                    console.error(`Plugin.load: failed to load plugin: ${pluginPath} (${name}): ${error}`);
+                    // console.error(`Plugin.load: failed to load plugin: ${pluginPath} (${name}): ${error}`);
                     // warning: module not found
                 }
 
@@ -87,11 +86,14 @@ export namespace Plugin {
                 ).pipe(
                     map(([moduleFactory, templates, partials]) => {
                         return {
-                            name,
-                            packageOptions,
-                            moduleFactory,
-                            partials,
-                            templates,
+                            plugin: {
+                                name,
+                                packageOptions,
+                                moduleFactory,
+                                partials: partials.filter((file) => (file as File).contents) as File[],
+                                templates: templates.filter((file) => (file as File).contents) as File[],
+                            },
+                            errors: partials.concat(templates).filter((file) => (file as FileError).error) as FileError[],
                         };
                     })
                 );

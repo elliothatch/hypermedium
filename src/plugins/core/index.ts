@@ -3,7 +3,6 @@ import { Plugin } from '../../plugin';
 import Processors from './processors';
 import TaskDefinitions from './task-definitions';
 
-
 const coreModuleFactory: Plugin.Module.Factory = (options) => {
     return {
         processorGenerators: Processors,

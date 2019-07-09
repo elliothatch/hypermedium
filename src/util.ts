@@ -16,22 +16,36 @@ export interface File {
     contents: string;
 }
 
+export interface FileError {
+    path: string;
+    uri: string;
+    error: Error;
+}
+
 /** finds all files at the specified paths. all files in a directory are read, recursively
+ * the first invocation has baseUri '.', which means that any directories in "paths" will not add their basename to the output URI for its contents--effectively "flattening" the directory 
  */
-export function loadFiles(paths: string[], baseUri: HAL.Uri = ''): Observable<File> {
+export function loadFiles(paths: string[], baseUri: HAL.Uri = '.'): Observable<File | FileError> {
     return merge(...paths.map((path) => {
+        const uri = baseUri === '.' || baseUri.length === 0?
+            Path.basename(path):
+            `${baseUri}/${Path.basename(path)}`;
         return from(fs.lstat(path)).pipe(
             mergeMap((stat) => {
                 if(stat.isFile()) {
-                    return from(fs.readFile(path, 'utf')).pipe(
+                    return from(fs.readFile(path, 'utf-8')).pipe(
                         map((contents) => ({
                             path,
-                            uri: `${baseUri}/${Path.basename(path)}`,
+                            uri,
                             contents: contents as string,
                         })),
                         catchError((error) => {
-                            // warning: failed to read file
-                            return empty() as Observable<File>;
+                            // failed to load file
+                            return of({
+                                path,
+                                uri,
+                                error
+                            });
                         })
                     );
                 }
@@ -40,19 +54,27 @@ export function loadFiles(paths: string[], baseUri: HAL.Uri = ''): Observable<Fi
                         mergeMap((files) => {
                             return loadFiles(
                                 files.map((file) => Path.join(path, file)),
-                                `${baseUri}/${Path.basename(path)}`
+                                baseUri === '.'? '': uri
                             );
                         }),
                         catchError((error) => {
-                            // warning, failed to load directory
-                            return empty() as Observable<File>;
+                            // failed to load directory
+                            return of({
+                                path,
+                                uri,
+                                error
+                            });
                         })
                     );
                 }
             }),
             catchError((error) => {
-                // warning: failed to load path
-                return empty() as Observable<File>;
+                // failed to load path
+                return of({
+                    path,
+                    uri,
+                    error
+                });
             })
         );
     }));

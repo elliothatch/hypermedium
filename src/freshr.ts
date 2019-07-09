@@ -1,6 +1,6 @@
 import { Socket } from 'socket.io';
 import { merge, Observable } from 'rxjs';
-import { tap } from 'rxjs/operators';
+import { map } from 'rxjs/operators';
 
 import { Hypermedia } from './hypermedia';
 import { HypermediaRenderer } from './hypermedia-renderer';
@@ -9,6 +9,8 @@ import { BuildManager } from './build';
 import { Plugin } from './plugin';
 import { Processor } from './hypermedia/processor';
 import { TaskDefinition } from './build';
+
+import { FileError, NotFoundError } from './util';
 
 export class Freshr {
     public hypermedia: Hypermedia;
@@ -19,29 +21,39 @@ export class Freshr {
 
     public sitePath: string;
 
-
-    constructor(sitePath: string) {
+    constructor(sitePath: string, options?: Partial<Freshr.Options>) {
         this.sitePath = sitePath;
-        this.hypermedia = new Hypermedia({
-            curies: [],
-            processors: [],
-        });
-        this.renderer = new HypermediaRenderer({
-            hypermedia: this.hypermedia,
-        });
+        this.hypermedia = new Hypermedia(Object.assign(
+            {
+                curies: [],
+            },
+            options && options.hypermedia,
+            {
+                processors: [],
+            }
+        ));
+
+        this.renderer = new HypermediaRenderer(Object.assign(
+            {},
+            options && options.renderer,
+            {
+                hypermedia: this.hypermedia,
+            }
+        ));
+
         this.build = new BuildManager(sitePath);
 
         this.processorGenerators = new Map();
     }
 
-    loadAndRegisterPlugins(names: string[], searchPath: string): Observable<Plugin> {
+    loadAndRegisterPlugins(names: string[], searchPath: string): Observable<{plugin: Plugin, module: Plugin.Module, errors: FileError[]}> {
         return merge(...names.map((name) => Plugin.load(name, searchPath))).pipe(
-            tap((plugin) => this.registerPlugin(plugin))
+            map(({plugin, errors}) => ({plugin, errors, module: this.registerPlugin(plugin)}))
         );
     }
 
-    registerPlugin(plugin: Plugin): void {
-        const module = plugin.moduleFactory({
+    registerPlugin(plugin: Plugin): Plugin.Module {
+        const module = !plugin.moduleFactory? {}: plugin.moduleFactory({
             basePath: this.sitePath
         });
 
@@ -52,7 +64,6 @@ export class Freshr {
                     module.processorGenerators![generatorName]
                 );
             });
-            // this.hypermedia.processors.push(...plugin.module.processors);
         }
 
         if(module.taskDefinitions) {
@@ -73,16 +84,31 @@ export class Freshr {
 
         if(plugin.templates) {
             plugin.templates.forEach((template) => {
+                console.log(plugin.name, template);
                 this.renderer.registerTemplate(template, plugin.name);
             });
         }
+
+        return module;
+    }
+
+    addProcessor(generatorName: string, options?: any): Processor {
+        const generator = this.processorGenerators.get(generatorName);
+        if(!generator) {
+            throw new NotFoundError(generatorName);
+        }
+
+        const processor = generator(options);
+        this.hypermedia.processors.push(processor);
+        return processor;
     }
 }
 
 export namespace Freshr {
     export interface Options {
-        hypermedia: Hypermedia.Options;
-        renderer: HypermediaRenderer.Options;
+
+        hypermedia: Partial<Hypermedia.Options>;
+        renderer: Partial<HypermediaRenderer.Options>;
     }
 }
 

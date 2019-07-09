@@ -5,7 +5,7 @@
     "main": "build/index.js",
     "types": "declarations/index.d.ts",
     "scripts": {
-        "build": "tsc",
+        "build": "tsc && gulp",
         "clean": "node scripts/clean.js",
         "dev": "node scripts/dev.js",
         "docs": "typedoc --out docs/ src/",
@@ -26,6 +26,8 @@
         "@types/socket.io": "^2.1.2",
         "fs-extra": "^7.0.1",
         "fuzzysort": "^1.1.4",
+        "gulp": "^4.0.2",
+        "gulp-typescript": "^5.0.1",
         "jest": "^23.6.0",
         "sanitize.css": "^9.0.0",
         "terminal-kit": "^1.28.0",

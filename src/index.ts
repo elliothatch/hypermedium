@@ -47,7 +47,13 @@ const hypermediaOptions = {
  */
 
 const demoPath = Path.join(__dirname, '..', 'demo');
-const freshr = new Freshr(demoPath);
+// const sitePath = Path.join(demoPath, 'build', 'site');
+const sitePath = Path.join(demoPath, 'src', 'site');
+const freshr = new Freshr(demoPath, {
+    renderer: {
+        defaultTemplate: '/freshr.hbs',
+    }
+});
 
 const pluginsPath = Path.join(__dirname, 'plugins');
 
@@ -71,7 +77,29 @@ freshr.hypermedia.event$.subscribe({
 });
 
 freshr.loadAndRegisterPlugins(['core', 'filesystem'], pluginsPath).subscribe({
+    next: ({plugin, module}) => {
+        Log.info('plugin registered', {
+            plugin,
+            processorGenerators: module.processorGenerators && Object.keys(module.processorGenerators)
+        });
+    },
     complete: () => {
+        Log.info('processor generators', {processors: Array.from(freshr.processorGenerators.keys())});
+
+        freshr.addProcessor('core/resourceGraph');
+        freshr.addProcessor('core/self');
+        freshr.addProcessor('core/tags');
+        // freshr.addProcessor('core/breadcrumb');
+        freshr.addProcessor('core/makeIndex', '/schema/post');
+        freshr.addProcessor('core/makeIndex', '/schema/index/tags');
+        freshr.addProcessor('core/curies');
+        freshr.addProcessor('core/embed');
+        // freshr.addProcessor('core/schema');
+
+        freshr.hypermedia.loadDirectory(sitePath).catch((e) => console.error(e)).then(() => {
+            freshr.hypermedia.processLoadedResources();
+        }).catch(console.error);
+
         const buildSteps: BuildStep = {
             sType: 'multitask',
             sync: true,

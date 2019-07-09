@@ -66,7 +66,7 @@ export class HypermediaRenderer {
 
     constructor(options: HypermediaRenderer.Options) {
         this.hypermedia = options.hypermedia;
-        this.defaultTemplate = options.defaultTemplate || 'core/layouts/default.hbs';
+        this.defaultTemplate = options.defaultTemplate || 'core/default.hbs';
         this.siteContext = options.siteContext || {};
         this.profileLayouts = options.profileLayouts || {};
 
@@ -121,6 +121,7 @@ export class HypermediaRenderer {
     public registerTemplate(file: File, namespace: string): void {
 
         const uri = `${namespace}/${file.uri.replace(/^\//g, '')}`;
+        console.log('template', uri);
         const template = compile(file.contents);
         // execute the template to check for compile errors
         // template({});
