@@ -17,6 +17,8 @@ import { FileError, NotFoundError } from './util';
 
 // const watchObservable = bindCallback<fs.PathLike, {recursive?: boolean}, string, string>(fs.watch);
 
+/** sets up the hypermedia engine, html renderer, and build system
+ */
 export class Freshr {
     public hypermedia: Hypermedia;
     public renderer: HypermediaRenderer;

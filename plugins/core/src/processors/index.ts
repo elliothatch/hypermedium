@@ -1,9 +1,9 @@
 import { Edge, json as graphJson } from 'graphlib';
-import * as HAL from '../../../hal';
-import { filterCuries, getProfiles, resourceMatchesProfile } from '../../../hal-util';
-import { createSchema, objectDifference } from '../../../util';
-import { Hypermedia, Embed } from '../../../hypermedia';
-import { Plugin } from '../../../plugin';
+import * as HAL from '../../../../src/hal';
+import { filterCuries, getProfiles, resourceMatchesProfile } from '../../../../src/hal-util';
+import { createSchema, objectDifference } from '../../../../src/util';
+import { Hypermedia, Embed } from '../../../../src/hypermedia';
+import { Plugin } from '../../../../src/plugin';
 
 
 import { makeIndex } from './make-index';

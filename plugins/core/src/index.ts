@@ -1,4 +1,4 @@
-import { Plugin } from '../../plugin';
+import { Plugin } from '../../../src/plugin';
 
 import Processors from './processors';
 import TaskDefinitions from './task-definitions';

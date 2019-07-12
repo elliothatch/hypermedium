@@ -33,7 +33,10 @@ registerHelper('hal-link', (rel, link, ...options) => {
 
     return new SafeString(`<a ${relHtml} href=${htmlUri(link.href)}>${link.title || link.href}</a>`)
 });
+registerHelper('not', (lhs) => !lhs);
 registerHelper('eq', (lhs, rhs) => lhs == rhs);
+registerHelper('or', (lhs, rhs) => lhs || rhs);
+registerHelper('and', (lhs, rhs) => lhs && rhs);
 registerHelper('startsWith', (str, seq) => str.startsWith(seq));
 registerHelper('isArray', (val) => Array.isArray(val));
 registerHelper('typeof', (val) => typeof val);
@@ -119,9 +122,7 @@ export class HypermediaRenderer {
     }
 
     public registerTemplate(file: File, namespace: string): void {
-
         const uri = `${namespace}/${file.uri.replace(/^\//g, '')}`;
-        console.log('template', uri);
         const template = compile(file.contents);
         // execute the template to check for compile errors
         // template({});

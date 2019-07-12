@@ -52,6 +52,7 @@ export namespace Plugin {
 
                         obj.freshr = {
                             ...obj.freshr,
+                            baseUrl: obj.freshr.baseUrl || '.',
                             templates: obj.freshr.templates || ['templates'],
                             partials: obj.freshr.partials || ['partials'],
                         };
@@ -70,14 +71,22 @@ export namespace Plugin {
                     }
                 }
                 catch(error) {
-                    // console.error(`Plugin.load: failed to load plugin: ${pluginPath} (${name}): ${error}`);
+                    console.error(`Plugin.load: failed to load plugin: ${pluginPath} (${name}): ${error}`);
                     // warning: module not found
                 }
 
                 const templatesPaths = packageOptions.freshr.templates.map(
-                    (templatesPath: string) => Path.join(pluginPath, templatesPath));
+                    (templatesPath: string) => Path.join(
+                        pluginPath,
+                        packageOptions.freshr.baseUrl,
+                        templatesPath)
+                );
                 const partialsPaths = packageOptions.freshr.partials.map(
-                    (partialsPath: string) => Path.join(pluginPath, partialsPath));
+                    (partialsPath: string) => Path.join(
+                        pluginPath,
+                        packageOptions.freshr.baseUrl,
+                        partialsPath)
+                );
 
                 return forkJoin(
                     of(moduleFactory),
@@ -104,9 +113,11 @@ export namespace Plugin {
     /** these options may be provided in the "package.json" as an object under the "freshr" property
      */
     export interface PackageOptions {
-        /** list of paths (relative to package.json's dir) to directories or files containing templates. default 'templates' */
+        /** base path (relative to package.json's dir) prepended to all other path lookups. default '.' */
+        baseUrl: string;
+        /** list of paths (relative to baseUrl) to directories or files containing templates. default 'templates' */
         templates: string[];
-        /** list of paths (relative to package.json's dir) to directories or files containing partials. default 'partials' */
+        /** list of paths (relative to baseUrl) to directories or files containing partials. default 'partials' */
         partials: string[];
     }
 

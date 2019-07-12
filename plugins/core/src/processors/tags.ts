@@ -1,9 +1,9 @@
 import { Edge, json as graphJson } from 'graphlib';
-import * as HAL from '../../../hal';
-import { filterCuries, getProfiles, resourceMatchesProfile } from '../../../hal-util';
-import { createSchema, objectDifference } from '../../../util';
-import { Hypermedia, Embed } from '../../../hypermedia';
-import { Processor } from '../../../hypermedia/processor';
+import * as HAL from '../../../../src/hal';
+import { filterCuries, getProfiles, resourceMatchesProfile } from '../../../../src/hal-util';
+import { createSchema, objectDifference } from '../../../../src/util';
+import { Hypermedia, Embed } from '../../../../src/hypermedia';
+import { Processor } from '../../../../src/hypermedia/processor';
 
 type ResourceState = Hypermedia.ResourceState;
 type ExtendedResource = Hypermedia.ExtendedResource;

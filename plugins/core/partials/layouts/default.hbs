@@ -14,7 +14,7 @@
 	</ul>
 	{{#each this}}
 	<div>
-		{{#unless (startsWith @key '_')}}
+		{{#unless (and (startsWith @key '_') (not (eq @key '_embedded')))}}
 			<h2>{{@key}}</h2>
 			{{#if (eq (typeof this) 'object')}}
 				{{> core/includes/json-object.hbs this}}

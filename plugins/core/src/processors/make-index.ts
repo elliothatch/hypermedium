@@ -1,7 +1,7 @@
-import { Hypermedia } from '../../../hypermedia';
-import { Processor } from '../../../hypermedia/processor';
-import * as HAL from '../../../hal';
-import { resourceMatchesProfile } from '../../../hal-util';
+import { Hypermedia } from '../../../../src/hypermedia';
+import { Processor } from '../../../../src/hypermedia/processor';
+import * as HAL from '../../../../src/hal';
+import { resourceMatchesProfile } from '../../../../src/hal-util';
 
 /** whenever a new resources matches the given profile, 
  * add it to the index and update the index page.

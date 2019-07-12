@@ -3,13 +3,8 @@
     "module": "commonjs",
     "target": "esnext",
 
-    "composite": true,
-    "rootDir": "src",
-
     "declaration": true,
     "declarationDir": "declarations",
-    "declarationMap": true,
-
     "outDir": "build",
     "sourceMap": true,
 
@@ -19,14 +14,17 @@
     "preserveConstEnums": true,
     "removeComments": true
   },
+  "references": [{
+	  "path": "../.."
+  }],
   "include": [
     "src/**/*",
-    "types/**/*"
+    "../../types"
   ],
   "baseUrl": ".",
   "paths": {
     "*": [
-      "node_modules/*"
+      "../../node_modules/*"
     ]
   }
 }

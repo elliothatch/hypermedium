@@ -55,7 +55,7 @@ const freshr = new Freshr(demoPath, {
     }
 });
 
-const pluginsPath = Path.join(__dirname, 'plugins');
+const pluginsPath = Path.join(__dirname, '..', 'plugins');
 
 const verbose = false;
 
@@ -82,7 +82,8 @@ freshr.hypermedia.event$.subscribe({
     error: (e) => Log.error('hypermedia', e),
 });
 
-freshr.loadAndRegisterPlugins(['core', 'filesystem'], pluginsPath).subscribe({
+// freshr.loadAndRegisterPlugins(['core', 'filesystem'], pluginsPath).subscribe({
+freshr.loadAndRegisterPlugins(['core'], pluginsPath).subscribe({
     next: ({plugin, module}) => {
         Log.info('plugin registered', {
             plugin,
