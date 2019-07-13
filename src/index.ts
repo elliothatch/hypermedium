@@ -55,7 +55,7 @@ const freshr = new Freshr(demoPath, {
     }
 });
 
-const pluginsPath = Path.join(__dirname, '..', 'plugins');
+const pluginsPath = Path.join(__dirname, '..', '..', 'plugins');
 
 const verbose = false;
 
