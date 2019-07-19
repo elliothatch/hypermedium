@@ -1,7 +1,7 @@
 import { from } from 'rxjs';
 import { mergeMap, map } from 'rxjs/operators';
 
-import { TaskDefinition } from '../../../../src/build';
+import { TaskDefinition } from 'freshr';
 
 import { rollup } from 'rollup';
 

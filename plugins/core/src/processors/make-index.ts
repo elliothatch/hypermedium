@@ -1,7 +1,4 @@
-import { Hypermedia } from '../../../../src/hypermedia';
-import { Processor } from '../../../../src/hypermedia/processor';
-import * as HAL from '../../../../src/hal';
-import { resourceMatchesProfile } from '../../../../src/hal-util';
+import { Hypermedia, Processor, HAL, resourceMatchesProfile } from 'freshr';
 
 /** whenever a new resources matches the given profile, 
  * add it to the index and update the index page.

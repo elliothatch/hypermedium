@@ -5,11 +5,11 @@
     "main": "build/index.js",
     "types": "declarations/index.d.ts",
     "scripts": {
-        "build": "tsc -b . plugins/core && gulp",
+        "build": "tsc -b . plugins/core demo/server && gulp",
         "clean": "node scripts/clean.js",
         "dev": "node scripts/dev.js",
         "docs": "typedoc --out docs/ src/",
-        "start": "node build/index.js",
+        "start": "node demo/server/build/index.js",
         "test": "jest"
     },
     "author": {
@@ -29,7 +29,6 @@
         "gulp": "^4.0.2",
         "gulp-typescript": "^5.0.1",
         "jest": "^23.6.0",
-        "sanitize.css": "^9.0.0",
         "terminal-kit": "^1.28.0",
         "ts-jest": "^23.1.4",
         "typedoc": "^0.12.0",
@@ -56,10 +55,8 @@
         "freshlog": "^0.2.2",
         "graphlib": "^2.1.7",
         "handlebars": "^4.0.12",
-        "node-sass": "^4.12.0",
         "react": "^16.8.6",
         "react-dom": "^16.8.6",
-        "rollup": "^1.12.4",
         "rollup-plugin-alias": "^1.5.2",
         "rollup-plugin-babel": "^4.3.2",
         "rollup-plugin-commonjs": "^10.0.0",

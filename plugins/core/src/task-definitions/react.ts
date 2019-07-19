@@ -2,7 +2,7 @@ import * as Path from 'path';
 import { from } from 'rxjs';
 import { mergeMap, map } from 'rxjs/operators';
 
-import { TaskDefinition } from '../../../../src/build';
+import { TaskDefinition } from 'freshr';
 
 import { RollupTask } from './rollup';
 

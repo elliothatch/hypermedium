@@ -142,4 +142,3 @@ export namespace Plugin {
 
     export type ProcessorGenerator = (options?: any) => Processor;
 }
-

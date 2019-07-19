@@ -1,4 +1,4 @@
-import { Plugin } from '../../../src/plugin';
+import { Plugin } from 'freshr';
 
 import Processors from './processors';
 import TaskDefinitions from './task-definitions';

@@ -6,7 +6,7 @@ import { hrtime } from 'process';
 import { Observable, Observer } from 'rxjs';
 
 import { NextFunction, Router, Request, Response } from 'express';
-import { Graph, Edge, json as graphJson } from 'graphlib';
+import { Graph, Edge } from 'graphlib';
 
 import * as HAL from '../hal';
 import { filterCuries, profilesMatch, resourceMatchesProfile, getProfiles } from '../hal-util';

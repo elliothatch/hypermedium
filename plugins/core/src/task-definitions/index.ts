@@ -2,7 +2,7 @@ import { RollupTask } from './rollup';
 import { ReactRollup } from './react';
 import { CompileSass } from './sass';
 
-import { TaskDefinition } from '../../../../src/build';
+import { TaskDefinition } from 'freshr';
 
 const taskDefinitions: TaskDefinition[] = [
     RollupTask,

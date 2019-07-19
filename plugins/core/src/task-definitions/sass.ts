@@ -3,7 +3,7 @@ import { mergeMap } from 'rxjs/operators';
 import { outputFile } from 'fs-extra';
 import { render as renderCb } from 'node-sass';
 
-import { TaskDefinition } from '../../../../src/build';
+import { TaskDefinition } from 'freshr';
 
 const render = bindNodeCallback(renderCb);
 

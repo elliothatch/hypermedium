@@ -22,7 +22,7 @@ const levelColors = {
 
 const freshr = child_process.spawn(
     'node',
-    [Path.join(__dirname, '..', 'build', 'index.js'), '--', ...process.argv.slice(1)]);
+    [Path.join(__dirname, '..', 'demo', 'server', 'build', 'index.js'), '--', ...process.argv.slice(1)]);
     // [Path.join(__dirname, 'dev.test.js'), '--', ...process.argv.slice(1)]);
 
 let freshrRunning = true;

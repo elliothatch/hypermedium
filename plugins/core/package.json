@@ -8,6 +8,11 @@
   },
   "author": "",
   "license": "ISC",
-  "freshr": {
+  "freshr": {},
+  "dependencies": {
+    "graphlib": "^2.1.7",
+    "node-sass": "^4.12.0",
+    "rollup": "^1.12.4",
+    "rxjs": "^6.5.2"
   }
 }

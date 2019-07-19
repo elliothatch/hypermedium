@@ -1,10 +1,5 @@
-import { Edge, json as graphJson } from 'graphlib';
-import * as HAL from '../../../../src/hal';
-import { filterCuries, getProfiles, resourceMatchesProfile } from '../../../../src/hal-util';
-import { createSchema, objectDifference } from '../../../../src/util';
-import { Hypermedia, Embed } from '../../../../src/hypermedia';
-import { Plugin } from '../../../../src/plugin';
-
+import { json as graphJson } from 'graphlib';
+import { Plugin, HAL, createSchema, objectDifference, Hypermedia, Embed, filterCuries, getProfiles, resourceMatchesProfile, Processor, ProcessorFn } from 'freshr';
 
 import { makeIndex } from './make-index';
 import { tags } from './tags';
@@ -13,19 +8,10 @@ type ResourceState = Hypermedia.ResourceState;
 type ExtendedResource = Hypermedia.ExtendedResource;
 type CalculateFromResourceParams = Hypermedia.CalculateFromResourceParams;
 
-export interface Processor {
-    name: string;
-    fn: ProcessorFn;
-}
-
-/** takes in a HAL object and some external state, and returns transformed versions
- * of each. */
-export type ProcessorFn = (rs: ResourceState) => ResourceState;
-
 const processors: {[name: string]: Plugin.ProcessorGenerator} = {
     self: () => ({
         name: 'self',
-       fn: (rs: ResourceState): ResourceState => (
+       fn: (rs: Hypermedia.ResourceState): Hypermedia.ResourceState => (
             Object.assign(rs, {
                 resource: Object.assign(rs.resource, {
                     _links: Object.assign({
