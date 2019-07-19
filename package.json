@@ -2,7 +2,7 @@
     "name": "freshr",
     "version": "0.1.0",
     "description": "a blog platform for all!",
-    "main": "build/src/index.js",
+    "main": "build/index.js",
     "types": "declarations/index.d.ts",
     "scripts": {
         "build": "tsc -b . plugins/core && gulp",

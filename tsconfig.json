@@ -4,6 +4,7 @@
     "target": "esnext",
 
     "composite": true,
+    "rootDir": "src",
 
     "declaration": true,
     "declarationDir": "declarations",

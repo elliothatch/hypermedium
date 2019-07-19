@@ -6,7 +6,7 @@ import { forkJoin, Observable, of, from } from 'rxjs';
 import { filter, toArray, map, mergeMap, catchError } from 'rxjs/operators';
 
 import { Processor } from './hypermedia/processor';
-import { ProfileLayoutMap } from './hypermedia-renderer';
+import { PartialMap, ProfileLayoutMap, TemplateMap } from './hypermedia-renderer';
 import { TaskDefinition } from './build';
 
 import { File, FileError, loadFiles } from './util';
