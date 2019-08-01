@@ -5,11 +5,13 @@ import { Socket } from 'socket.io';
 import { forkJoin, Observable, of, from } from 'rxjs';
 import { filter, toArray, map, mergeMap, catchError } from 'rxjs/operators';
 
+import * as chokidar from 'chokidar';
+
 import { Processor } from './hypermedia/processor';
 import { PartialMap, ProfileLayoutMap, TemplateMap } from './hypermedia-renderer';
 import { TaskDefinition } from './build';
 
-import { File, FileError, loadFiles } from './util';
+import { File, FileError, loadFiles, watchFiles, WatchEvent, Watcher } from './util';
 
 export interface Plugin {
     name: string;
@@ -22,8 +24,91 @@ export interface Plugin {
     templates?: File[],
 }
 
+
 export namespace Plugin {
     export type WebsocketMiddleware = (socket: Socket, fn: (err?: any) => void) => void;
+
+    export type Event = Event.Package | Event.Template | Event.Partial;
+    export namespace Event {
+        export interface Base {
+            status: 'add' | 'change' | 'unlink';
+            path: string;
+            uri: string;
+        }
+        export interface Package extends Base {
+            eType: 'package';
+            /** undefined when status === 'unlink' */
+            options: PackageOptions;
+        }
+
+        export interface Template extends Base {
+            eType: 'template';
+            /** undefined when status === 'unlink' */
+            contents?: string;
+        }
+
+        export interface Partial extends Base {
+            eType: 'partial';
+            /** undefined when status === 'unlink' */
+            contents?: string;
+        }
+
+        export interface PluginError {
+            eType: 'error';
+            error: Error;
+        }
+    }
+
+    /**
+     * watches the files in a plugin, and emits events as assets are added, updated, or deleted
+     * @param name - name of the plugin
+     * @param searchPath - path to the directory we will search for 'name' in
+     */
+    export function watch(name: string, searchPath: string): Watcher<Event> {
+        let templatesWatcher: Watcher | undefined;
+        let partialsWatcher: Watcher | undefined;
+        const watcher: Watcher = {
+            close: () => {},
+            events: new Subject<Event>();
+        };
+
+        const pluginPath = Path.join(searchPath, name);
+        //
+        // read the directory to make sure it's there and give better error message
+        // return from(fs.readdir(pluginPath)).pipe(
+        // );
+        const packagePath = Path.join(pluginPath, 'package.json');
+        const packageWatcher = watchFiles(packagePath);
+        packageWatcher.events.pipe(
+            mergeMap((watchEvent) => {
+                // TODO: do template/partial stuff
+                switch(watchEvent.eType) {
+                    case 'add':
+                    case 'change':
+                        break;
+                    case 'unlink':
+                }
+                return forkJoin(
+                    from(watchEvent),
+                    from(fs.readFile(watchEvent.path, 'utf-8'))
+                );
+            }),
+            map(([watchEvent, contents]) => {
+                const options = JSON.parse(contents); // TODO: centralize options initialization logic in load()
+                watcher.events.next({
+                    eType: 'package',
+                    status: watchEvent.eType,
+                    path: watchEvent.path,
+                    uri: watchEvent.uri,
+                    options
+                });
+                // TODO: tear down and set up watchers for templates and partials
+                // switch(watchEvent.eType) {
+                        // case 'add':
+                // }
+            })
+        );
+    }
 
     /**
      * @param name - name of the plugin

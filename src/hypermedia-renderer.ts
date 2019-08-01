@@ -98,7 +98,9 @@ export class HypermediaRenderer {
     }
 
     public registerPartial(file: File, namespace: string): void {
-        const partialName = `${namespace}/${file.uri.replace(/^\//g, '')}`;
+        const partialName = namespace.length > 0?
+            `${namespace}/${file.uri.replace(/^\//g, '')}`:
+            file.uri.replace(/^\//g, '');
         handlebarsRegisterPartial(partialName, file.contents);
         this.partials[partialName] = file.contents;
     }
@@ -122,7 +124,9 @@ export class HypermediaRenderer {
     }
 
     public registerTemplate(file: File, namespace: string): void {
-        const uri = `${namespace}/${file.uri.replace(/^\//g, '')}`;
+        const uri = namespace.length > 0?
+            `${namespace}/${file.uri.replace(/^\//g, '')}`:
+            file.uri.replace(/^\//g, '');
         const template = compile(file.contents);
         // execute the template to check for compile errors
         // template({});

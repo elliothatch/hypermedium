@@ -13,7 +13,7 @@ import { Plugin } from './plugin';
 import { Processor } from './hypermedia/processor';
 import { TaskDefinition } from './build';
 
-import { FileError, NotFoundError } from './util';
+import { FileError, NotFoundError, watchFiles, WatchEvent, Watcher } from './util';
 
 // const watchObservable = bindCallback<fs.PathLike, {recursive?: boolean}, string, string>(fs.watch);
 
@@ -69,24 +69,16 @@ export class Freshr {
         ).subscribe();
     }
 
-    watchResources(path: string): Observable<WatchEvent> {
-        return fromEventPattern<[string, string]>((addHandler) => {
-            const watcher = chokidar.watch(path);
-            ['add', 'change', 'unlink', 'addDir', 'unlinkDir'].forEach((eventName) => {
-                watcher.on(eventName, (...args: any[]) => addHandler(eventName, ...args));
-            });
-        }).pipe(
-            map(([eventType, filename]) => {
-                return {
-                    eType: eventType,
-                    path: filename,
-                    uri: '/' + Path.relative(path, filename).replace(/\\/g, '/'),
-                } as WatchEvent;
-            }),
-            publish((multicasted$) =>
-                multicasted$.pipe(tap((watchEvent) => this.watchEvent$.next(watchEvent)))
+    watchResources(path: string): Watcher {
+        const watcher = watchFiles(path);
+        return {
+            close: watcher.close,
+            events: watcher.events.pipe(
+                publish((multicasted$) =>
+                    multicasted$.pipe(tap((watchEvent) => this.watchEvent$.next(watchEvent)))
+                ),
             ),
-        );
+        };
     }
 
     loadAndRegisterPlugins(names: string[], searchPath: string): Observable<{plugin: Plugin, module: Plugin.Module, errors: FileError[]}> {
@@ -153,11 +145,3 @@ export namespace Freshr {
         renderer: Partial<HypermediaRenderer.Options>;
     }
 }
-
-export interface WatchEvent {
-    eType: 'add' | 'change' | 'unlink' | 'addDir' | 'unlinkDir';
-    path: string;
-    uri: string;
-}
-
-

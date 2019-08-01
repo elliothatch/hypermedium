@@ -1,10 +1,11 @@
 import * as Path from 'path';
 import * as Express from 'express';
-import { mergeMap } from 'rxjs/operators';
+import { concat } from 'rxjs';
+import { map, mergeMap, tap } from 'rxjs/operators';
 
 import { Log } from 'freshlog';
 
-import { server, Hypermedia, Processor, Plugin, Freshr, BuildManager, BuildStep, TaskDefinition } from 'freshr';
+import { server, Hypermedia, Processor, Plugin, Freshr, BuildManager, BuildStep, TaskDefinition, loadFiles, File } from 'freshr';
 
 const rollupAlias = require('rollup-plugin-alias');
 const rollupCommonjs = require('rollup-plugin-commonjs');
@@ -45,6 +46,23 @@ const sitePath = Path.join(demoPath, 'src', 'site');
 const freshr = new Freshr(demoPath, {
     renderer: {
         // defaultTemplate: '/freshr.hbs',
+        siteContext: {
+            title: 'freshr',
+            navLinks: {
+                "author": {
+                    "href": "/about",
+                    "title": "About"
+                },
+                "fs:posts": {
+                    "href": "/posts",
+                    "title": "Posts"
+                },
+                "fs:tags": {
+                    "href": "/tags",
+                    "title": "Tags"
+                }
+            }
+        },
     }
 });
 
@@ -76,14 +94,32 @@ freshr.hypermedia.event$.subscribe({
 });
 
 // freshr.loadAndRegisterPlugins(['core', 'filesystem'], pluginsPath).subscribe({
-freshr.loadAndRegisterPlugins(['core'], pluginsPath).subscribe({
-    next: ({plugin, module}) => {
-        Log.info('plugin registered', {
-            plugin,
-            processorGenerators: module.processorGenerators && Object.keys(module.processorGenerators)
-        });
-    },
+concat(
+    freshr.loadAndRegisterPlugins(['core'], pluginsPath).pipe(
+        tap(({plugin, module}) => {
+            Log.info('plugin registered', {
+                plugin,
+                processorGenerators: module.processorGenerators && Object.keys(module.processorGenerators)
+            });
+        })
+    ),
+    loadFiles([Path.join(demoPath, 'src', 'templates')]).pipe(
+        tap((template) => {
+            if((template as File).contents) {
+                freshr.renderer.registerTemplate(template as File, '')
+            }
+        })
+    ),
+    loadFiles([Path.join(demoPath, 'src', 'partials')]).pipe(
+        tap((partial) => {
+            if((partial as File).contents) {
+                freshr.renderer.registerPartial(partial as File, '')
+            }
+        })
+    )
+).subscribe({
     complete: () => {
+        freshr.renderer.defaultTemplate = 'freshr.hbs';
         Log.info('processor generators', {processors: Array.from(freshr.processorGenerators.keys())});
 
         freshr.addProcessor('core/resourceGraph');
@@ -100,7 +136,8 @@ freshr.loadAndRegisterPlugins(['core'], pluginsPath).subscribe({
             // freshr.hypermedia.processLoadedResources();
         // }).catch(console.error);
 
-        freshr.watchResources(sitePath).subscribe();
+        const watcher = freshr.watchResources(sitePath);
+        watcher.events.subscribe();
         // freshr.watcher.add(sitePath);
 
         const buildSteps: BuildStep = {
@@ -279,9 +316,9 @@ app.use(freshr.renderer.router);
 app.use(freshr.hypermedia.router);
 // app.use('/~config', buildManager.router);
 
-app.use(Express.static(Path.join(__dirname, '..', 'demo', 'build', 'site')));
-app.use('/css', Express.static(Path.join(__dirname, '..', 'demo', 'build', 'css')));
-app.use('/js', Express.static(Path.join(__dirname, '..', 'demo', 'build', 'js')));
+app.use(Express.static(Path.join(demoPath, 'build', 'site')));
+app.use('/css', Express.static(Path.join(demoPath, 'build', 'css')));
+app.use('/js', Express.static(Path.join(demoPath, 'build', 'js')));
 
 
 server(app).subscribe({

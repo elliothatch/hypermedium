@@ -2,8 +2,10 @@ import * as Path from 'path';
 import { promises as fs } from 'fs';
 import * as Url from 'url';
 
-import { merge, forkJoin, Observable, of, from, empty } from 'rxjs';
-import { map, mergeMap, catchError } from 'rxjs/operators';
+import { merge, forkJoin, Observable, of, from, empty, fromEventPattern, Subject } from 'rxjs';
+import { map, mergeMap, catchError, takeUntil } from 'rxjs/operators';
+
+import * as chokidar from 'chokidar';
 
 import { Hypermedia } from './hypermedia';
 import * as HAL from './hal';
@@ -174,4 +176,46 @@ export function objectDifference<A extends any, B extends any>(a: A, b: B): Excl
 
         return obj;
     }, {} as any);
+}
+
+export interface WatchEvent {
+    eType: 'add' | 'change' | 'unlink' | 'addDir' | 'unlinkDir';
+    path: string;
+    uri: string;
+}
+
+export interface Watcher<T = WatchEvent> {
+    events: Observable<T>;
+    close: () => void;
+}
+
+/** watch a file or directory (recursively) and emit events when files and directories are added, changed, or removed
+ * @returns object with an observable of the watch events, and a function that can be used to stop watching the files
+ */
+export function watchFiles(path: string): Watcher {
+    const closeSubject = new Subject<boolean>();
+    const watcher = chokidar.watch(path);
+    const events = fromEventPattern<[string, string]>((addHandler) => {
+        ['add', 'change', 'unlink', 'addDir', 'unlinkDir'].forEach((eventName) => {
+            watcher.on(eventName, (...args: any[]) => addHandler(eventName, ...args));
+        });
+    }).pipe(
+        map(([eventType, filename]) => {
+            return {
+                eType: eventType,
+                path: filename,
+                uri: '/' + Path.relative(path, filename).replace(/\\/g, '/'),
+            } as WatchEvent;
+        }),
+        takeUntil(closeSubject),
+    );
+
+    return {
+        events,
+        close: () => {
+            watcher.close();
+            closeSubject.next(true);
+            closeSubject.complete();
+        }
+    };
 }
