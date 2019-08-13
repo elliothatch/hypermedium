@@ -2,7 +2,7 @@ import * as Path from 'path';
 import { promises as fs } from 'fs';
 
 import { Socket } from 'socket.io';
-import { forkJoin, Observable, of, from } from 'rxjs';
+import { forkJoin, Observable, of, from, Subject } from 'rxjs';
 import { filter, toArray, map, mergeMap, catchError } from 'rxjs/operators';
 
 import * as chokidar from 'chokidar';
@@ -27,8 +27,9 @@ export interface Plugin {
 
 export namespace Plugin {
     export type WebsocketMiddleware = (socket: Socket, fn: (err?: any) => void) => void;
+    export type PackageJson = {[key: string]: any} & {freshr: PackageOptions};
 
-    export type Event = Event.Package | Event.Template | Event.Partial;
+    export type Event = Event.Package | Event.Template | Event.Partial | Event.PluginError;
     export namespace Event {
         export interface Base {
             status: 'add' | 'change' | 'unlink';
@@ -38,7 +39,7 @@ export namespace Plugin {
         export interface Package extends Base {
             eType: 'package';
             /** undefined when status === 'unlink' */
-            options: PackageOptions;
+            options?: PackageJson;
         }
 
         export interface Template extends Base {
@@ -65,13 +66,13 @@ export namespace Plugin {
      * @param searchPath - path to the directory we will search for 'name' in
      */
     export function watch(name: string, searchPath: string): Watcher<Event> {
-        let templatesWatcher: Watcher | undefined;
-        let partialsWatcher: Watcher | undefined;
-        const watcher: Watcher = {
-            close: () => {},
-            events: new Subject<Event>();
-        };
+        // TODO: when the package.json changes or is removed, we should send 'unlink' events for every file that was previously added?
+        // TODO: deleting files breaks this
 
+        const eventsSubject = new Subject<Event>();
+
+        let templatesWatcher: Watcher<Event> | undefined;
+        let partialsWatcher: Watcher<Event> | undefined;
         const pluginPath = Path.join(searchPath, name);
         //
         // read the directory to make sure it's there and give better error message
@@ -79,35 +80,165 @@ export namespace Plugin {
         // );
         const packagePath = Path.join(pluginPath, 'package.json');
         const packageWatcher = watchFiles(packagePath);
+        // watch package.json
         packageWatcher.events.pipe(
+            filter((watchEvent) =>
+                watchEvent.eType === 'add'
+                || watchEvent.eType === 'change'
+                || watchEvent.eType === 'unlink'
+            ),
             mergeMap((watchEvent) => {
-                // TODO: do template/partial stuff
-                switch(watchEvent.eType) {
-                    case 'add':
-                    case 'change':
-                        break;
-                    case 'unlink':
+                if(watchEvent.eType === 'unlink' || watchEvent.eType === 'change') {
+                    if(templatesWatcher) {
+                        templatesWatcher.close();
+                        templatesWatcher = undefined;
+                    }
+                    if(partialsWatcher) {
+                        partialsWatcher.close();
+                        partialsWatcher = undefined;
+                    }
                 }
+
+                let packageContentsObservable: Observable<string | undefined> = of(undefined);
+
+                if(watchEvent.eType === 'add' || watchEvent.eType === 'change') {
+                    packageContentsObservable = from(fs.readFile(watchEvent.path, 'utf-8'));
+                }
+
                 return forkJoin(
-                    from(watchEvent),
-                    from(fs.readFile(watchEvent.path, 'utf-8'))
+                    of(watchEvent),
+                    packageContentsObservable,
                 );
             }),
             map(([watchEvent, contents]) => {
-                const options = JSON.parse(contents); // TODO: centralize options initialization logic in load()
-                watcher.events.next({
+                let options: PackageJson | undefined;
+                if(contents) {
+                    // TODO: centralize options initialization logic in load()
+                    try {
+                        const packageJson = JSON.parse(contents);
+                        if(typeof packageJson !== 'object') {
+                            throw new Error(`Plugin package.json must be an object, but it was '${typeof packageJson}' instead`);
+                        }
+
+                        if(!packageJson.freshr) {
+                            packageJson.freshr = {};
+                        }
+
+                        packageJson.freshr = {
+                            ...packageJson.freshr,
+                            baseUrl: packageJson.freshr.baseUrl || '.',
+                            templates: packageJson.freshr.templates || ['templates'],
+                            partials: packageJson.freshr.partials || ['partials'],
+                        };
+
+                        options = packageJson;
+                    }
+                    catch(error) {
+                        eventsSubject.next({
+                            eType: 'error',
+                            error: error as Error,
+                        });
+                    }
+                }
+
+                eventsSubject.next({
                     eType: 'package',
-                    status: watchEvent.eType,
+                    status: watchEvent.eType as 'add' | 'change' | 'unlink', // cast is safe thanks to filter above 
                     path: watchEvent.path,
                     uri: watchEvent.uri,
                     options
                 });
-                // TODO: tear down and set up watchers for templates and partials
-                // switch(watchEvent.eType) {
-                        // case 'add':
-                // }
+
+                // watch templates and partials
+                if(options) {
+                    const templatesPaths = options.freshr.templates.map(
+                        (templatesPath: string) => Path.join(
+                            pluginPath,
+                            options!.freshr.baseUrl,
+                            templatesPath)
+                    );
+
+                    const originalTemplatesWatcher = watchFiles(templatesPaths);
+                    templatesWatcher = {
+                        close: originalTemplatesWatcher.close,
+                        events: originalTemplatesWatcher.events.pipe(
+                            filter((templateWatchEvent) =>
+                                templateWatchEvent.eType === 'add'
+                                || templateWatchEvent.eType === 'change'
+                                || templateWatchEvent.eType === 'unlink'
+                            ),
+                            mergeMap((templateWatchEvent) => {
+                                return forkJoin(
+                                    of(templateWatchEvent),
+                                    from(fs.readFile(templateWatchEvent.path, 'utf-8'))
+                                );
+                            }),
+                            map(([templateWatchEvent, contents]) => {
+                                return {
+                                    eType: 'template',
+                                    status: templateWatchEvent.eType as 'add' | 'change' | 'unlink',
+                                    path: templateWatchEvent.path,
+                                    uri: templateWatchEvent.uri,
+                                    contents,
+                                };
+                            })
+                        ),
+                    };
+                    templatesWatcher.events.subscribe((event) => eventsSubject.next(event));
+
+                    const partialsPaths = options.freshr.partials.map(
+                        (partialsPath: string) => Path.join(
+                            pluginPath,
+                            options!.freshr.baseUrl,
+                            partialsPath)
+                    );
+
+                    const originalPartialsWatcher = watchFiles(partialsPaths);
+                    partialsWatcher = {
+                        close: originalPartialsWatcher.close,
+                        events: originalPartialsWatcher.events.pipe(
+                            filter((partialWatchEvent) =>
+                                partialWatchEvent.eType === 'add'
+                                || partialWatchEvent.eType === 'change'
+                                || partialWatchEvent.eType === 'unlink'
+                            ),
+                            mergeMap((partialWatchEvent) => {
+                                return forkJoin(
+                                    of(partialWatchEvent),
+                                    from(fs.readFile(partialWatchEvent.path, 'utf-8'))
+                                );
+                            }),
+                            map(([partialWatchEvent, contents]) => {
+                                return {
+                                    eType: 'partial',
+                                    status: partialWatchEvent.eType as 'add' | 'change' | 'unlink',
+                                    path: partialWatchEvent.path,
+                                    uri: partialWatchEvent.uri,
+                                    contents,
+                                };
+                            })
+                        ),
+                    };
+                    partialsWatcher.events.subscribe((event) => eventsSubject.next(event));
+                }
             })
-        );
+        ).subscribe();
+
+        return {
+            close: () => {
+                packageWatcher.close()
+                if(templatesWatcher) {
+                    templatesWatcher.close();
+                }
+
+                if(partialsWatcher) {
+                    partialsWatcher.close();
+                }
+
+                eventsSubject.complete();
+            },
+            events: eventsSubject,
+        };
     }
 
     /**

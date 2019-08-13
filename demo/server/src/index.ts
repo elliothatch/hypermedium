@@ -70,6 +70,18 @@ const pluginsPath = Path.join(__dirname, '..', '..', '..', 'plugins');
 
 const verbose = false;
 
+Plugin.watch('core', pluginsPath).events.subscribe({
+    next: (watchEvent) => {
+        if(watchEvent.eType === 'error') {
+            Log.error('plugin watch', watchEvent);
+        }
+        else {
+            Log.trace('plugin watch', watchEvent);
+        }
+    },
+    error: (error: Error) => Log.error('plugin watch', error),
+});
+
 freshr.watchEvent$.subscribe({
     next: (e) => {
         Log.trace('resource changed', e);

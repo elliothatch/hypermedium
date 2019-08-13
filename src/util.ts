@@ -192,28 +192,34 @@ export interface Watcher<T = WatchEvent> {
 /** watch a file or directory (recursively) and emit events when files and directories are added, changed, or removed
  * @returns object with an observable of the watch events, and a function that can be used to stop watching the files
  */
-export function watchFiles(path: string): Watcher {
+export function watchFiles(path: string | string[]): Watcher {
+    const paths = Array.isArray(path)? path: [path];
+
     const closeSubject = new Subject<boolean>();
-    const watcher = chokidar.watch(path);
-    const events = fromEventPattern<[string, string]>((addHandler) => {
-        ['add', 'change', 'unlink', 'addDir', 'unlinkDir'].forEach((eventName) => {
-            watcher.on(eventName, (...args: any[]) => addHandler(eventName, ...args));
-        });
-    }).pipe(
-        map(([eventType, filename]) => {
-            return {
-                eType: eventType,
-                path: filename,
-                uri: '/' + Path.relative(path, filename).replace(/\\/g, '/'),
-            } as WatchEvent;
-        }),
-        takeUntil(closeSubject),
-    );
+    const watchers = paths.map((path) => ({path, watcher: chokidar.watch(path)}));
+    const eventObservables = watchers.map(({path, watcher}) => {
+        return fromEventPattern<[string, string]>((addHandler) => {
+            ['add', 'change', 'unlink', 'addDir', 'unlinkDir'].forEach((eventName) => {
+                watcher.on(eventName, (...args: any[]) => addHandler(eventName, ...args));
+            });
+        }).pipe(
+            map(([eventType, filename]) => {
+                return {
+                    eType: eventType,
+                    path: filename,
+                    uri: '/' + Path.relative(path, filename).replace(/\\/g, '/'),
+                } as WatchEvent;
+            }),
+            takeUntil(closeSubject),
+        );
+    });
 
     return {
-        events,
+        events: merge(...eventObservables),
         close: () => {
-            watcher.close();
+            watchers.forEach((watcher) => {
+                watcher.watcher.close();
+            });
             closeSubject.next(true);
             closeSubject.complete();
         }
