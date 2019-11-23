@@ -15,6 +15,8 @@ import { File, FileError, loadFiles, watchFiles, WatchEvent, Watcher } from './u
 
 export interface Plugin {
     name: string;
+    /** path to the root of the plugin on the filesystem */
+    path: string;
 
     packageOptions: Plugin.PackageOptions;
 
@@ -126,9 +128,11 @@ export namespace Plugin {
 
                         packageJson.freshr = {
                             ...packageJson.freshr,
-                            baseUrl: packageJson.freshr.baseUrl || '.',
+                            basePath: packageJson.freshr.basePath || '.',
                             templates: packageJson.freshr.templates || ['templates'],
                             partials: packageJson.freshr.partials || ['partials'],
+                            baseUrl: packageJson.freshr.baseUrl,
+                            site: packageJson.freshr.site || ['site']
                         };
 
                         options = packageJson;
@@ -154,7 +158,7 @@ export namespace Plugin {
                     const templatesPaths = options.freshr.templates.map(
                         (templatesPath: string) => Path.join(
                             pluginPath,
-                            options!.freshr.baseUrl,
+                            options!.freshr.basePath,
                             templatesPath)
                     );
 
@@ -189,7 +193,7 @@ export namespace Plugin {
                     const partialsPaths = options.freshr.partials.map(
                         (partialsPath: string) => Path.join(
                             pluginPath,
-                            options!.freshr.baseUrl,
+                            options!.freshr.basePath,
                             partialsPath)
                     );
 
@@ -268,9 +272,11 @@ export namespace Plugin {
 
                         obj.freshr = {
                             ...obj.freshr,
-                            baseUrl: obj.freshr.baseUrl || '.',
+                            basePath: obj.freshr.basePath || '.',
                             templates: obj.freshr.templates || ['templates'],
                             partials: obj.freshr.partials || ['partials'],
+                            baseUrl: obj.freshr.baseUrl,
+                            site: obj.freshr.site || ['site']
                         };
 
                         return obj;
@@ -294,13 +300,13 @@ export namespace Plugin {
                 const templatesPaths = packageOptions.freshr.templates.map(
                     (templatesPath: string) => Path.join(
                         pluginPath,
-                        packageOptions.freshr.baseUrl,
+                        packageOptions.freshr.basePath,
                         templatesPath)
                 );
                 const partialsPaths = packageOptions.freshr.partials.map(
                     (partialsPath: string) => Path.join(
                         pluginPath,
-                        packageOptions.freshr.baseUrl,
+                        packageOptions.freshr.basePath,
                         partialsPath)
                 );
 
@@ -313,7 +319,8 @@ export namespace Plugin {
                         return {
                             plugin: {
                                 name,
-                                packageOptions,
+                                path: pluginPath,
+                                packageOptions: packageOptions.freshr,
                                 moduleFactory,
                                 partials: partials.filter((file) => (file as File).contents) as File[],
                                 templates: templates.filter((file) => (file as File).contents) as File[],
@@ -330,11 +337,18 @@ export namespace Plugin {
      */
     export interface PackageOptions {
         /** base path (relative to package.json's dir) prepended to all other path lookups. default '.' */
-        baseUrl: string;
-        /** list of paths (relative to baseUrl) to directories or files containing templates. default 'templates' */
+        basePath: string;
+        /** list of paths (relative to basePath) to directories or files containing templates. default ['templates'] */
         templates: string[];
-        /** list of paths (relative to baseUrl) to directories or files containing partials. default 'partials' */
+        /** list of paths (relative to basePath) to directories or files containing partials. default ['partials'] */
         partials: string[];
+        /** default base URL that all resources, assets, and APIs should be served at. This may be modified when a plugin is registered. this allows self-contained modules to be easily added to a site (e.g. a forum-subsite). if undefined, the no resources will be served by the web server (useful if you are only using the resources in your own build tasks). default undefined */
+        baseUrl?: string;
+        // TODO: add a way to set the default template for resources served from a plugin
+
+        /** list of paths (relative to basePath) to directories or files containing HAL resources that should be served. default ['site'] */
+        site: string[];
+        
     }
 
     /** Server assets like processors and API implementations are shared by exporting
@@ -353,6 +367,8 @@ export namespace Plugin {
         export interface Options {
             /** path to the root of the project directory */
             basePath: string;
+            /** base url that resources from this module will be served with */
+            baseUrl?: string;
         }
     }
 

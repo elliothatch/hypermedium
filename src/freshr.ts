@@ -69,8 +69,8 @@ export class Freshr {
         ).subscribe();
     }
 
-    watchResources(path: string): Watcher {
-        const watcher = watchFiles(path);
+    watchResources(path: string | string[], uriPrefix?: string): Watcher {
+        const watcher = watchFiles(path , uriPrefix);
         return {
             close: watcher.close,
             events: watcher.events.pipe(
@@ -89,7 +89,8 @@ export class Freshr {
 
     registerPlugin(plugin: Plugin): Plugin.Module {
         const module = !plugin.moduleFactory? {}: plugin.moduleFactory({
-            basePath: this.sitePath
+            basePath: plugin.path,
+            baseUrl: plugin.packageOptions.baseUrl
         });
 
         if(module.processorGenerators) {
@@ -121,6 +122,14 @@ export class Freshr {
             plugin.templates.forEach((template) => {
                 this.renderer.registerTemplate(template, plugin.name);
             });
+        }
+
+        if(plugin.packageOptions.baseUrl) {
+            // TODO: use the pluginWatch functionality to do this, and store the resources in-memory as File objects?
+            const sitePaths = plugin.packageOptions.site.map((sitePath) => Path.join(plugin.path, sitePath));
+            const watcher = this.watchResources(sitePaths, plugin.packageOptions.baseUrl);
+            // TODO: track served plugins so we can close the watcher when it is removed/disabled
+            watcher.events.subscribe();
         }
 
         return module;

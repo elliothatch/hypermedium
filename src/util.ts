@@ -192,7 +192,7 @@ export interface Watcher<T = WatchEvent> {
 /** watch a file or directory (recursively) and emit events when files and directories are added, changed, or removed
  * @returns object with an observable of the watch events, and a function that can be used to stop watching the files
  */
-export function watchFiles(path: string | string[]): Watcher {
+export function watchFiles(path: string | string[], uriPrefix?: string): Watcher {
     const paths = Array.isArray(path)? path: [path];
 
     const closeSubject = new Subject<boolean>();
@@ -207,7 +207,7 @@ export function watchFiles(path: string | string[]): Watcher {
                 return {
                     eType: eventType,
                     path: filename,
-                    uri: '/' + Path.relative(path, filename).replace(/\\/g, '/'),
+                    uri: (uriPrefix || '') + '/' + Path.relative(path, filename).replace(/\\/g, '/'),
                 } as WatchEvent;
             }),
             takeUntil(closeSubject),

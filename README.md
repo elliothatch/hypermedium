@@ -73,7 +73,8 @@ Each plugin is an node module. An optional "package.json" may be provided to con
 The following properties are used by freshr when loading a plugin if they exist:
  - `main` - path to the plugin module. default: 'index.js'
  - `freshr` - object for freshr specific configuration options, containing the following optional properties:
- 	- `baseUrl` - base path used as the root for all other path lookups in this plugin. default: '.'. Often used to specify a `build` directory for plugins that have their own build pipeline (e.g. typescript).
+ 	- `basePath` - base path used as the root for all other path lookups in this plugin. default: '.'. Often used to specify a `build` directory for plugins that have their own build pipeline (e.g. typescript).
+ 	- `baseUrl` - default base URL that all API and resources in `site` directory should be served at. This may be modified when a plugin is registered. this allows self-contained modules to be easily added to a site (e.g. a forum-subsite). if undefined, the no resources will be served by the web server (useful if you are only using the resources in your own build tasks). default `undefined`
     - `templates` - path to the templates directory. default: `templates`
     - `partials` - path to the templates directory. default: `partials`
     - `components` - path to the client-side js components directory. default: `components`

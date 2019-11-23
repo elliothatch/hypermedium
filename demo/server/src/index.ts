@@ -107,7 +107,7 @@ freshr.hypermedia.event$.subscribe({
 
 // freshr.loadAndRegisterPlugins(['core', 'filesystem'], pluginsPath).subscribe({
 concat(
-    freshr.loadAndRegisterPlugins(['core'], pluginsPath).pipe(
+    freshr.loadAndRegisterPlugins(['core', 'dashboard'], pluginsPath).pipe(
         tap(({plugin, module}) => {
             Log.info('plugin registered', {
                 plugin,
@@ -134,6 +134,7 @@ concat(
         freshr.renderer.defaultTemplate = 'freshr.hbs';
         Log.info('processor generators', {processors: Array.from(freshr.processorGenerators.keys())});
 
+        // TODO: add support for processors that only are applied to certain uris (expressjs path pattern matching?)
         freshr.addProcessor('core/resourceGraph');
         freshr.addProcessor('core/self');
         freshr.addProcessor('core/tags');
@@ -143,6 +144,9 @@ concat(
         freshr.addProcessor('core/curies');
         freshr.addProcessor('core/embed');
         // freshr.addProcessor('core/schema');
+
+        // reprocess plugin resources after adding processors
+        freshr.hypermedia.processAllResources();
 
         // freshr.hypermedia.loadDirectory(sitePath).catch((e) => console.error(e)).then(() => {
             // freshr.hypermedia.processLoadedResources();

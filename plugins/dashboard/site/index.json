@@ -1,0 +1,8 @@
+{
+    "title": "freshr dashboard",
+    "_links": {
+        "profile": {
+            "href": "/schema/freshr/dashboard/dashboard"
+        }
+    }
+}

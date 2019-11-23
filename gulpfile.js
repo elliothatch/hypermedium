@@ -28,7 +28,15 @@ function corePlugin() {
 	]).pipe(dest('build/plugins/core'));
 }
 
+function dashboardPlugin() {
+	return src([
+		'src/plugins/dashboard/templates/**/*',
+		'src/plugins/dashboard/partials/**/*'
+	]).pipe(dest('build/plugins/dashboard'));
+}
+
 // exports.clean = clean;
 exports.corePlugin = createPluginTask('core');
-exports.default = exports.corePlugin;
+exports.dashboardPlugin = createPluginTask('dashboard');
+exports.default = parallel(corePlugin, dashboardPlugin);
 // exports.default = series(clean, corePlugin);

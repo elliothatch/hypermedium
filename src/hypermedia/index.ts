@@ -298,6 +298,18 @@ export class Hypermedia {
             });
     }
 
+    /** processes every resource e.g. after adding a new processor. only processes resources with no dependents so dependencies will cascade through all resources */
+    public processAllResources() {
+        this.resourceGraph.nodes()
+            .filter((uri) => {
+                const inEdges = this.resourceGraph.inEdges(uri);
+                return inEdges && inEdges.length === 0;
+            })
+            .forEach((uri) => {
+                this.processResource(uri)
+        });
+    }
+
     /** recursively load files in a directory */
      public loadDirectory(directoryPath: string, relativeUri: HAL.Uri = ''): Promise<Hypermedia.ResourceMap> {
          return walkDirectory(

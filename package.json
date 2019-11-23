@@ -5,7 +5,7 @@
     "main": "build/index.js",
     "types": "declarations/index.d.ts",
     "scripts": {
-        "build": "tsc -b . plugins/core demo/server && gulp",
+        "build": "tsc -b . plugins/core plugins/dashboard demo/server && gulp",
         "clean": "node scripts/clean.js",
         "dev": "node scripts/dev.js",
         "docs": "typedoc --out docs/ src/",

@@ -27,7 +27,7 @@ export const RollupTask: TaskDefinition = {
             mergeMap((bundle) => {
                 return from(bundle.write(bundleOptions));
             }),
-            map((result) => null) //TODO: return useful output. silenced because it logs the entire output file and source map
+            map((result) => undefined) //TODO: return useful output. silenced because it logs the entire output file and source map
         );
     },
     inputs: {
