@@ -1,5 +1,6 @@
 import * as Path from 'path';
 import * as Express from 'express';
+import * as Websocket from 'socket.io';
 import { concat } from 'rxjs';
 import { map, mergeMap, tap } from 'rxjs/operators';
 
@@ -245,6 +246,8 @@ concat(
             }]
         };
 
+        freshr.build.buildSteps['demo'] = buildSteps;
+
         freshr.build.build(buildSteps).subscribe({
             next: (event) => {
                 if(event.eType === 'error') {
@@ -340,6 +343,13 @@ app.use('/js', Express.static(Path.join(demoPath, 'build', 'js')));
 server(app).subscribe({
     next: (server) => {
         Log.info('server-listening', {port: server.port});
+        // TODO: have freshr do this part automatically as new plugins are registered
+        // TODO: add socketio client
+        // NOTE: should socketio be optional?
+        const websocketServer = Websocket(server.server);
+        freshr.websocketMiddlewares.forEach((middleware) => {
+            websocketServer.use(middleware);
+        });
     }, 
     error: (error) => Log.error('server-start', {error}),
 });

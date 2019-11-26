@@ -8,10 +8,11 @@ import { filter, toArray, map, mergeMap, catchError } from 'rxjs/operators';
 import * as chokidar from 'chokidar';
 
 import { Processor } from './hypermedia/processor';
-import { PartialMap, ProfileLayoutMap, TemplateMap } from './hypermedia-renderer';
+import { PartialMap, ProfileLayoutMap, TemplateMap, TemplatePath } from './hypermedia-renderer';
 import { TaskDefinition } from './build';
 
 import { File, FileError, loadFiles, watchFiles, WatchEvent, Watcher } from './util';
+import { Freshr } from './freshr';
 
 export interface Plugin {
     name: string;
@@ -131,9 +132,17 @@ export namespace Plugin {
                             basePath: packageJson.freshr.basePath || '.',
                             templates: packageJson.freshr.templates || ['templates'],
                             partials: packageJson.freshr.partials || ['partials'],
-                            baseUrl: packageJson.freshr.baseUrl,
                             site: packageJson.freshr.site || ['site']
                         };
+
+                        if(packageJson.freshr.hypermedia) {
+                            packageJson.freshr.hypermedia = {
+                                baseUrl: '/',
+                                templatePaths: [],
+                                ...packageJson.freshr.hypermedia
+                            }
+                        }
+
 
                         options = packageJson;
                     }
@@ -275,9 +284,16 @@ export namespace Plugin {
                             basePath: obj.freshr.basePath || '.',
                             templates: obj.freshr.templates || ['templates'],
                             partials: obj.freshr.partials || ['partials'],
-                            baseUrl: obj.freshr.baseUrl,
                             site: obj.freshr.site || ['site']
                         };
+
+                        if(obj.freshr.hypermedia) {
+                            obj.freshr.hypermedia = {
+                                baseUrl: '/',
+                                templatePaths: [],
+                                ...obj.freshr.hypermedia
+                            }
+                        }
 
                         return obj;
                     }),
@@ -342,13 +358,19 @@ export namespace Plugin {
         templates: string[];
         /** list of paths (relative to basePath) to directories or files containing partials. default ['partials'] */
         partials: string[];
-        /** default base URL that all resources, assets, and APIs should be served at. This may be modified when a plugin is registered. this allows self-contained modules to be easily added to a site (e.g. a forum-subsite). if undefined, the no resources will be served by the web server (useful if you are only using the resources in your own build tasks). default undefined */
-        baseUrl?: string;
-        // TODO: add a way to set the default template for resources served from a plugin
-
-        /** list of paths (relative to basePath) to directories or files containing HAL resources that should be served. default ['site'] */
+        /** list of paths (relative to basePath) to directories or files containing HAL resources that should be served. only used if hypermedia option is set. default ['site'] */
         site: string[];
-        
+        /** if defined, resources will be served by the hypermedia server based on these settings. this allows self-contained modules to be easily added to a site (e.g. a forum-subsite). default undefined */
+        hypermedia?: PackageOptions.Hypermedia;
+    }
+
+    export namespace PackageOptions {
+        export interface Hypermedia {
+            /** default base URL that all resources, assets, and APIs should be served at. default '/' */
+            baseUrl: string;
+            /** templates that should be used for resources served from this plugin. routerPath is relative to baseUrl, and should start with a slash ('/') or be empty (only plugin files are affected, unless baseUrl is the root or collides with other resources). templateUri is absolute. default [] */
+            templatePaths: TemplatePath[];
+        }
     }
 
     /** Server assets like processors and API implementations are shared by exporting
@@ -363,13 +385,7 @@ export namespace Plugin {
     }
 
     export namespace Module {
-        export type Factory = (options: Options) => Module;
-        export interface Options {
-            /** path to the root of the project directory */
-            basePath: string;
-            /** base url that resources from this module will be served with */
-            baseUrl?: string;
-        }
+        export type Factory = (options: PackageOptions, freshr: Freshr) => Module;
     }
 
     export type ProcessorGenerator = (options?: any) => Processor;

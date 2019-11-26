@@ -79,6 +79,8 @@ export class HypermediaRenderer {
     public templates: TemplateMap;
     public profileLayouts: ProfileLayoutMap;
     public templatePaths: TemplatePath[];
+    // template paths are grouped into a router so we can add more paths dynamically and still have the fallback template last
+    public templateRouter: Router;
 
     public defaultTemplate: HAL.Uri;
     public siteContext: object;
@@ -95,10 +97,18 @@ export class HypermediaRenderer {
         this.templates = {};
 
         this.router = Router();
-        this.templatePaths.forEach(({routerPath, templateUri}) => {
-            this.router.get(routerPath, this.middleware(templateUri));
-        });
+        this.templateRouter = Router();
+
+        this.templatePaths.forEach((templatePath) => this.addTemplatePath(templatePath));
+        this.router.use(this.templateRouter);
         this.router.get('/*', this.middleware());
+    }
+
+    public addTemplatePath(templatePath: TemplatePath): void {
+        this.templateRouter.get(
+            templatePath.routerPath,
+            this.middleware(templatePath.templateUri)
+        );
     }
 
     /** recursively load partials

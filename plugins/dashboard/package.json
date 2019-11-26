@@ -9,7 +9,13 @@
   "author": "",
   "license": "ISC",
   "freshr": {
-    "baseUrl": "/~dashboard"
+  	  "hypermedia": {
+		"baseUrl": "/~dashboard",
+		"templatePaths": [{
+			"routerPath": "",
+			"templateUri": "dashboard/default.hbs"
+		}]
+	  }
   },
   "dependencies": {
     "graphlib": "^2.1.7",

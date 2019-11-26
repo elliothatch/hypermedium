@@ -24,8 +24,6 @@ export interface Property {
 export interface Template {
     /** The value of contentType is the media type the client SHOULD use when sending a request body to the server. This is an OPTIONAL element. The value of this property SHOULD be set to "application/json" or "application/x-www-form-urlencoded". It MAY be set to other valid media-type values. If the contentType property is missing, is set to empty, or contains an unrecognized value, the client SHOULD act is if the contentType is set to "application/json". */
     contentType?: string;
-    /** The unique identifier for this template object. This is a REQUIRED element. For this release, the only valid value for key is "default". If this element is missing, set to empty or is unparsable, this template object SHOULD be ignored. */
-    key: string;
     /** The HTTP method the client SHOULD use when the service request. Any valid HTTP method is allowed. This is a REQUIRED element. If the value is empty or is not understood by the client, the value MUST be treated as an HTTP GET. */
     method: string;
     /** An array of one or more anonymous property objects (see property) that each describe a parameter for the associated state transition. This is an OPTIONAL element. If the array is missing or empty, the properties collection MUST be treated as an empty set of parameters — meaning that the transition is meant to be executed without passing any parameters. */
@@ -35,5 +33,8 @@ export interface Template {
 }
 
 export interface FormResource extends HAL.Resource {
+    /** The _templates element describes the available state transition details including the HTTP method, message content-type, and arguments for the transition. This is a REQUIRED element. If the HAL-FORMS document does not contain this element or the contents are unrecognized or unparsable, the HAL-FORMS document SHOULD be ignored. 
+     *
+     * key - The unique identifier for this template object. This is a REQUIRED element. For this release, the only valid value for key is "default". If this element is missing, set to empty or is unparsable, this template object SHOULD be ignored. */
     '_templates': {[name: string]: Template};
 }

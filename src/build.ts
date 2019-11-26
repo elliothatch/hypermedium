@@ -11,6 +11,9 @@ export type FileMap = {[name: string]: string[]};
 // TODO: add conditional step
 export type BuildStep = Task | MultiTask;
 
+/** maps build steps to names so they can be easily saved and re-executed */
+export type BuildStepMap = {[name: string]: BuildStep};
+
 /**
  * An instance of a TaskDefinition
  */
@@ -149,12 +152,15 @@ export class BuildManager {
     /** all task file paths will be relative to this directory */
     public basePath: string;
     public router: Router;
+    public buildSteps: BuildStepMap;
 
     constructor(basePath: string) {
         this.taskDefinitions = new Map([
             [TaskDefinition.Clean.name, TaskDefinition.Clean],
             [TaskDefinition.Copy.name, TaskDefinition.Copy],
         ]);
+
+        this.buildSteps = {};
 
         this.basePath = basePath;
         this.router = Router();

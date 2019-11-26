@@ -1,0 +1,29 @@
+{
+    "_links": {
+        "profile": {
+            "href": "https://rwcbook.github.io/hal-forms/"
+        }
+    },
+    "_templates": {
+    	"default": {
+    		"title": "Build Info",
+    		"prompt": "Get information about the build system",
+    		"method": "GET"
+		},
+    	"action": {
+    		"title": "Build",
+    		"prompt": "Build the website",
+    		"method": "POST"
+		},
+    	"ws": {
+    		"title": "Subscribe",
+    		"prompt": "Subscribe to build events",
+    		"method": "GET"
+		},
+    	"ws-action": {
+    		"title": "Build",
+    		"prompt": "Build the website",
+    		"method": "POST"
+		}
+	}
+}

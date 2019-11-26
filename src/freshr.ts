@@ -31,6 +31,9 @@ export class Freshr {
 
     public sitePath: string;
 
+    // TODO: make this more robust, use socket.io namespaces
+    public websocketMiddlewares: Plugin.WebsocketMiddleware[];
+
     constructor(sitePath: string, options?: Partial<Freshr.Options>) {
         this.sitePath = sitePath;
         this.hypermedia = new Hypermedia(Object.assign(
@@ -54,6 +57,8 @@ export class Freshr {
         this.build = new BuildManager(sitePath);
 
         this.processorGenerators = new Map();
+
+        this.websocketMiddlewares = [];
 
         this.watchEvent$ = new Subject();
         this.watchEvent$.pipe(
@@ -89,9 +94,9 @@ export class Freshr {
 
     registerPlugin(plugin: Plugin): Plugin.Module {
         const module = !plugin.moduleFactory? {}: plugin.moduleFactory({
-            basePath: plugin.path,
-            baseUrl: plugin.packageOptions.baseUrl
-        });
+            ...plugin.packageOptions,
+            basePath: Path.join(plugin.path, plugin.packageOptions.basePath),
+        }, this);
 
         if(module.processorGenerators) {
             Object.keys(module.processorGenerators).forEach((generatorName) => {
@@ -124,12 +129,23 @@ export class Freshr {
             });
         }
 
-        if(plugin.packageOptions.baseUrl) {
+        if(plugin.packageOptions.hypermedia) {
             // TODO: use the pluginWatch functionality to do this, and store the resources in-memory as File objects?
             const sitePaths = plugin.packageOptions.site.map((sitePath) => Path.join(plugin.path, sitePath));
-            const watcher = this.watchResources(sitePaths, plugin.packageOptions.baseUrl);
+            const watcher = this.watchResources(sitePaths, plugin.packageOptions.hypermedia.baseUrl);
             // TODO: track served plugins so we can close the watcher when it is removed/disabled
             watcher.events.subscribe();
+
+            plugin.packageOptions.hypermedia.templatePaths.forEach((templatePath) => {
+                this.renderer.addTemplatePath({
+                    routerPath: plugin.packageOptions.hypermedia!.baseUrl + templatePath.routerPath,
+                    templateUri: templatePath.templateUri
+                });
+            });
+        }
+
+        if(module.websocketMiddleware) {
+            this.websocketMiddlewares.push(module.websocketMiddleware);
         }
 
         return module;

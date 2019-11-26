@@ -1,0 +1,20 @@
+{
+    "_links": {
+        "profile": {
+            "href": "https://rwcbook.github.io/hal-forms/"
+        }
+    },
+    "_templates": {
+    	"default": {
+    		"title": "Files",
+    		"method": "GET",
+    		"properties": [{
+    			"name": "path",
+    			"prompt": "Path of the directory or file to display",
+    			"required": false
+			}]
+		},
+    	"ws": {
+		}
+	}
+}

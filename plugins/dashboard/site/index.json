@@ -1,8 +1,16 @@
 {
-    "title": "freshr dashboard",
-    "_links": {
-        "profile": {
-            "href": "/schema/freshr/dashboard/dashboard"
-        }
-    }
+	"title": "freshr dashboard",
+	"_links": {
+		"profile": {
+			"href": "/~dashboard/schema/freshr/dashboard"
+		},
+		"fs-dashboard:files": {
+			"href": "/~dashboard/files",
+			"title": "Files"
+		},
+		"fs-dashboard:build": {
+			"href": "/~dashboard/build",
+			"title": "Build"
+		}
+	}
 }
