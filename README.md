@@ -84,6 +84,8 @@ All server-side code, such as API implementations, hypermedia processors, build 
 
 A plugin module is a CommonJS module that exports a module factory -- a function that takes freshr plugin options as input and returns a module instance. This allows one plugin to be used for multiple different uses in the same freshr site. For example, a forum plugin could be used to run multiple forums side-by-side with different API URLs and configurations.
 
+Some plugins utilize the freshr build system to build some of their files. This build step occurs after the module is initialized, so the plugin can use build task defintiions added by the module. This also allows build steps to be customized through plugin module options.
+
 #### components
 A component is an ES6 module that can be used in client-side javascript. Freshr uses Rollup to bundle components, and makes them accessible to your site with aliased imports, namespaced by the plugin name.
 

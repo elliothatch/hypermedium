@@ -1,7 +1,7 @@
 import * as Path from 'path';
 import * as Express from 'express';
 import * as Websocket from 'socket.io';
-import { concat } from 'rxjs';
+import { concat, EMPTY } from 'rxjs';
 import { map, mergeMap, tap } from 'rxjs/operators';
 
 import { Log } from 'freshlog';
@@ -17,6 +17,7 @@ Log.handlers.get('trace')!.enabled = true;
     // clientPath: path.join(__dirname, '..', 'demo'),
     // env: 'dev',
 const app = Express();
+const websocketServer = Websocket();
 
 /*
 const hypermediaOptions = {
@@ -45,6 +46,7 @@ const demoPath = Path.join(__dirname, '..', '..', 'client');
 // const sitePath = Path.join(demoPath, 'build', 'site');
 const sitePath = Path.join(demoPath, 'src', 'site');
 const freshr = new Freshr(demoPath, {
+    websocketServer,
     renderer: {
         // defaultTemplate: '/freshr.hbs',
         siteContext: {
@@ -109,11 +111,26 @@ freshr.hypermedia.event$.subscribe({
 // freshr.loadAndRegisterPlugins(['core', 'filesystem'], pluginsPath).subscribe({
 concat(
     freshr.loadAndRegisterPlugins(['core', 'dashboard'], pluginsPath).pipe(
-        tap(({plugin, module}) => {
+        mergeMap(({plugin, module}) => {
             Log.info('plugin registered', {
                 plugin,
                 processorGenerators: module.processorGenerators && Object.keys(module.processorGenerators)
             });
+            // TODO: Add this step to freshr
+            // TODO: plugin dependency management
+            // TODO: plugins should register in topological order
+            if(module.buildSteps) {
+                return freshr.build.build(module.buildSteps, plugin.path).pipe(map((event) => ({event, plugin: plugin})));
+            }
+            return EMPTY;
+
+        }), tap(({event, plugin}) => {
+            if(event.eType === 'error') {
+                Log.error('build plugin', {plugin: plugin.name, event});
+            }
+            else {
+                Log.info('build plugin', {plugin: plugin.name, event});
+            }
         })
     ),
     loadFiles([Path.join(demoPath, 'src', 'templates')]).pipe(
@@ -181,6 +198,9 @@ concat(
                     }, {
                         inputs: {target: [Path.join('src', 'templates')]},
                         outputs: {destination: [Path.join('build', 'templates')]}
+                    }, {
+                        inputs: {target: [Path.join('..', '..', 'plugins', 'dashboard', 'build', 'components')]},
+                        outputs: {destination: [Path.join('build', 'js', '~dashboard')]}
                     }]
                 },  {
                     sType: 'task',
@@ -343,13 +363,8 @@ app.use('/js', Express.static(Path.join(demoPath, 'build', 'js')));
 server(app).subscribe({
     next: (server) => {
         Log.info('server-listening', {port: server.port});
-        // TODO: have freshr do this part automatically as new plugins are registered
-        // TODO: add socketio client
-        // NOTE: should socketio be optional?
-        const websocketServer = Websocket(server.server);
-        freshr.websocketMiddlewares.forEach((middleware) => {
-            websocketServer.use(middleware);
-        });
+        debugger;
+        websocketServer.attach(server.server);
     }, 
     error: (error) => Log.error('server-start', {error}),
 });

@@ -1,8 +1,8 @@
 import * as chokidar from 'chokidar';
 import * as Path from 'path';
 import { promises as fs } from 'fs';
-import { Socket } from 'socket.io';
-import { forkJoin, of, from, fromEventPattern, merge, Observable, Subject } from 'rxjs';
+import { Server, Socket } from 'socket.io';
+import { concat, forkJoin, of, from, fromEventPattern, merge, Observable, Subject } from 'rxjs';
 import { filter, mergeMap, map, publish, tap } from 'rxjs/operators';
 
 import { Hypermedia } from './hypermedia';
@@ -32,7 +32,8 @@ export class Freshr {
     public sitePath: string;
 
     // TODO: make this more robust, use socket.io namespaces
-    public websocketMiddlewares: Plugin.WebsocketMiddleware[];
+    // public websocketMiddlewares: Plugin.WebsocketMiddleware[];
+    public websocketServer: Server | undefined;
 
     constructor(sitePath: string, options?: Partial<Freshr.Options>) {
         this.sitePath = sitePath;
@@ -57,8 +58,7 @@ export class Freshr {
         this.build = new BuildManager(sitePath);
 
         this.processorGenerators = new Map();
-
-        this.websocketMiddlewares = [];
+        this.websocketServer = options && options.websocketServer;
 
         this.watchEvent$ = new Subject();
         this.watchEvent$.pipe(
@@ -87,7 +87,9 @@ export class Freshr {
     }
 
     loadAndRegisterPlugins(names: string[], searchPath: string): Observable<{plugin: Plugin, module: Plugin.Module, errors: FileError[]}> {
-        return merge(...names.map((name) => Plugin.load(name, searchPath))).pipe(
+        // NOTE: loads plugins one by one to avoid dependency race conditions
+        // this should be properly handled by determining dependency tree and loading in topological order
+        return concat(...names.map((name) => Plugin.load(name, searchPath))).pipe(
             map(({plugin, errors}) => ({plugin, errors, module: this.registerPlugin(plugin)}))
         );
     }
@@ -117,6 +119,11 @@ export class Freshr {
             this.renderer.profileLayouts = Object.assign({}, module.profileLayouts, this.renderer.profileLayouts);
         }
 
+        if(this.websocketServer && module.websocketMiddleware) {
+            this.websocketServer.use(module.websocketMiddleware);
+        }
+
+
         if(plugin.partials) {
             plugin.partials.forEach((partial) => {
                 this.renderer.registerPartial(partial, plugin.name);
@@ -144,10 +151,6 @@ export class Freshr {
             });
         }
 
-        if(module.websocketMiddleware) {
-            this.websocketMiddlewares.push(module.websocketMiddleware);
-        }
-
         return module;
     }
 
@@ -165,8 +168,8 @@ export class Freshr {
 
 export namespace Freshr {
     export interface Options {
-
         hypermedia: Partial<Hypermedia.Options>;
         renderer: Partial<HypermediaRenderer.Options>;
+        websocketServer?: Server;
     }
 }

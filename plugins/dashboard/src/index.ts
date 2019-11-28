@@ -7,10 +7,10 @@ import { Plugin } from 'freshr';
 const dashboardModuleFactory: Plugin.Module.Factory = (options, freshr) => {
     const websocketMiddleware: Plugin.WebsocketMiddleware | undefined = 
         !options.hypermedia? undefined:
-        (socket, fn) => {
+        (socket, next) => {
             const buildUrl = options.hypermedia!.baseUrl + '/build';
             socket.on(buildUrl, (data) => {
-                if(data.method === "POST") {
+                if(data && data.method === "POST") {
                     // trigger a build
                     freshr.build.build(freshr.build.buildSteps['demo']).subscribe({
                         next: (event) => {
@@ -25,6 +25,7 @@ const dashboardModuleFactory: Plugin.Module.Factory = (options, freshr) => {
                     // subscribe 
                 }
             });
+            next();
     };
     return {
         // processorGenerators: Processors,
@@ -37,6 +38,22 @@ const dashboardModuleFactory: Plugin.Module.Factory = (options, freshr) => {
             // '/schema/index/schema/index/tags': 'core/layouts/tags-index.hbs',
             // '/schema/freshr/resource-graph': 'core/layouts/resource-graph.hbs',
         // }
+        //
+        buildSteps: {
+            sType: 'task',
+            definition: 'react-rollup',
+            options: {
+                // bundle: {
+                    // format: 'esm'
+                // }
+            },
+            files: [{
+                inputs: {target: ['jsx/dashboard.jsx']},
+                outputs: {
+                    js: ['build/components/dashboard.js']
+                }
+            }]
+        }
     };
 };
 

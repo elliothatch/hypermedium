@@ -9,7 +9,7 @@ import * as chokidar from 'chokidar';
 
 import { Processor } from './hypermedia/processor';
 import { PartialMap, ProfileLayoutMap, TemplateMap, TemplatePath } from './hypermedia-renderer';
-import { TaskDefinition } from './build';
+import { TaskDefinition, BuildStep } from './build';
 
 import { File, FileError, loadFiles, watchFiles, WatchEvent, Watcher } from './util';
 import { Freshr } from './freshr';
@@ -132,6 +132,7 @@ export namespace Plugin {
                             basePath: packageJson.freshr.basePath || '.',
                             templates: packageJson.freshr.templates || ['templates'],
                             partials: packageJson.freshr.partials || ['partials'],
+                            components: packageJson.freshr.components || ['components'],
                             site: packageJson.freshr.site || ['site']
                         };
 
@@ -284,6 +285,7 @@ export namespace Plugin {
                             basePath: obj.freshr.basePath || '.',
                             templates: obj.freshr.templates || ['templates'],
                             partials: obj.freshr.partials || ['partials'],
+                            components: obj.freshr.components || ['components'],
                             site: obj.freshr.site || ['site']
                         };
 
@@ -358,6 +360,8 @@ export namespace Plugin {
         templates: string[];
         /** list of paths (relative to basePath) to directories or files containing partials. default ['partials'] */
         partials: string[];
+        /** list of paths (relative to basePath) to directories or files containing javascript components. default ['components'] */
+        components: string[];
         /** list of paths (relative to basePath) to directories or files containing HAL resources that should be served. only used if hypermedia option is set. default ['site'] */
         site: string[];
         /** if defined, resources will be served by the hypermedia server based on these settings. this allows self-contained modules to be easily added to a site (e.g. a forum-subsite). default undefined */
@@ -382,6 +386,9 @@ export namespace Plugin {
         profileLayouts?: ProfileLayoutMap;
 
         taskDefinitions?: TaskDefinition[];
+
+        /** These build steps are performed while registering the plugin */
+        buildSteps?: BuildStep;
     }
 
     export namespace Module {

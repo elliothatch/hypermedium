@@ -180,7 +180,7 @@ export class BuildManager {
         });
     }
 
-    protected buildTask(task: Task, buildStepPath: number[]): Observable<BuildEvent> {
+    protected buildTask(task: Task, basePath: string, buildStepPath: number[]): Observable<BuildEvent> {
         const taskDefinition = this.taskDefinitions.get(task.definition);
         if(!taskDefinition) {
             return of({
@@ -200,8 +200,8 @@ export class BuildManager {
         const taskObservable = forkJoin(task.files.map(({inputs, outputs, options}) =>
             defer(() => {
                 const fileOptions = {
-                    inputs: prefixPaths(inputs, this.basePath),
-                    outputs: prefixPaths(outputs, this.basePath),
+                    inputs: prefixPaths(inputs, basePath),
+                    outputs: prefixPaths(outputs, basePath),
                     options: Object.assign({}, task.options, options)
                 };
 
@@ -233,9 +233,9 @@ export class BuildManager {
         );
     }
 
-    protected buildMultiTask(multitask: MultiTask, buildStepPath: number[]): Observable<BuildEvent> {
+    protected buildMultiTask(multitask: MultiTask, basePath: string, buildStepPath: number[]): Observable<BuildEvent> {
         if(multitask.sync) {
-            return concat(...multitask.steps.map((s, i) => this.build(s, buildStepPath.concat([i]))),
+            return concat(...multitask.steps.map((s, i) => this.build(s, basePath, buildStepPath.concat([i]))),
                 of({
                     eType: 'success' as const,
                     result: [],
@@ -245,7 +245,7 @@ export class BuildManager {
         }
         else {
             return concat(
-                merge(...multitask.steps.map((s, i) => this.build(s, buildStepPath.concat([i])))),
+                merge(...multitask.steps.map((s, i) => this.build(s, basePath, buildStepPath.concat([i])))),
                 of({
                     eType: 'success' as const,
                     result: [],
@@ -265,16 +265,17 @@ export class BuildManager {
      *      - 'task/log'{{path, status, log}}
      *      - 'task/done'{{path}}
      */
-    public build(step: BuildStep, buildStepPath?: number[]): Observable<BuildEvent> {
+    public build(step: BuildStep, basePath?: string, buildStepPath?: number[]): Observable<BuildEvent> {
+        basePath = basePath || this.basePath;
         buildStepPath = buildStepPath || [];
 
         // buildObservable events don't have the BuildEvent.Base attributes, since they're added universally at the end of this function
         let buildObservable: Observable<BuildEvent> = (() => {
             switch(step.sType) {
                 case 'task':
-                    return this.buildTask(step, buildStepPath);
+                    return this.buildTask(step, basePath!, buildStepPath);
                 case 'multitask':
-                    return this.buildMultiTask(step, buildStepPath);
+                    return this.buildMultiTask(step, basePath!, buildStepPath);
             }
         })();
 
