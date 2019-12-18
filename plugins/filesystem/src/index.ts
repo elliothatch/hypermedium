@@ -4,8 +4,7 @@ import { promises as fs } from 'fs';
 import { fromEventPattern, Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 
-import { Processor } from '../../hypermedia/processor';
-import { Plugin } from '../../plugin';
+import { Processor, Plugin } from 'freshr';
 
 import { Socket } from 'socket.io';
 
@@ -76,7 +75,21 @@ const fileSystemModuleFactory: Plugin.Module.Factory = (options) => {
             socket.on('disconnect', () => {
                 watchSubscribers.delete(socket);
             });
+
+            next();
         },
+        buildSteps: {
+            "sType": "task",
+            "definition": "react-rollup",
+            "files": [{
+                "inputs": {
+                    "target": ["build/jsx/file-explorer.jsx"]
+                },
+                "outputs": {
+                    "js": ["build/components/file-explorer.js"]
+                }
+            }]
+        }
     };
 };
 

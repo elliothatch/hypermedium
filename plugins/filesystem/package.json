@@ -9,6 +9,10 @@
   "author": "",
   "license": "ISC",
   "freshr": {
-
+  	  "components": ["build/components"]
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/react-dom": "^16.9.4"
   }
 }

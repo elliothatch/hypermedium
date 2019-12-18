@@ -17,7 +17,8 @@
           "templateUri": "dashboard/default.hbs"
         }
       ]
-    }
+    },
+    "components": ["build/components"]
   },
   "dependencies": {
     "graphlib": "^2.1.7",

@@ -110,7 +110,7 @@ freshr.hypermedia.event$.subscribe({
 
 // freshr.loadAndRegisterPlugins(['core', 'filesystem'], pluginsPath).subscribe({
 concat(
-    freshr.loadAndRegisterPlugins(['core', 'dashboard'], pluginsPath).pipe(
+    freshr.loadAndRegisterPlugins(['core', 'filesystem', 'dashboard'], pluginsPath).pipe(
         mergeMap(({plugin, module}) => {
             Log.info('plugin registered', {
                 plugin,

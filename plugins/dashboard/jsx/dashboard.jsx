@@ -2,6 +2,9 @@ import React from 'react';
 import ReactDOM from 'react-dom';
 /* global io */
 
+// import FileExplorer from 'plugins/filesystem/build/jsx/file-explorer'; // doesn't resolve jsx file
+import FileExplorer from '../../filesystem/build/jsx/file-explorer'; // doesn't find exports
+
 import TaskDefinitionDisplay from "./TaskDefinitionDisplay";
 import TaskDisplay from "./TaskDisplay";
 
@@ -20,6 +23,7 @@ class DashboardComponent extends React.Component {
 			</header>
 			<div className="page-content">
 				<div className="build-display">
+					<FileExplorer entry={this.props.fileSystemEntry} />
 					{this.props.taskDefinitions && <TaskDefinitionDisplay taskDefinitions={this.props.taskDefinitions} />}
 					<button onClick={this.handleClickBuild}>Build</button>
 					{this.props.buildTask && <TaskDisplay task={this.props.buildTask} />}
@@ -65,10 +69,12 @@ var taskDefinitions = {};
 // configSocket.emit('files/src');
 // configSocket.emit('task-definitions');
 
+let fileSystemEntry = undefined;
+
 render();
 
 function render() {
-	const element = <DashboardComponent config={{categories: []}} taskDefinitions={taskDefinitions} buildTask={buildTasks} />;
+	const element = <DashboardComponent config={{categories: []}} taskDefinitions={taskDefinitions} buildTask={buildTasks} fileSystemEntry={fileSystemEntry} />;
 	ReactDOM.render(
 		element,
 		document.getElementById('root')
@@ -105,3 +111,18 @@ websocketClient.on('/~dashboard/build', (data) => {
 	render();
 	// console.log(data);
 });
+
+
+websocketClient.on('filesystem/watch', (data) => {
+	console.log(data);
+});
+
+websocketClient.on('filesystem/files', (data) => {
+	fileSystemEntry = data;
+	console.log(data);
+});
+
+websocketClient.emit('filesystem/watch');
+websocketClient.emit('filesystem/files');
+
+
