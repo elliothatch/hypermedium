@@ -257,13 +257,6 @@ export class BuildManager {
 
     /**
      * Builds the project
-     * @returns observable
-     *      - 'start'{SerializedTask}
-     *      - 'success'{}
-     *      - 'fail'{}
-     *      - 'task/start'{{path}}
-     *      - 'task/log'{{path, status, log}}
-     *      - 'task/done'{{path}}
      */
     public build(step: BuildStep, basePath?: string, buildStepPath?: number[]): Observable<BuildEvent> {
         basePath = basePath || this.basePath;
@@ -291,7 +284,8 @@ export class BuildManager {
         return concat(
             of({
                 eType: 'start' as const,
-                buildStepPath: buildStepPath!
+                buildStepPath: buildStepPath!,
+                buildStep: buildStepPath!.length === 0? step: undefined
             }),
             buildObservable,
             of({
@@ -321,6 +315,8 @@ export namespace BuildEvent {
     }
     export interface Start extends Base {
         eType: 'start';
+        /** only defined on the root buildStep, since it contains all other steps */
+        buildStep?: BuildStep;
     }
 
     export interface Log extends Base {

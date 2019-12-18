@@ -217,6 +217,19 @@ concat(
                     }]
                 }, {
                     sType: 'task',
+                    definition: 'sass',
+                    options: {
+                        includePaths: [Path.join(__dirname, '..', 'node_modules')]
+                    },
+                    files: [{
+                        inputs: {target: ['src/sass/dashboard.scss']},
+                        outputs: {
+                            css: ['build/css/dashboard.css'],
+                            sourceMap: ['build/css/dashboard.css.map'],
+                        }
+                    }]
+                }, {
+                    sType: 'task',
                     definition: 'rollup',
                     options: {
                         rollup: {

@@ -49,6 +49,7 @@ const dashboardModuleFactory: Plugin.Module.Factory = (options, freshr) => {
             },
             files: [{
                 inputs: {target: ['jsx/dashboard.jsx']},
+                // inputs: {target: ['jsx/dashboard.jsx', 'jsx/FileExplorer.jsx', 'jsx/QRComponent.jsx', 'jsx/TaskDefinitionDisplay.jsx', 'jsx/TaskDisplay.jsx']},
                 outputs: {
                     js: ['build/components/dashboard.js']
                 }

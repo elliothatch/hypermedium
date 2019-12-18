@@ -5,9 +5,12 @@
 		<title>{{title}}</title>
 		<script defer src="/socket.io/socket.io.js"></script>
 		<script defer src="/js/~dashboard/dashboard.js"></script>
+		<link rel="stylesheet" href="/css/dashboard.css">
 	</head>
 	<body>
 		<p>Dashboard:</p>
 		{{> core/layouts/default.hbs }}
+		<div id="root">
+		</div>
 	</body>
 </html>

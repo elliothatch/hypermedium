@@ -10,7 +10,7 @@ import * as babel from 'rollup-plugin-babel';
 const commonjs = require('rollup-plugin-commonjs');
 // import * as rollupNodeBuiltins from 'rollup-plugin-node-builtins';
 // import * as rollupNodeGlobals from 'rollup-plugin-node-globals';
-// const resolve = require('rollup-plugin-node-resolve');
+const resolve = require('rollup-plugin-node-resolve');
 // var nodeBuiltins = require('rollup-plugin-node-builtins');
 // var nodeGlobals = require('rollup-plugin-node-globals');
 const alias = require('rollup-plugin-alias');
@@ -52,10 +52,10 @@ export const ReactRollup: TaskDefinition = {
                         ],
                         plugins: []
                     }),
-                    // resolve({
-                        // browser: true,
-                        // extensions: ['.js', '.jsx'],
-                    // }),
+                    resolve({
+                        browser: true,
+                        extensions: ['.js', '.jsx'],
+                    }),
                     // nodeBuiltins(),
                     // nodeGlobals(),
                 ].concat(options && options.rollup && options.rollup.plugins || [])
