@@ -36,7 +36,7 @@ export const ReactRollup: TaskDefinition = {
                     alias({
                         'react': reactPath,
                         'react-dom': reactDomPath,
-                        //'plugins': Path.join(__dirname, '..', '..', '..') (doesn't resolve jsx files)
+                        'plugins': Path.join(__dirname, '..', '..', '..')// (doesn't resolve jsx files)
                     }),
                     commonjs({
                         // exclude: ['node_modules/**'],

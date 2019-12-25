@@ -3,7 +3,9 @@ import ReactDOM from 'react-dom';
 /* global io */
 
 // import FileExplorer from 'plugins/filesystem/build/jsx/file-explorer'; // doesn't resolve jsx file
-import FileExplorer from '../../filesystem/build/jsx/file-explorer'; // doesn't find exports
+// import FileExplorer from '../../filesystem/build/jsx/file-explorer'; // doesn't find exports
+import FileExplorer from 'plugins/filesystem/build/components/file-explorer'; // doesn't resolve jsx file
+// NEED TO FIGURE OUT HOW TO SETUP TSCONFIG TO BUILD JSX BUT INCLUDE TYPES FROM OTHER FILES (COMMON/MODULE)
 
 import TaskDefinitionDisplay from "./TaskDefinitionDisplay";
 import TaskDisplay from "./TaskDisplay";

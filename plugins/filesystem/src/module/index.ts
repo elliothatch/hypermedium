@@ -81,6 +81,11 @@ const fileSystemModuleFactory: Plugin.Module.Factory = (options) => {
         buildSteps: {
             "sType": "task",
             "definition": "react-rollup",
+            "options": {
+                "bundle": {
+                    "format": "esm"
+                }
+            },
             "files": [{
                 "inputs": {
                     "target": ["build/jsx/file-explorer.jsx"]

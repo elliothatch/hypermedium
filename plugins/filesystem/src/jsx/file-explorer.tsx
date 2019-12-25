@@ -1,7 +1,7 @@
 import * as React from 'react';
 import * as ReactDom from 'react-dom';
 
-import { FileSystem } from '../index';
+import { FileSystem } from '../module/index';
 
 export namespace FileExplorer {
 	export interface Props {

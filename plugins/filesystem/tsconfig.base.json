@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "declaration": true,
+    "declarationDir": "declarations",
+    "outDir": "build",
+    "sourceMap": true,
+
+    "strict": true,
+
+    "experimentalDecorators": true,
+    "preserveConstEnums": true,
+    "removeComments": true
+  },
+  "baseUrl": "."
+}

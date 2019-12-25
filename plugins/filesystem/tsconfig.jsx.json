@@ -1,0 +1,12 @@
+{
+	"extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "module": "esnext",
+    "target": "esnext",
+
+    "jsx": "preserve"
+  },
+  "include": [
+  	  "src/jsx/**/*"
+  ]
+}

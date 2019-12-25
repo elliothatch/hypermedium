@@ -1,0 +1,19 @@
+{
+	"extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "target": "esnext"
+  },
+  "references": [{
+	  "path": "../.."
+  }],
+  "include": [
+  	  "src/module/**/*",
+	  "../../types"
+  ],
+  "paths": {
+    "*": [
+      "../../node_modules/*"
+    ]
+  }
+}
