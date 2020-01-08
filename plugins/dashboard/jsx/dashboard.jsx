@@ -122,6 +122,7 @@ websocketClient.on('filesystem/watch', (data) => {
 websocketClient.on('filesystem/files', (data) => {
 	fileSystemEntry = data;
 	console.log(data);
+	render();
 });
 
 websocketClient.emit('filesystem/watch');

@@ -2,7 +2,7 @@
   "name": "freshr-filesystem",
   "version": "1.0.0",
   "description": "",
-  "main": "build/index.js",
+  "main": "build/module/index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },

@@ -1,7 +1,7 @@
-import * as React from 'react';
-import * as ReactDom from 'react-dom';
+import React from 'react';
+import ReactDom from 'react-dom';
 
-import { FileSystem } from '../module/index';
+import * as FileSystem from '../types';
 
 export namespace FileExplorer {
 	export interface Props {
@@ -9,6 +9,7 @@ export namespace FileExplorer {
 	}
 
 	export interface State {
+		lastEntry?: FileSystem.Entry;
 		selectedEntry?: FileSystem.Entry;
 		currentPath: FileSystem.Entry[];
 	}
@@ -22,35 +23,44 @@ export default class FileExplorer extends React.Component<FileExplorer.Props, Fi
 		this.handleSelectionChange = this.handleSelectionChange.bind(this);
 
 		this.state = {
+			lastEntry: props.entry,
 			selectedEntry: undefined,
-			currentPath: this.pathFromEntry(this.props.entry, this.props.entry)
+			currentPath: FileExplorer.pathFromEntry(this.props.entry, this.props.entry)
 		};
 	}
 
-	componentWillReceiveProps(nextProps: FileExplorer.Props): void {
-		if(nextProps.entry !== this.props.entry) {
-			this.setState({
+	static getDerivedStateFromProps(nextProps: FileExplorer.Props, state: FileExplorer.State) {
+		if(nextProps.entry !== state.lastEntry) {
+			return {
+				lastEntry: nextProps.entry,
 				selectedEntry: undefined,
-				currentPath: this.pathFromEntry(nextProps.entry, nextProps.entry)
-			});
+				currentPath: FileExplorer.pathFromEntry(nextProps.entry, nextProps.entry)
+			}
 		}
+
+		return null;
 	}
 
 	handleChangeDirectory(entry: FileSystem.Entry): void {
 		this.setState({
-			currentPath: this.pathFromEntry(this.props.entry, entry)
+			currentPath: FileExplorer.pathFromEntry(this.props.entry, entry)
 		});
 	}
 
 	/**
 	 * Calculate a path array from an entry in the directory tree
 	*/
-	pathFromEntry(rootEntry?: FileSystem.Entry, entry?: FileSystem.Entry): FileSystem.Entry[] {
-		if(!rootEntry || !entry) {
+	static pathFromEntry(rootEntry?: FileSystem.Entry, entry?: FileSystem.Entry): FileSystem.Entry[] {
+		if(!rootEntry) {
 			return [];
 		}
+		if(!entry || entry.path.length === 0) {
+			return [rootEntry];
+		}
 		// convert each part of the path into an entry, ignoring the first entry (the root entry)
-		return entry.path.split('/').slice(1).reduce((path, entryName) => {
+		// NOTE: we don't have a "root entry" anymore in the "path"
+		// return entry.path.split('/').slice(1).reduce((path, entryName) => {
+		return entry.path.split('/').reduce((path, entryName) => {
 			if(path[path.length - 1].fType !== 'dir') {
 				throw new Error('pathFromEntry: Trying to find a file or directory in a non-directory file');
 			}

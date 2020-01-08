@@ -8,6 +8,7 @@
 	  "path": "../.."
   }],
   "include": [
+  	  "src/*",
   	  "src/module/**/*",
 	  "../../types"
   ],

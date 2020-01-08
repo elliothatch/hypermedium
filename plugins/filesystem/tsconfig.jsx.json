@@ -2,11 +2,15 @@
 	"extends": "./tsconfig.base.json",
   "compilerOptions": {
     "module": "esnext",
+    "moduleResolution": "node",
     "target": "esnext",
+    "esModuleInterop": true,
 
-    "jsx": "preserve"
+    "jsx": "react"
   },
   "include": [
-  	  "src/jsx/**/*"
+  	  "src/*",
+  	  "src/components/**/*",
+	  "../../types"
   ]
 }
