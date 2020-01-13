@@ -1,0 +1,15 @@
+{
+  "name": "freshr-material-design-icons",
+  "version": "1.0.0",
+  "description": "",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "freshr": {},
+  "dependencies": {
+    "material-design-icons": "^3.0.1"
+  }
+}

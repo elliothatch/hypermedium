@@ -110,7 +110,7 @@ freshr.hypermedia.event$.subscribe({
 
 // freshr.loadAndRegisterPlugins(['core', 'filesystem'], pluginsPath).subscribe({
 concat(
-    freshr.loadAndRegisterPlugins(['core', 'filesystem', 'dashboard'], pluginsPath).pipe(
+    freshr.loadAndRegisterPlugins(['core', 'material-design-icons', 'filesystem', 'dashboard'], pluginsPath).pipe(
         mergeMap(({plugin, module}) => {
             Log.info('plugin registered', {
                 plugin,
@@ -201,6 +201,9 @@ concat(
                     }, {
                         inputs: {target: [Path.join('..', '..', 'plugins', 'dashboard', 'build', 'components')]},
                         outputs: {destination: [Path.join('build', 'js', '~dashboard')]}
+                    }, {
+                        inputs: {target: [Path.join('..', '..', 'plugins', 'material-design-icons', 'build')]},
+                        outputs: {destination: [Path.join('build', 'material-icons')]}
                     }]
                 },  {
                     sType: 'task',
@@ -371,6 +374,7 @@ app.use(freshr.hypermedia.router);
 app.use(Express.static(Path.join(demoPath, 'build', 'site')));
 app.use('/css', Express.static(Path.join(demoPath, 'build', 'css')));
 app.use('/js', Express.static(Path.join(demoPath, 'build', 'js')));
+app.use('/material-icons', Express.static(Path.join(demoPath, 'build', 'material-icons')));
 
 
 server(app).subscribe({

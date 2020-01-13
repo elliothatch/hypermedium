@@ -311,7 +311,7 @@ export namespace Plugin {
                     }
                 }
                 catch(error) {
-                    console.error(`Plugin.load: failed to load plugin: ${pluginPath} (${name}): ${error}`);
+                    console.error(`Plugin.load: failed to load plugin module: ${pluginPath} (${name}): ${error}`);
                     // warning: module not found
                 }
 
