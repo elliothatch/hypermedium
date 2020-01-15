@@ -89,8 +89,8 @@ websocketClient.on('/~dashboard/build', (data) => {
 	}
 
 	const task = getTask(buildTasks, data.buildStepPath);
-	console.log(data);
-	console.log(task);
+	// console.log(data);
+	// console.log(task);
 	switch(data.eType) {
 		case 'start':
 			task.running = true;
@@ -102,9 +102,12 @@ websocketClient.on('/~dashboard/build', (data) => {
 			task.logs.push(data.log);
 			break;
 		case 'success':
+			task.status = data.eType;
+			task.result = data.result;
+			break;
 		case 'error':
-			// task.running = false;
-			task.status = task.eType;
+			task.status = data.eType;
+			task.result = data.error;
 			break;
 		case 'done':
 			task.running = false;

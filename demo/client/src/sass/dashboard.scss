@@ -1,4 +1,5 @@
 @import 'sanitize.css/sanitize';
+@import 'theming';
 
 $foreground-light: white;
 $foreground-dark: black;
@@ -9,9 +10,46 @@ $background-dark: #1F996E;
 $background-accent-light: #FFD9F9;
 $background-accent-dark: #B866CC;
 
-$color-success: green;
-$color-warn: yellow;
-$color-error: red;
+$mat-fresh-green: (
+	300: #81ffa8,
+	500: #43ea78,
+	700: #00b649,
+	contrast: (
+		50: $black-87-opacity,
+		100: $black-87-opacity,
+		200: $black-87-opacity,
+		300: $black-87-opacity,
+		400: $black-87-opacity,
+		500: $black-87-opacity,
+		600: $black-87-opacity,
+		700: $black-87-opacity,
+		800: $white-87-opacity,
+		900: $white-87-opacity,
+		A100: $black-87-opacity,
+		A200: $black-87-opacity,
+		A400: $black-87-opacity,
+		A700: $black-87-opacity,
+	)
+);
+
+$theme: mat-light-theme(
+mat-palette($mat-fresh-green, 500, 300, 700),
+mat-palette($mat-yellow),
+mat-palette($mat-red));
+
+$theme-primary: map-get($theme, primary);
+$theme-accent: map-get($theme, accent);
+$theme-warn: map-get($theme, warn);
+$theme-foreground: map-get($theme, foreground);
+$theme-background: map-get($theme, background);
+
+$color-error: mat-color($mat-red, 500);
+$color-warn: mat-color($mat-yellow, 500);
+$color-success: mat-color($mat-fresh-green, 500);
+
+// $color-success: green;
+// $color-warn: yellow;
+// $color-error: red;
 
 html {
 	height: 100%;
@@ -92,15 +130,15 @@ footer {
 		/*transform-origin: top left;*/
 		width: 100%;
 		margin: 0;
-		// color: mat-color($theme-primary, default-contrast);
-		// background: mat-color($theme-primary, default);
+		color: mat-color($theme-primary, default-contrast);
+		background: mat-color($theme-primary, default);
 		padding: 5px 15px;;
 
 	}
 	.card-body {
 		margin: 0 auto;
-		// color: mat-color($theme-primary, lighter-contrast);
-		// background: mat-color($theme-primary, lighter);
+		color: mat-color($theme-primary, lighter-contrast);
+		background: mat-color($theme-primary, lighter);
 		padding: 3px;
 		/*border: $primary-border-style;*/
 		/*border-top: none;*/
@@ -122,7 +160,7 @@ footer {
 	float: right;
 
 	&:hover {
-		// background: map-get($theme-background, focused-button);
+		background: map-get($theme-background, focused-button);
 	}
 
 	&:after {
@@ -148,7 +186,7 @@ $task-result-border-width: 15px;
 
 	.task-col {
 		width: $task-col-width;
-		// background: $black-6-opacity;
+		background: $black-6-opacity;
 	}
 
 	.task {
@@ -165,7 +203,7 @@ $task-result-border-width: 15px;
 				width: $task-col-width + $task-result-border-width;
 				height: $task-card-height;
 				left: -$task-result-border-width;
-				// border-left: $task-result-border-width solid map-get($theme-foreground, divider);
+				border-left: $task-result-border-width solid map-get($theme-foreground, divider);
 			}
 			&.success:before {
 				border-left: $task-result-border-width solid $color-success
@@ -177,8 +215,8 @@ $task-result-border-width: 15px;
 				border-left: $task-result-border-width solid $color-error
 			}
 
-			// border-bottom: 5px solid $black-12-opacity;
-			// background: map-get($theme-background, card);
+			border-bottom: 5px solid $black-12-opacity;
+			background: map-get($theme-background, card);
 		}
 		&>.tasks {
 			margin: 0;
@@ -189,11 +227,46 @@ $task-result-border-width: 15px;
 
 	.log-display {
 		min-height: 400px;
-		// color: mat-color($theme-primary, lighter-contrast);
-		// background: mat-color($theme-primary, lighter);
+		color: mat-color($theme-primary, lighter-contrast);
+		background: mat-color($theme-primary, lighter);
 
 		.logs {
 			list-style-type: none;
+		}
+	}
+
+	.files {
+		margin: 0;
+		padding-left: 0;
+		list-style-type: none;
+	}
+
+	.task-file {
+		display: flex;
+		justify-content: space-between;
+
+		ul {
+			margin: 0;
+			padding-left: 2px;
+			list-style-type: none;
+		}
+
+		.inputs {
+			padding: 2px;
+			flex-grow: 1;
+			flex-basis: 0;
+			border: 1px solid black;
+		}
+
+		.divider {
+			flex-grow: 0;
+			align-self: center;
+		}
+
+		.outputs {
+			flex-grow: 1;
+			flex-basis: 0;
+			border: 1px solid black;
 		}
 	}
 }
@@ -233,23 +306,23 @@ $task-result-border-width: 15px;
 		.entries {
 			margin: 0;
 			padding-left: 0;
-			// background: $black-6-opacity;
+			background: $black-6-opacity;
 			list-style-type: none;
 			li {
 				i {
-					// color: mat-color($theme-accent, darker);
+					color: mat-color($theme-accent, darker);
 				}
 				.card {
 					position: relative;
 					margin: 0;
 					width: 250px;
 					height: 30px;
-					// background: map-get($theme-background, card);
-					// border-bottom: 2px solid $black-12-opacity;
+					background: map-get($theme-background, card);
+					border-bottom: 2px solid $black-12-opacity;
 
 					&.selected {
-						// color: mat-color($theme-primary, lighter-contrast);
-						// background: mat-color($theme-primary, lighter);
+						color: mat-color($theme-primary, lighter-contrast);
+						background: mat-color($theme-primary, lighter);
 					}
 				}
 				button {

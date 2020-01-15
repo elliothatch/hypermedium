@@ -49,6 +49,9 @@ const freshr = new Freshr(demoPath, {
     websocketServer,
     renderer: {
         // defaultTemplate: '/freshr.hbs',
+        profileLayouts: {
+        '/schema/welcome-page': 'layouts/welcome-page.hbs',
+        },
         siteContext: {
             title: 'freshr',
             navLinks: {
