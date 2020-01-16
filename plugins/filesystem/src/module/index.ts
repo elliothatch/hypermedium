@@ -15,14 +15,14 @@ const fileSystemModuleFactory: Plugin.Module.Factory = (options) => {
 
     /** the state of the filesystem, updated as files are detected/added/deleted  */
     let files: FileSystem.Entry.Directory = {
-        name: 'root',
+        name: '/',
         path: '',
 
         fType: 'dir',
         contents: []
     };
 
-    const fileUpdate$ = watchFile(options.basePath);
+    const fileUpdate$ = watchFile(options.projectPath);
     fileUpdate$.subscribe({
         next: (watchEvent) => {
             if(watchEvent.uri.length === 0) {
@@ -31,7 +31,7 @@ const fileSystemModuleFactory: Plugin.Module.Factory = (options) => {
                 return;
             }
             // update file structure
-            if(watchEvent.eType === 'add' || 'addDir') {
+            if(watchEvent.eType === 'add' || watchEvent.eType === 'addDir') {
                 const newEntry: FileSystem.Entry = Object.assign({
                     name: Path.basename(watchEvent.path),
                     path: watchEvent.uri,
@@ -45,7 +45,7 @@ const fileSystemModuleFactory: Plugin.Module.Factory = (options) => {
 
                 files = addEntry(newEntry, files);
             }
-            else if(watchEvent.eType === 'unlink' || 'unlinkDir') {
+            else if(watchEvent.eType === 'unlink' || watchEvent.eType === 'unlinkDir') {
                 files = removeEntry(watchEvent.uri, files);
             }
 
@@ -111,6 +111,10 @@ export default fileSystemModuleFactory;
 export function addEntry(entry: FileSystem.Entry, target: FileSystem.Entry.Directory): FileSystem.Entry.Directory {
     const remainingPathParts = Path.relative(target.path, entry.path).split('/');
     if(remainingPathParts.length === 1) {
+        if(target.contents.find((e) => e.path === entry.path)) {
+            console.warn('filesystem:addEntry: tried to add duplicate entry', entry.path);
+            return target;
+        }
         return {
             ...target,
             contents: target.contents.concat([entry]),
@@ -148,6 +152,8 @@ export function addEntry(entry: FileSystem.Entry, target: FileSystem.Entry.Direc
 export function removeEntry(path: string, target: FileSystem.Entry.Directory): FileSystem.Entry.Directory {
     const remainingPathParts = Path.relative(target.path, path).split('/');
     if(remainingPathParts.length === 1) {
+        if(remainingPathParts[0] === 'build') {
+        }
         return {
             ...target,
             contents: target.contents.filter((subEntry) => subEntry.path !== path),
@@ -155,12 +161,20 @@ export function removeEntry(path: string, target: FileSystem.Entry.Directory): F
     }
 
     const nextDirectoryName = remainingPathParts[0];
-    let nextDirectory = target.contents.find((subEntry) => subEntry.fType === 'dir' && subEntry.name === nextDirectoryName) as FileSystem.Entry.Directory | undefined;
-    if(!nextDirectory) {
+    const nextDirectoryIndex = target.contents.findIndex((subEntry) => subEntry.fType === 'dir' && subEntry.name === nextDirectoryName);
+    if(nextDirectoryIndex === -1) {
+        // console.warn('filesystem:removeEntry: tried to remove nonexistent file entry', path);
+        // NOTE: this tends to happen because chokidar sends the unlinkDir event before it sends the unlink events for the files in that directory
         return target;
     }
 
-    return removeEntry(path, nextDirectory);
+    const contents = target.contents.slice();
+    contents[nextDirectoryIndex] = removeEntry(path, contents[nextDirectoryIndex] as FileSystem.Entry.Directory);
+
+    return {
+        ...target,
+        contents
+    };
 }
 
 /** returns a file entry structure, with files added/removed based on the watch event

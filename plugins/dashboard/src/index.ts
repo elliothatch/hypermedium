@@ -3,7 +3,6 @@ import { Plugin } from 'freshr';
 // import Processors from './processors';
 // import TaskDefinitions from './task-definitions';
 
-
 const dashboardModuleFactory: Plugin.Module.Factory = (options, freshr) => {
     const websocketMiddleware: Plugin.WebsocketMiddleware | undefined = 
         !options.hypermedia? undefined:

@@ -14,43 +14,19 @@ const rollupResolve = require('rollup-plugin-node-resolve');
 
 Log.handlers.get('trace')!.enabled = true;
 
-    // clientPath: path.join(__dirname, '..', 'demo'),
-    // env: 'dev',
 const app = Express();
 const websocketServer = Websocket();
 
-/*
-const hypermediaOptions = {
-    baseUri: 'https://freshr.io',
-    curies: [{
-        href: '/rels/{rel}',
-        name: 'fs',
-        templated: true,
-    }],
-    processors: [
-        Processor.resourceGraph,
-        Processor.self,
-        tags.tags,
-        // Processor.breadcrumb,
-        makeIndex.makeIndex('/schema/post'),
-        makeIndex.makeIndex('/schema/index/tags'),
-        Processor.curies,
-        Processor.embed,
-        Processor.schema,
-        ConfigProcessor
-    ]
-};
- */
 
 const demoPath = Path.join(__dirname, '..', '..', 'client');
-// const sitePath = Path.join(demoPath, 'build', 'site');
 const sitePath = Path.join(demoPath, 'src', 'site');
 const freshr = new Freshr(demoPath, {
     websocketServer,
     renderer: {
         // defaultTemplate: '/freshr.hbs',
         profileLayouts: {
-        '/schema/welcome-page': 'layouts/welcome-page.hbs',
+            '/schema/welcome-page': 'layouts/welcome-page.hbs',
+            '/schema/post': 'layouts/post.hbs',
         },
         siteContext: {
             title: 'freshr',
@@ -76,6 +52,7 @@ const pluginsPath = Path.join(__dirname, '..', '..', '..', 'plugins');
 
 const verbose = false;
 
+/*
 Plugin.watch('core', pluginsPath).events.subscribe({
     next: (watchEvent) => {
         if(watchEvent.eType === 'error') {
@@ -87,6 +64,7 @@ Plugin.watch('core', pluginsPath).events.subscribe({
     },
     error: (error: Error) => Log.error('plugin watch', error),
 });
+*/
 
 freshr.watchEvent$.subscribe({
     next: (e) => {
@@ -303,76 +281,8 @@ concat(
     }
 });
 
-
-
-// const sitePath = Path.join(__dirname, '..', 'demo', 'src', 'site');
-
-// hypermedia.loadDirectory(sitePath).catch((e) => console.error(e)).then(() => {
-// hypermedia.processLoadedResources();
-// console.log(hypermedia.getResource('/freshr/resource-graph.json'));
-// hypermedia.processResource('/freshr/resource-graph.json');
-// hypermedia.processResource('/index.json');
-// hypermedia.processResource('/posts/index.json');
-// hypermedia.processResource('/posts/hello-world.json');
-// hypermedia.reprocessResources(['/index.json']);
-// hypermedia.reprocessResources(['/posts/index.json', '/index.json']);
-// }).catch(console.error);
-
-/*
-const coreTemplatesPath = Path.join(__dirname, '..', 'src', 'templates');
-const corePartialsPath = Path.join(__dirname, '..', 'src', 'partials');
-
-const demoTemplatesPath = Path.join(__dirname, '..', 'demo', 'src', 'templates');
-const demoPartialsPath = Path.join(__dirname, '..', 'demo', 'src', 'partials');
-
-const hypermediaRenderer = new HypermediaRenderer({
-    hypermedia,
-    defaultTemplate: '/freshr.hbs',
-    siteContext: {
-        title: 'freshr',
-        navLinks: {
-            "author": {
-                "href": "/about",
-                "title": "About"
-            },
-            "fs:posts": {
-                "href": "/posts",
-                "title": "Posts"
-            },
-            "fs:tags": {
-                "href": "/tags",
-                "title": "Tags"
-            }
-        }
-    },
-    profileLayouts: {
-        '/schema/freshr/resource-graph': 'core/layouts/resource-graph.hbs',
-        '/schema/welcome-page': 'layouts/welcome-page.hbs',
-        '/schema/post': 'layouts/post.hbs',
-        '/schema/index/schema/post': 'core/layouts/index.hbs',
-        '/schema/index/schema/index/tags': 'core/layouts/tags-index.hbs',
-    }
-});
-
-hypermediaRenderer.loadPartials(corePartialsPath, 'core');
-hypermediaRenderer.loadTemplates(coreTemplatesPath, 'core');
-console.log(hypermediaRenderer.partials);
-
-hypermediaRenderer.loadPartials(demoPartialsPath);
-hypermediaRenderer.loadTemplates(demoTemplatesPath).catch((err) => console.error(err));
-
- */
-
-// const demoBuildPath = Path.join(__dirname, '..', 'demo');
-
-// const buildManager = new BuildManager(demoBuildPath);
-// buildManager.taskDefinitions.set(CompileSass.name, CompileSass);
-// buildManager.taskDefinitions.set(ReactRollup.name, ReactRollup);
-// buildManager.taskDefinitions.set(RollupTask.name, RollupTask);
-
 app.use(freshr.renderer.router);
 app.use(freshr.hypermedia.router);
-// app.use('/~config', buildManager.router);
 
 app.use(Express.static(Path.join(demoPath, 'build', 'site')));
 app.use('/css', Express.static(Path.join(demoPath, 'build', 'css')));
@@ -383,7 +293,6 @@ app.use('/material-icons', Express.static(Path.join(demoPath, 'build', 'material
 server(app).subscribe({
     next: (server) => {
         Log.info('server-listening', {port: server.port});
-        debugger;
         websocketServer.attach(server.server);
     }, 
     error: (error) => Log.error('server-start', {error}),
@@ -392,6 +301,3 @@ server(app).subscribe({
 // setting wsEngine prevents crash when starting more than one websocket instance (e.g. in tests)
 // https://github.com/socketio/engine.io/issues/521
 // this.socketServer = SocketIO(this.httpServer, {wsEngine: 'ws'} as SocketIO.ServerOptions);
-
-
-// Log.info('start', {config: );

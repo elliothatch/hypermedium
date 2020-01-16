@@ -9,7 +9,6 @@ const coreModuleFactory: Plugin.Module.Factory = (options) => {
         taskDefinitions: TaskDefinitions,
 
         profileLayouts: {
-            '/schema/post': 'layouts/post.hbs',
             '/schema/index/schema/post': 'core/layouts/index.hbs',
             '/schema/index/schema/index/tags': 'core/layouts/tags-index.hbs',
             '/schema/freshr/resource-graph': 'core/layouts/resource-graph.hbs',

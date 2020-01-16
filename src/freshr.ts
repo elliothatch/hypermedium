@@ -98,6 +98,7 @@ export class Freshr {
         const module = !plugin.moduleFactory? {}: plugin.moduleFactory({
             ...plugin.packageOptions,
             basePath: Path.join(plugin.path, plugin.packageOptions.basePath),
+            projectPath: this.sitePath
         }, this);
 
         if(module.processorGenerators) {

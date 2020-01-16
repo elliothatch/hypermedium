@@ -392,7 +392,11 @@ export namespace Plugin {
     }
 
     export namespace Module {
-        export type Factory = (options: PackageOptions, freshr: Freshr) => Module;
+        export interface Options extends PackageOptions {
+            projectPath: string;
+            [prop: string]: any;
+        }
+        export type Factory = (options: Options, freshr: Freshr) => Module;
     }
 
     export type ProcessorGenerator = (options?: any) => Processor;
