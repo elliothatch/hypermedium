@@ -1,7 +1,7 @@
 import { from, bindNodeCallback, forkJoin } from 'rxjs';
 import { mergeMap } from 'rxjs/operators';
 import { outputFile } from 'fs-extra';
-import { render as renderCb } from 'node-sass';
+import { render as renderCb } from 'sass';
 
 import { TaskDefinition } from 'freshr';
 

@@ -9,9 +9,13 @@
   "author": "",
   "license": "ISC",
   "freshr": {
-  	  "components": ["build/components"]
+    "components": [
+      "build/components"
+    ]
   },
-  "dependencies": {},
+  "dependencies": {
+    "typescript": "3.8"
+  },
   "devDependencies": {
     "@types/react-dom": "^16.9.4"
   }
