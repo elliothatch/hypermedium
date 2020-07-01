@@ -157,9 +157,11 @@ export class Hypermedia {
 
     public loadResource(relativeUri: HAL.Uri, resource: HAL.Resource, origin: string): HAL.Resource {
         const normalizedUri = this.normalizeUri(relativeUri);
-        if(this.resourceGraph.hasNode(normalizedUri)) {
-            throw new Error(`Resource ${normalizedUri} already loaded`);
-        }
+        // should we warn if reloading a resource? or take a hint about a reload?
+        // it's probably fine
+        // if(this.resourceGraph.hasNode(normalizedUri)) {
+            // throw new Error(`Resource ${normalizedUri} already loaded`);
+        // }
         this.resourceGraph.setNode(normalizedUri, {
             originalResource: resource,
             processing: false,

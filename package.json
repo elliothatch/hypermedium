@@ -7,7 +7,7 @@
     "scripts": {
         "build": "tsc -b . plugins/core plugins/filesystem/tsconfig.module.json plugins/filesystem/tsconfig.jsx.json plugins/dashboard demo/server && gulp",
         "clean": "node scripts/clean.js",
-        "dev": "node scripts/dev.js",
+        "dev": "sift node demo/server/build/index.js",
         "debug": "node --inspect-brk demo/server/build/index.js",
         "docs": "typedoc --out docs/ src/",
         "start": "node demo/server/build/index.js",

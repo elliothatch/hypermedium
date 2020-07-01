@@ -5,6 +5,13 @@
             "href": "/schema/index/schema/post"
         }
     },
+    "_index": {
+    	"order": {
+    		"key": "date-created",
+    		"ascending": true,
+    		"compare": "date"
+		}
+	},
     "_embed": {
         "fs:entries": {
             "max": 2,

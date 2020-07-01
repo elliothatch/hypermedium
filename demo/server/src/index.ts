@@ -68,14 +68,14 @@ Plugin.watch('core', pluginsPath).events.subscribe({
 
 freshr.watchEvent$.subscribe({
     next: (e) => {
-        Log.trace('resource changed', e);
+        Log.trace(`resource changed: ${e.uri}`, e);
     }
 });
 
 freshr.hypermedia.event$.subscribe({
     next: (e) => {
         if(verbose) {
-            Log.trace('hypermedia', e);
+            Log.trace(`hypermedia: ${e.eType}`, e);
         }
         else {
             const event = Object.assign({}, e);

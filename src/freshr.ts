@@ -61,13 +61,13 @@ export class Freshr {
         this.websocketServer = options && options.websocketServer;
 
         this.watchEvent$ = new Subject();
-        this.watchEvent$.pipe(
-            filter((watchEvent) => watchEvent.eType === 'add'),
+        const updateResourceSubscription = this.watchEvent$.pipe(
+            filter((watchEvent) => watchEvent.eType === 'add' || watchEvent.eType === 'change'),
             mergeMap((watchEvent) => forkJoin(
                 of(watchEvent),
                 from(fs.readFile(watchEvent.path, 'utf-8'))
             )),
-            map(([watchEvent, fileContents]) => {
+            tap(([watchEvent, fileContents]) => {
                 this.hypermedia.loadResource(watchEvent.uri, JSON.parse(fileContents), 'fs');
                 this.hypermedia.processResource(watchEvent.uri);
             })

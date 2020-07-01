@@ -4,10 +4,6 @@ import { filterCuries, getProfiles, resourceMatchesProfile } from '../../hal-uti
 import { createSchema, objectDifference } from '../../util';
 import { Hypermedia, Embed } from '../';
 
-import * as makeIndex from './make-index';
-import * as tags from './tags';
-export { makeIndex, tags };
-
 export interface Processor {
     name: string;
     fn: ProcessorFn;
@@ -18,6 +14,7 @@ export interface Processor {
 export type ProcessorFn = (rs: Hypermedia.ResourceState) => Hypermedia.ResourceState;
 
 /* higher-order processor that only runs the provided processor if the resource matches the designated profile */
+/*
 export const matchProfile = (profile: HAL.Uri, processor: Processor): Processor => {
     return {
         name: 'matchProfile',
@@ -26,3 +23,4 @@ export const matchProfile = (profile: HAL.Uri, processor: Processor): Processor 
             rs
     };
 };
+*/

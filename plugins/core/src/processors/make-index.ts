@@ -35,14 +35,43 @@ export const makeIndex = (profile: HAL.Uri): Processor => {
                     rs.state.indexes[indexProfile] = index;
                 }
 
+                const indexOptions = Object.assign({
+                    order: Object.assign({
+                        key: 'title',
+                        ascending: true,
+                        compare: 'text'
+                    }, rs.resource._index && rs.resource._index.order || {})
+                }, rs.resource._index || {});
+
+                const baseCompareFn: (a: any, b: any) => number = indexOptions.order.compare === 'number'?
+                        (a: number, b: number) => a - b:
+                    indexOptions.order.compare === 'date'?
+                        (a: string, b: string) => new Date(a).valueOf() - new Date(b).valueOf():
+                    // indexOptions.order.compare === 'text'?
+                        (a: string, b: string) => a < b? -1: a > b? 1: 0;
+
+                const compareFn = indexOptions.order.ascending?
+                    baseCompareFn:
+                    (a: any, b: any) => baseCompareFn(b, a);
+
                 return { ...rs, 
                     resource: {
                         ...rs.resource, _links: {
-                            'fs:entries': (rs.state.indexes[profile] || []).map((href: HAL.Uri) => ({
-                                href,
-                                profile,
-                                title: rs.calculateFrom(href, ({resource}) => { return resource && resource.title;}),
-                            })),
+                            'fs:entries': (rs.state.indexes[profile] || []).map((href: HAL.Uri) => {
+                                const entry: any = {
+                                    href,
+                                    profile,
+                                    title: rs.calculateFrom(href, ({resource}) => resource && resource.title),
+                                };
+
+                                // include sorting order key
+                                if(indexOptions.order.key !== 'title') {
+                                    entry[indexOptions.order.key] = rs.calculateFrom(href, ({resource}) =>
+                                        resource && resource[indexOptions.order.key]);
+                                }
+
+                                return entry;
+                            }).sort((a, b) => compareFn(a[indexOptions.order.key], b[indexOptions.order.key])),
                             ...rs.resource._links,
                         }}};
             }
