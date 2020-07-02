@@ -165,7 +165,7 @@ export function createSchema(target: any): Schema {
 }
 
 /** returns a copy of "a" that does not contain any properties of "b" */
-export function objectDifference<A extends any, B extends any>(a: A, b: B): Exclude<A, B> {
+export function objectDifference<A extends {[propery: string]: any}, B extends {[propery: string]: any}>(a: A, b: B): Exclude<A, B> {
     return Object.keys(a).reduce((obj, prop) => {
         if(!b[prop]) {
             obj[prop] = a[prop];
