@@ -1,19 +1,28 @@
 import { Plugin } from 'freshr';
 
-import Processors from './processors';
-import TaskDefinitions from './task-definitions';
+import { handlebarsHelpers } from './handlebars';
+import { processorFactories } from './processors';
 
-const coreModuleFactory: Plugin.Module.Factory = (options) => {
-    return {
-        processorGenerators: Processors,
-        taskDefinitions: TaskDefinitions,
+export interface CoreOptions {
+}
 
-        profileLayouts: {
-            '/schema/index/schema/post': 'core/layouts/index.hbs',
-            '/schema/index/schema/index/tags': 'core/layouts/tags-index.hbs',
-            '/schema/freshr/resource-graph': 'core/layouts/resource-graph.hbs',
-        }
-    };
+const corePlugin: Plugin<CoreOptions> = {
+    name: 'core',
+    version: '1.0.0',
+    dependencies: [],
+    basePath: '../',
+    moduleFactory: (options) => {
+        return {
+            hypermedia: {
+                processorFactories,
+            },
+            renderer: {
+                templatePaths: ['templates'],
+                partialPaths: ['partials'],
+                handlebarsHelpers,
+            }
+        };
+    },
 };
 
-export default coreModuleFactory;
+export default corePlugin;

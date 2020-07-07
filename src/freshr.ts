@@ -1,42 +1,30 @@
-import * as chokidar from 'chokidar';
-import * as Path from 'path';
-import { promises as fs } from 'fs';
-import { Server, Socket } from 'socket.io';
-import { concat, forkJoin, of, from, fromEventPattern, merge, Observable, Subject } from 'rxjs';
-import { filter, mergeMap, map, publish, tap } from 'rxjs/operators';
+import * as Process from 'process';
+import * as fs from 'fs-extra';
+import { concat, defer, EMPTY, from, Observable, Subject } from 'rxjs';
+import { mergeAll, map, tap } from 'rxjs/operators';
 
-import { Hypermedia } from './hypermedia';
+import { BuildManager, BuildEvent } from './build';
+import { Hypermedia, Processor } from './hypermedia';
 import { HypermediaRenderer } from './hypermedia-renderer';
-import { BuildManager } from './build';
-
-import { Plugin } from './plugin';
-import { Processor } from './hypermedia/processor';
-import { TaskDefinition } from './build';
-
-import { FileError, NotFoundError, watchFiles, WatchEvent, Watcher } from './util';
-
-// const watchObservable = bindCallback<fs.PathLike, {recursive?: boolean}, string, string>(fs.watch);
+import { PluginManager, Module } from './plugin';
+import { NotFoundError, WatchEvent } from './util';
 
 /** sets up the hypermedia engine, html renderer, and build system
  */
 export class Freshr {
+
+    public pluginManager: PluginManager;
     public hypermedia: Hypermedia;
     public renderer: HypermediaRenderer;
     public build: BuildManager;
 
-    // public watcher: chokidar.FSWatcher;
-    public watchEvent$: Subject<WatchEvent>;
+    protected pluginFileEvent$: Subject<Observable<WatchEvent>>;
+    public watchEvent$: Observable<WatchEvent>;
 
-    public processorGenerators: Map<string, Plugin.ProcessorGenerator>;
+    public processorFactories: Map<string, Module.ProcessorFactory>;
 
-    public sitePath: string;
-
-    // TODO: make this more robust, use socket.io namespaces
-    // public websocketMiddlewares: Plugin.WebsocketMiddleware[];
-    public websocketServer: Server | undefined;
-
-    constructor(sitePath: string, options?: Partial<Freshr.Options>) {
-        this.sitePath = sitePath;
+    constructor(options?: Partial<Freshr.Options>) {
+        this.pluginManager = new PluginManager();
         this.hypermedia = new Hypermedia(Object.assign(
             {
                 curies: [],
@@ -55,37 +43,122 @@ export class Freshr {
             }
         ));
 
-        this.build = new BuildManager(sitePath);
+        this.build = new BuildManager(Process.cwd());
 
-        this.processorGenerators = new Map();
-        this.websocketServer = options && options.websocketServer;
+        this.processorFactories = new Map();
 
-        this.watchEvent$ = new Subject();
-        const updateResourceSubscription = this.watchEvent$.pipe(
-            filter((watchEvent) => watchEvent.eType === 'add' || watchEvent.eType === 'change'),
-            mergeMap((watchEvent) => forkJoin(
-                of(watchEvent),
-                from(fs.readFile(watchEvent.path, 'utf-8'))
-            )),
-            tap(([watchEvent, fileContents]) => {
-                this.hypermedia.loadResource(watchEvent.uri, JSON.parse(fileContents), 'fs');
-                this.hypermedia.processResource(watchEvent.uri);
-            })
-        ).subscribe();
+        this.pluginFileEvent$ = new Subject();
+        this.watchEvent$ = this.pluginFileEvent$.pipe(
+            mergeAll()
+        );
     }
 
-    watchResources(path: string | string[], uriPrefix?: string): Watcher {
-        const watcher = watchFiles(path , uriPrefix);
-        return {
-            close: watcher.close,
-            events: watcher.events.pipe(
-                publish((multicasted$) =>
-                    multicasted$.pipe(tap((watchEvent) => this.watchEvent$.next(watchEvent)))
-                ),
-            ),
-        };
+    /** build the module if necessary, then subscribe to moduleEvents */
+    public registerModule(moduleInstance: Module.Instance): Observable<BuildEvent | Module.Event> {
+        let buildEvents: Observable<BuildEvent> = EMPTY;
+        if(moduleInstance.module.build) {
+            if(moduleInstance.module.build.taskDefinitions) {
+                moduleInstance.module.build.taskDefinitions.forEach((taskDefinition) => {
+                    this.build.addTaskDefinition(`${moduleInstance.name}/${taskDefinition.name}`, taskDefinition);
+                });
+            }
+
+            if(moduleInstance.module.build.buildSteps) {
+                buildEvents = this.build.build(moduleInstance.module.build.buildSteps, moduleInstance.modulePath);
+            }
+        }
+
+        return concat(
+            buildEvents,
+            moduleInstance.moduleEvents.pipe(
+                tap((moduleEvent) => {
+                    defer(() => {
+                        switch(moduleEvent.eCategory) {
+                            case 'hypermedia':
+                                switch(moduleEvent.eType) {
+                                    case 'resource-changed':
+                                        switch(moduleEvent.fileEvent) {
+                                            case 'add':
+                                            case'change':
+                                                return from(fs.readFile(moduleEvent.path, 'utf-8')).pipe(
+                                                    map((fileContents) => {
+                                                        this.hypermedia.loadResource(moduleEvent.uri, JSON.parse(fileContents), 'fs');
+                                                        this.hypermedia.processResource(moduleEvent.uri);
+                                                    })
+                                                );
+                                            case 'unlink':
+                                                this.hypermedia.unloadResource(moduleEvent.uri);
+                                                return EMPTY;
+                                        }
+                                    case 'processor-factory-changed':
+                                        this.processorFactories.set(`${moduleInstance.name}/${moduleEvent.name}`, moduleEvent.processorFactory);
+                                        return EMPTY;
+                                }
+                            case 'renderer':
+                                switch(moduleEvent.eType) {
+                                    case 'template-changed':
+                                        switch(moduleEvent.fileEvent) {
+                                            case 'add':
+                                            case 'change':
+                                                return from(fs.readFile(moduleEvent.path, 'utf-8')).pipe(
+                                                    map((fileContents) => {
+                                                        this.renderer.registerTemplate(moduleEvent.uri, fileContents, moduleInstance.name);
+                                                    })
+                                                );
+                                            case 'unlink':
+                                                this.renderer.unregisterTemplate(moduleEvent.uri, moduleInstance.name);
+                                                return EMPTY;
+                                        }
+                                    case 'partial-changed':
+                                        switch(moduleEvent.fileEvent) {
+                                            case 'add':
+                                            case 'change':
+                                                return from(fs.readFile(moduleEvent.path, 'utf-8')).pipe(
+                                                    map((fileContents) => {
+                                                        this.renderer.registerPartial(moduleEvent.uri, fileContents, moduleInstance.name);
+                                                    })
+                                                );
+                                            case 'unlink':
+                                                this.renderer.unregisterPartial(moduleEvent.uri, moduleInstance.name);
+                                                return EMPTY;
+                                        }
+                                    case 'handlebars-helper-changed':
+                                        this.renderer.registerHelper(`${moduleInstance.name}/${moduleEvent.name}`, moduleEvent.helper);
+                                        return EMPTY;
+
+                                    case 'profile-layout-changed':
+                                        this.renderer.setProfileLayout(moduleEvent.profile, moduleEvent.layoutUri);
+                                        return EMPTY;
+                                }
+                        }
+                    }).subscribe();
+                })
+            )
+        );
     }
 
+        // const updateResourceSubscription = this.watchEvent$.pipe(
+            // filter((watchEvent) => watchEvent.eType === 'add' || watchEvent.eType === 'change'),
+            // mergeMap((watchEvent) => forkJoin(
+                // of(watchEvent),
+                // from(fs.readFile(watchEvent.path, 'utf-8'))
+            // )),
+            // tap(([watchEvent, fileContents]) => {
+                // this.hypermedia.loadResource(watchEvent.uri, JSON.parse(fileContents), 'fs');
+                // this.hypermedia.processResource(watchEvent.uri);
+            // })
+        // ).subscribe();
+    // }
+
+    // watchResources(path: string | string[], uriPrefix?: string): Observable<WatchEvent> {
+        // return watchFiles(path , uriPrefix).pipe(
+            // publish((multicasted$) =>
+                // multicasted$.pipe(tap((watchEvent) => this.watchEvent$.next(watchEvent)))
+            // )
+        // );
+    // }
+
+    /*
     loadAndRegisterPlugins(names: string[], searchPath: string): Observable<{plugin: Plugin, module: Plugin.Module, errors: FileError[]}> {
         // NOTE: loads plugins one by one to avoid dependency race conditions
         // this should be properly handled by determining dependency tree and loading in topological order
@@ -101,11 +174,11 @@ export class Freshr {
             projectPath: this.sitePath
         }, this);
 
-        if(module.processorGenerators) {
-            Object.keys(module.processorGenerators).forEach((generatorName) => {
-                this.processorGenerators.set(
+        if(module.processorFactories) {
+            Object.keys(module.processorFactories).forEach((generatorName) => {
+                this.processorFactories.set(
                     `${plugin.name}/${generatorName}`,
-                    module.processorGenerators![generatorName]
+                    module.processorFactories![generatorName]
                 );
             });
         }
@@ -154,9 +227,10 @@ export class Freshr {
 
         return module;
     }
+    */
 
     addProcessor(generatorName: string, options?: any): Processor {
-        const generator = this.processorGenerators.get(generatorName);
+        const generator = this.processorFactories.get(generatorName);
         if(!generator) {
             throw new NotFoundError(generatorName);
         }
@@ -171,6 +245,6 @@ export namespace Freshr {
     export interface Options {
         hypermedia: Partial<Hypermedia.Options>;
         renderer: Partial<HypermediaRenderer.Options>;
-        websocketServer?: Server;
+        // websocketServer?: Server;
     }
 }

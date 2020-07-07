@@ -167,6 +167,15 @@ export class BuildManager {
         this.router.get('/*', this.middleware);
     }
 
+    public addTaskDefinition(name: string, taskDefinition: TaskDefinition): TaskDefinition {
+        if(this.taskDefinitions.has(name)) {
+            throw new Error(`BuildManager: Cannot register task definition '${name}': A task definition with that name already exists`);
+        }
+
+        this.taskDefinitions.set(name, taskDefinition);
+        return taskDefinition;
+    }
+
     protected middleware: RequestHandler = (req, res, next) => {
         this.build(req.body).pipe(
             filter((event) => event.eType === 'done')

@@ -13,6 +13,7 @@ import { filterCuries, profilesMatch, resourceMatchesProfile, getProfiles } from
 import { createSchema, walkDirectory, objectDifference } from '../util';
 
 import { Processor } from './processor';
+export * from './processor';
 
 /** augments a hypermedia site with dynamic properties and resources
  * for example, adds "self" links and "breadcrumb"
@@ -175,6 +176,19 @@ export class Hypermedia {
             resource,
         });
 
+        return resource;
+    }
+
+    public unloadResource(relativeUri: HAL.Uri): HAL.Resource {
+        const normalizedUri = this.normalizeUri(relativeUri);
+        const resource = this.resourceGraph.node(normalizedUri);
+        this.resourceGraph.removeNode(normalizedUri);
+
+        this.log({
+            eType: 'UnloadResource',
+
+            relativeUri: normalizedUri,
+        });
         return resource;
     }
 
@@ -390,7 +404,7 @@ export namespace Hypermedia {
 
     /** takes in a HAL object and some external state, and returns transformed versions
      * of each. */
-    export type Event = Event.ProcessResource | Event.ProcessResourceStart | Event.LoadResource | Event.AddDependency | Event.ProcessorError;
+    export type Event = Event.ProcessResource | Event.ProcessResourceStart | Event.LoadResource  | Event.UnloadResource | Event.AddDependency | Event.ProcessorError;
     export namespace Event {
         export interface ProcessResource {
             eType: 'ProcessResource';
@@ -413,6 +427,12 @@ export namespace Hypermedia {
 
             relativeUri: HAL.Uri;
             resource: HAL.Resource;
+        }
+
+        export interface UnloadResource {
+            eType: 'UnloadResource';
+
+            relativeUri: HAL.Uri;
         }
 
         export interface AddDependency {

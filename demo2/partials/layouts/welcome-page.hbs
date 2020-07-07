@@ -1,0 +1,15 @@
+<div class="container">
+	welcome!
+
+	<div>
+		<h2>{{hal-link "fs:posts" _links.fs:posts}}</h2>
+		{{!-- <h2>{{hal-link "fs:posts" _embedded.fs:posts._links.self}}</h2> --}}
+		<ul>
+			{{!--
+		{{#each _links.fs:posts}}
+			<li>{{hal-link (expandCuri ../. "fs:posts") this}}</li>
+		{{/each}}
+		--}}
+		</ul>
+	</div>
+</div>

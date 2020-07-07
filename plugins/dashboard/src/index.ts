@@ -31,13 +31,6 @@ const dashboardModuleFactory: Plugin.Module.Factory = (options, freshr) => {
         // taskDefinitions: TaskDefinitions,
         websocketMiddleware,
 
-        // profileLayouts: {
-            // '/schema/post': 'layouts/post.hbs',
-            // '/schema/index/schema/post': 'core/layouts/index.hbs',
-            // '/schema/index/schema/index/tags': 'core/layouts/tags-index.hbs',
-            // '/schema/freshr/resource-graph': 'core/layouts/resource-graph.hbs',
-        // }
-        //
         buildSteps: {
             sType: 'task',
             definition: 'react-rollup',

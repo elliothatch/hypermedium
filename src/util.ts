@@ -2,7 +2,7 @@ import * as Path from 'path';
 import { promises as fs } from 'fs';
 import * as Url from 'url';
 
-import { merge, forkJoin, Observable, of, from, empty, fromEventPattern, Subject } from 'rxjs';
+import { merge, forkJoin, Observable, of, from, empty, fromEventPattern, Subject, using, Unsubscribable } from 'rxjs';
 import { map, mergeMap, catchError, takeUntil } from 'rxjs/operators';
 
 import * as chokidar from 'chokidar';
@@ -184,44 +184,40 @@ export interface WatchEvent {
     uri: string;
 }
 
-export interface Watcher<T = WatchEvent> {
-    events: Observable<T>;
-    close: () => void;
-}
-
 /** watch a file or directory (recursively) and emit events when files and directories are added, changed, or removed
  * @returns object with an observable of the watch events, and a function that can be used to stop watching the files
  */
-export function watchFiles(path: string | string[], uriPrefix?: string): Watcher {
-    const paths = Array.isArray(path)? path: [path];
+export function watchFiles(path: string | string[], uriPrefix?: string): Observable<WatchEvent> {
+    return using(() => {
+        const paths = Array.isArray(path)? path: [path];
+        const watchers = paths.map((path) => ({path, watcher: chokidar.watch(path)}));
+        return {
+            watchers,
+            unsubscribe: () => {
+                watchers.forEach((watcher) => {
+                    watcher.watcher.close();
+                });
+            },
+        };
+    }, (resource) => {
+        const watchers = (resource as ({watchers: Array<{path: string, watcher: chokidar.FSWatcher}>} & Unsubscribable)).watchers;
+        // TODO: are rxjs types for "using" incorrect?
+        const eventObservables = watchers.map(({path, watcher}) => {
+            return fromEventPattern<[string, string]>((addHandler) => {
+                ['add', 'change', 'unlink', 'addDir', 'unlinkDir'].forEach((eventName) => {
+                    watcher.on(eventName, (...args: any[]) => addHandler(eventName, ...args));
+                });
+            }).pipe(
+                map(([eventType, filename]) => {
+                    return {
+                        eType: eventType,
+                        path: filename,
+                        uri: Url.resolve(uriPrefix || '', Path.relative(path, filename).replace(/\\/g, '/')),
+                    } as WatchEvent;
+                }),
+            );
+        });
 
-    const closeSubject = new Subject<boolean>();
-    const watchers = paths.map((path) => ({path, watcher: chokidar.watch(path)}));
-    const eventObservables = watchers.map(({path, watcher}) => {
-        return fromEventPattern<[string, string]>((addHandler) => {
-            ['add', 'change', 'unlink', 'addDir', 'unlinkDir'].forEach((eventName) => {
-                watcher.on(eventName, (...args: any[]) => addHandler(eventName, ...args));
-            });
-        }).pipe(
-            map(([eventType, filename]) => {
-                return {
-                    eType: eventType,
-                    path: filename,
-                    uri: (uriPrefix || '') + '/' + Path.relative(path, filename).replace(/\\/g, '/'),
-                } as WatchEvent;
-            }),
-            takeUntil(closeSubject),
-        );
+        return merge(...eventObservables);
     });
-
-    return {
-        events: merge(...eventObservables),
-        close: () => {
-            watchers.forEach((watcher) => {
-                watcher.watcher.close();
-            });
-            closeSubject.next(true);
-            closeSubject.complete();
-        }
-    };
 }

@@ -12,7 +12,7 @@ import * as Url from 'url';
 import { Observable, Observer } from 'rxjs';
 
 import { NextFunction, Router, Request, Response } from 'express';
-import { compile, registerHelper, registerPartial as handlebarsRegisterPartial, SafeString, TemplateDelegate } from 'handlebars';
+import * as Handlebars from 'handlebars';
 
 import { Hypermedia } from './hypermedia';
 import * as HAL from './hal';
@@ -24,36 +24,8 @@ export namespace Html {
     export type Link = string;
 }
 
-/**
- * renders the link as an anchor tag. automatically expands curies based on the root resource. to use a different resource to resolve the curi, pass it as the third parameter
- * TODO: this doesn't work with link arrays.
- * TODO: add option to not use html-link shortening
- * */
-registerHelper('hal-link', (rel, link, ...options) => {
-    let resource = options[0];
-    if(options.length === 1) {
-        // no resource provided, use the root resource
-        resource = options[0].data.root;
-    }
-
-    const relHtml = typeof rel === 'string'? `rel=${expandCuri(resource, rel)}`: '';
-
-    return new SafeString(`<a ${relHtml} href=${htmlUri(link.href)}>${link.title || link.href}</a>`)
-});
-registerHelper('not', (lhs) => !lhs);
-registerHelper('eq', (lhs, rhs) => lhs == rhs);
-registerHelper('or', (lhs, rhs) => lhs || rhs);
-registerHelper('and', (lhs, rhs) => lhs && rhs);
-registerHelper('startsWith', (str, seq) => str.startsWith(seq));
-registerHelper('isArray', (val) => Array.isArray(val));
-registerHelper('typeof', (val) => typeof val);
-registerHelper('json', (val) => JSON.parse(val));
-registerHelper('json-stringify', (val) => new SafeString(JSON.stringify(val)));
-registerHelper('html-uri', htmlUri);
-registerHelper('expandCuri', expandCuri);
-
 // maps uri to a compiled template
-export type TemplateMap = {[uri: string]: TemplateDelegate};
+export type TemplateMap = {[uri: string]: Handlebars.TemplateDelegate};
 // maps a partial uri to the string content partial
 export type PartialMap = {[uri: string]: string};
 // maps resource 'profile' Uris to layout partial Uris
@@ -75,6 +47,8 @@ export class HypermediaRenderer {
     public hypermedia: Hypermedia;
     public router: Router;
 
+    public handlebarsEnvironment: typeof Handlebars
+
     public partials: PartialMap;
     public templates: TemplateMap;
     public profileLayouts: ProfileLayoutMap;
@@ -86,6 +60,8 @@ export class HypermediaRenderer {
     public siteContext: object;
 
     constructor(options: HypermediaRenderer.Options) {
+        this.handlebarsEnvironment = Handlebars.create();
+
         this.hypermedia = options.hypermedia;
         this.defaultTemplate = options.defaultTemplate || 'core/default.hbs';
         this.siteContext = options.siteContext || {};
@@ -111,28 +87,46 @@ export class HypermediaRenderer {
         );
     }
 
+    public setProfileLayout(profile: string, layoutUri: string): void {
+        this.profileLayouts[profile] = layoutUri;
+    }
+
     /** recursively load partials
      * @deprecated
      * */
-    public loadPartials(partialsPath: string, uriPrefix?: HAL.Uri): Promise<PartialMap> {
-        return walkDirectory(
-            partialsPath,
-            (filePath: string, uri: string, fileContents: string) => {
-                // strip leading slash, since partials can't start with a slash
-                const partialName = uri.replace(/^\//, '');
-                handlebarsRegisterPartial(partialName, fileContents);
-                this.partials[partialName] = fileContents;
-                return fileContents;
-            },
-            uriPrefix);
+    // public loadPartials(partialsPath: string, uriPrefix?: HAL.Uri): Promise<PartialMap> {
+    //     return walkDirectory(
+    //         partialsPath,
+    //         (filePath: string, uri: string, fileContents: string) => {
+    //             // strip leading slash, since partials can't start with a slash
+    //             const partialName = uri.replace(/^\//, '');
+    //             this.handlebarsEnvironment.registerPartial(partialName, fileContents);
+    //             this.partials[partialName] = fileContents;
+    //             return fileContents;
+    //         },
+    //         uriPrefix);
+    // }
+
+    public registerPartial(uri: string, contents: string, namespace: string): void {
+        const partialName = namespace.length > 0?
+            `${namespace}/${uri.replace(/^\//g, '')}`:
+            uri.replace(/^\//g, '');
+        this.handlebarsEnvironment.registerPartial(partialName, contents);
+        this.partials[partialName] = contents;
     }
 
-    public registerPartial(file: File, namespace: string): void {
+    public unregisterPartial(uri: string, namespace: string): boolean {
         const partialName = namespace.length > 0?
-            `${namespace}/${file.uri.replace(/^\//g, '')}`:
-            file.uri.replace(/^\//g, '');
-        handlebarsRegisterPartial(partialName, file.contents);
-        this.partials[partialName] = file.contents;
+            `${namespace}/${uri.replace(/^\//g, '')}`:
+            uri.replace(/^\//g, '');
+
+        if(!this.partials[partialName]) {
+            return false;
+        }
+
+        this.handlebarsEnvironment.unregisterPartial(partialName);
+        delete this.partials[partialName];
+        return true;
     }
 
     /**
@@ -140,27 +134,47 @@ export class HypermediaRenderer {
      * @param partialsPath - path to the partials directory in the file system
      * @param relativeUri - this prefix is prepended to the URI that all partials are mapped to
      */
-    public loadTemplates(templatesPath: string, uriPrefix?: HAL.Uri): Promise<TemplateMap> {
-        return walkDirectory(
-            templatesPath,
-            (filePath: string, uri: string, fileContents: string) => {
-                const template = compile(fileContents);
-                // execute the template to check for compile errors
-                // template({});
-                this.templates[uri] = template;
-                return template;
-            },
-            uriPrefix);
+    // public loadTemplates(templatesPath: string, uriPrefix?: HAL.Uri): Promise<TemplateMap> {
+    //     return walkDirectory(
+    //         templatesPath,
+    //         (filePath: string, uri: string, fileContents: string) => {
+    //             const template = this.handlebarsEnvironment.compile(fileContents);
+    //             // execute the template to check for compile errors
+    //             // template({});
+    //             this.templates[uri] = template;
+    //             return template;
+    //         },
+    //         uriPrefix);
+    // }
+    public registerHelper(name: string, helper: Handlebars.HelperDelegate): void {
+        // TODO: store map of helpers for UI
+        this.handlebarsEnvironment.registerHelper(name, helper);
     }
 
-    public registerTemplate(file: File, namespace: string): void {
-        const uri = namespace.length > 0?
-            `${namespace}/${file.uri.replace(/^\//g, '')}`:
-            file.uri.replace(/^\//g, '');
-        const template = compile(file.contents);
+    public unregisterHelper(name: string): void {
+        this.handlebarsEnvironment.unregisterHelper(name);
+    }
+
+    public registerTemplate(uri: string, contents: string, namespace: string): void {
+        const templateName = namespace.length > 0?
+            `${namespace}/${uri.replace(/^\//g, '')}`:
+            uri.replace(/^\//g, '');
+        const template = this.handlebarsEnvironment.compile(contents);
         // execute the template to check for compile errors
         // template({});
-        this.templates[uri] = template;
+        this.templates[templateName] = template;
+    }
+
+    public unregisterTemplate(uri: string, namespace: string): boolean {
+        const templateName = namespace.length > 0?
+            `${namespace}/${uri.replace(/^\//g, '')}`:
+            uri.replace(/^\//g, '');
+        if(!this.templates[templateName]) {
+            return false
+        }
+
+        delete this.templates[templateName];
+        return true;
     }
 
     public render(resource: Hypermedia.ExtendedResource, templateUri: string): Html {
