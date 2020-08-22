@@ -1,4 +1,4 @@
-import { Hypermedia, Processor, HAL, resourceMatchesProfile } from 'freshr';
+import { Processor, Hal, HalUtil } from 'freshr';
 
 /** whenever a new resources matches the given profile, 
  * add it to the index and update the index page.
@@ -11,12 +11,12 @@ import { Hypermedia, Processor, HAL, resourceMatchesProfile } from 'freshr';
 // TODO: make indexes pagable, sortable. Allow user to specify embedding rules (e.g. embed first 3 links)
 // TODO: convert all relative links to absolute links if baseUri is provided, in post-processing step?
 // TODO: should profile be automatically added to links if the linked resource has its own _links.profile? makes dependency tree explode!
-export const makeIndex = (profile: HAL.Uri): Processor => {
+export const makeIndex = (profile: Hal.Uri): Processor => {
     const indexProfile = `/schema/index${profile}`;
     return {
         name: `index:${profile}`,
         fn: (rs) => {
-            if(resourceMatchesProfile(rs.resource, profile, rs.state.baseUri)) {
+            if(HalUtil.resourceMatchesProfile(rs.resource, profile, rs.state.baseUri)) {
                 const index = rs.state.indexes[profile] || [];
                 if(index.indexOf(rs.relativeUri) === -1) {
                     index.push(rs.relativeUri);
@@ -28,7 +28,7 @@ export const makeIndex = (profile: HAL.Uri): Processor => {
                 }
                 return rs;
             }
-            else if(resourceMatchesProfile(rs.resource, indexProfile, rs.state.baseUri)) {
+            else if(HalUtil.resourceMatchesProfile(rs.resource, indexProfile, rs.state.baseUri)) {
                 const index = rs.state.indexes[indexProfile] || [];
                 if(index.indexOf(rs.relativeUri) === -1) {
                     index.push(rs.relativeUri);
@@ -57,7 +57,7 @@ export const makeIndex = (profile: HAL.Uri): Processor => {
                 return { ...rs, 
                     resource: {
                         ...rs.resource, _links: {
-                            'fs:entries': (rs.state.indexes[profile] || []).map((href: HAL.Uri) => {
+                            'fs:entries': (rs.state.indexes[profile] || []).map((href: Hal.Uri) => {
                                 const entry: any = {
                                     href,
                                     profile,

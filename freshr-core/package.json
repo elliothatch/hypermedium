@@ -1,0 +1,10 @@
+{
+    "name": "freshr-core",
+    "version": "0.1.0",
+    "description": "freshr core plugin",
+    "main": "build/index.js",
+    "types": "declarations/index.d.ts",
+    "dependencies": {
+        "handlebars": "^4.7.6"
+    }
+}

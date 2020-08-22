@@ -14,10 +14,10 @@ import { Observable, Observer } from 'rxjs';
 import { NextFunction, Router, Request, Response } from 'express';
 import * as Handlebars from 'handlebars';
 
-import { Hypermedia } from './hypermedia';
+import { HypermediaEngine, ExtendedResource } from './hypermedia';
 import * as HAL from './hal';
 import { expandCuri, getProfiles, htmlUri } from './hal-util';
-import { File, walkDirectory } from './util';
+import { File } from './util';
 
 export type Html = string;
 export namespace Html {
@@ -43,8 +43,8 @@ export interface TemplatePath {
  * Renders HAL into HTML using the handlebars templating engine
  * Uses the resource's profile to apply a layout
  */
-export class HypermediaRenderer {
-    public hypermedia: Hypermedia;
+export class HtmlRenderer {
+    public hypermedia: HypermediaEngine;
     public router: Router;
 
     public handlebarsEnvironment: typeof Handlebars
@@ -59,7 +59,7 @@ export class HypermediaRenderer {
     public defaultTemplate: HAL.Uri;
     public siteContext: object;
 
-    constructor(options: HypermediaRenderer.Options) {
+    constructor(options: HtmlRenderer.Options) {
         this.handlebarsEnvironment = Handlebars.create();
 
         this.hypermedia = options.hypermedia;
@@ -177,7 +177,7 @@ export class HypermediaRenderer {
         return true;
     }
 
-    public render(resource: Hypermedia.ExtendedResource, templateUri: string): Html {
+    public render(resource: ExtendedResource, templateUri: string): Html {
         // let links: Html.Link[] = [];
         // if(resource._links) {
         //     links = Object.keys(resource._links).reduce((l: Html.Link[], rel) => {
@@ -225,9 +225,9 @@ export class HypermediaRenderer {
     }
 }
 
-export namespace HypermediaRenderer {
+export namespace HtmlRenderer {
     export interface Options {
-        hypermedia: Hypermedia;
+        hypermedia: HypermediaEngine;
         defaultTemplate?: HAL.Uri;
         /** provides dynamic context data that can be accessed in partials as the "_site" object
          * e.g. providing the object {title: "freshr"} allows you to use {{_site.title}} in a partial to display "freshr"

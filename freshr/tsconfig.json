@@ -1,32 +1,31 @@
 {
 	"compilerOptions": {
+		"composite": true,
 		"module": "commonjs",
 		"target": "esnext",
 
-		"declaration": true,
-		"declarationDir": "declarations",
+		"rootDir": "src/.",
+
 		"outDir": "build",
 		"sourceMap": true,
+
+		"declaration": true,
+		"declarationMap": true,
+		"declarationDir": "declarations",
 
 		"strict": true,
 
 		"experimentalDecorators": true,
 		"preserveConstEnums": true
 	},
-	"references": [{
-		"path": "../.."
-	}],
 	"include": [
 		"src/**/*",
-		"../../types"
+		"types/**/*"
 	],
 	"baseUrl": ".",
 	"paths": {
-		"freshr/*": [
-			"../../src/*"
-		],
 		"*": [
-			"../../node_modules/*"
+			"../node_modules/*"
 		]
 	}
 }

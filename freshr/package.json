@@ -1,0 +1,53 @@
+{
+    "name": "freshr",
+    "version": "0.1.0",
+    "description": "a blog platform for all!",
+    "main": "build/index.js",
+    "types": "declarations/index.d.ts",
+    "scripts": {
+        "build": "node_modules/.bin/tsc -b --traceResolution . plugins/core",
+        "clean": "node scripts/clean.js",
+        "dev": "sift node demo/server/build/index.js",
+        "debug": "node --inspect-brk demo/server/build/index.js",
+        "docs": "typedoc --out docs/ src/",
+        "start": "node demo/server/build/index.js",
+        "test": "jest"
+    },
+    "author": {
+        "name": "Elliot Hatch",
+        "email": "elliot.hatch@gmail.com"
+    },
+    "license": "MIT",
+    "jest": {
+        "transform": {
+            "^.+\\.tsx?$": "ts-jest"
+        },
+        "testRegex": "(/test/.*|(\\.|/)(test|spec))\\.(tsx?|ts?)$",
+        "moduleFileExtensions": [
+            "ts",
+            "tsx",
+            "js",
+            "jsx",
+            "json",
+            "node"
+        ]
+    },
+    "dependencies": {
+        "@types/chokidar": "^2.1.3",
+        "chokidar": "^3.4.2",
+        "express": "^4.17.1",
+        "fresh-validation": "^3.0.0",
+        "freshlog": "^0.2.4",
+        "fs-extra": "^9.0.1",
+        "graphlib": "^2.1.8",
+        "handlebars": "^4.7.6",
+        "rxjs": "^6.6.2"
+    },
+    "devDependencies": {
+        "@types/express": "^4.17.7",
+        "@types/fs-extra": "^9.0.1",
+        "@types/graphlib": "^2.1.7",
+        "@types/node": "^14.6.0",
+        "typescript": "^4.0.2"
+    }
+}

@@ -1,14 +1,10 @@
-import { HAL, filterCuries, getProfiles, resourceMatchesProfile, createSchema, objectDifference, Hypermedia, Embed, Processor } from 'freshr';
-
-type ResourceState = Hypermedia.ResourceState;
-type ExtendedResource = Hypermedia.ExtendedResource;
-type CalculateFromResourceParams = Hypermedia.CalculateFromResourceParams;
+import { HypermediaEngine, Hal, HalUtil, Processor } from 'freshr';
 
 export const tags: Processor = {
     name: 'tags',
-    fn: (rs: ResourceState): ResourceState => {
+    fn: (rs: HypermediaEngine.ResourceState): HypermediaEngine.ResourceState => {
         const tagIndexProfile = '/schema/index/tags';
-        const tagIndex = getProfiles(rs.resource)
+        const tagIndex = HalUtil.getProfiles(rs.resource)
             .reduce((tIndex, profile) => {
                 if(tIndex) {
                     return tIndex;
@@ -25,7 +21,7 @@ export const tags: Processor = {
             return { ...rs, 
                 resource: {
                     ...rs.resource, _links: {
-                        'fs:entries': (rs.state.tags[tagIndex] || []).map((href: HAL.Uri) => ({
+                        'fs:entries': (rs.state.tags[tagIndex] || []).map((href: Hal.Uri) => ({
                             href,
                             title: rs.calculateFrom(href, ({resource}) => { return resource && resource.title;}),
                         })),
@@ -57,7 +53,7 @@ export const tags: Processor = {
 };
 
 /** get all "tag" links, or empty array */
-function getTags(resource: HAL.Resource): HAL.Link[] {
+function getTags(resource: Hal.Resource): Hal.Link[] {
     let tags = resource._links && resource._links.tag;
     if(!tags) {
         return [];

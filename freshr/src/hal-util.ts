@@ -3,12 +3,12 @@ import * as Path from 'path';
 import * as UriTemplate from 'uri-template';
 import * as Url from 'url';
 
-import * as HAL from './hal';
+import * as Hal from './hal';
 
 /**
  * @returns a copy of the uri pointing to the html version of the resource
  */
-export function htmlUri(uri: HAL.Uri): HAL.Uri {
+export function htmlUri(uri: Hal.Uri): Hal.Uri {
     const extname = Path.extname(uri);
     if(extname === '.json') {
         return uri.slice(0, -extname.length);
@@ -19,7 +19,7 @@ export function htmlUri(uri: HAL.Uri): HAL.Uri {
 /**
  * @returns only curies that are referenced in the target rels
  */
-export function filterCuries(curies: HAL.Curie[], rels: string[]): HAL.Curie[] {
+export function filterCuries(curies: Hal.Curie[], rels: string[]): Hal.Curie[] {
     const namespaces = rels.reduce((namespaces, ref) => {
         const refParts = ref.split(':');
         if(refParts.length > 1) {
@@ -31,7 +31,7 @@ export function filterCuries(curies: HAL.Curie[], rels: string[]): HAL.Curie[] {
     return curies.filter((curi) => namespaces.indexOf(curi.name) !== -1);
 }
 
-export function expandCuri(resource: HAL.Resource, rel: string): HAL.Uri {
+export function expandCuri(resource: Hal.Resource, rel: string): Hal.Uri {
     if(!rel.includes(':')) {
         return rel;
     }
@@ -60,7 +60,7 @@ export function expandCuri(resource: HAL.Resource, rel: string): HAL.Uri {
  * @param profile - uri of the profile to match
  * @param baseUri - if the URI doesn't match exactly, tries again with this used as a prefix
  */
-export function resourceMatchesProfile(resource: HAL.Resource, profile: HAL.Uri, baseUri?: HAL.Uri): boolean {
+export function resourceMatchesProfile(resource: Hal.Resource, profile: Hal.Uri, baseUri?: Hal.Uri): boolean {
     const resourceProfile = resource._links && resource._links.profile;
 
     if(!resourceProfile) {
@@ -72,7 +72,7 @@ export function resourceMatchesProfile(resource: HAL.Resource, profile: HAL.Uri,
         profilesMatch(profile, resourceProfile.href, baseUri);
 }
 
-export function getProfiles(resource: HAL.Resource): HAL.Link[] {
+export function getProfiles(resource: Hal.Resource): Hal.Link[] {
     const profiles = resource._links && resource._links.profile;
     return !profiles? []:
         Array.isArray(profiles)?
@@ -86,7 +86,7 @@ export function getProfiles(resource: HAL.Resource): HAL.Link[] {
  * @param targetProfile
  * @param baseUri - if the URI doesn't match exactly, tries again with this used as a prefix
  */
-export function profilesMatch(profile: HAL.Uri, targetProfile?: HAL.Uri, baseUri?: HAL.Uri): boolean {
+export function profilesMatch(profile: Hal.Uri, targetProfile?: Hal.Uri, baseUri?: Hal.Uri): boolean {
     return baseUri?
         profile === targetProfile || Url.resolve(baseUri, profile) === targetProfile:
         profile === targetProfile;

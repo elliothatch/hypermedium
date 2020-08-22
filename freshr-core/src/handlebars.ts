@@ -1,6 +1,5 @@
 import { HelperDelegate, SafeString  } from 'handlebars';
-// import { expandCuri, htmlUri } from 'freshr';
-import * as freshr from 'freshr';
+import { HalUtil } from 'freshr';
 
 const handlebarsHelpers: {[name: string]: HelperDelegate} = {
     'not': (lhs) => !lhs,
@@ -12,8 +11,8 @@ const handlebarsHelpers: {[name: string]: HelperDelegate} = {
     'typeof': (val) => typeof val,
     'json': (val) => JSON.parse(val),
     'json-stringify': (val) => new SafeString(JSON.stringify(val)),
-    'html-uri': freshr.htmlUri,
-    'expandCuri': freshr.expandCuri,
+    'html-uri': HalUtil.htmlUri,
+    'expandCuri': HalUtil.expandCuri,
     /**
      * renders the link as an anchor tag. automatically expands curies based on the root resource. to use a different resource to resolve the curi, pass it as the third parameter
      * TODO: this doesn't work with link arrays.
@@ -26,9 +25,9 @@ const handlebarsHelpers: {[name: string]: HelperDelegate} = {
             resource = options[0].data.root;
         }
 
-        const relHtml = typeof rel === 'string'? `rel=${expandCuri(resource, rel)}`: '';
+        const relHtml = typeof rel === 'string'? `rel=${HalUtil.expandCuri(resource, rel)}`: '';
 
-        return new SafeString(`<a ${relHtml} href=${htmlUri(link.href)}>${link.title || link.href}</a>`)
+        return new SafeString(`<a ${relHtml} href=${HalUtil.htmlUri(link.href)}>${link.title || link.href}</a>`)
     },
 };
 

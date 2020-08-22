@@ -1,16 +1,16 @@
-import { ProcessorFactory } from 'freshr';
+import { Processor, ProcessorFactory, HypermediaEngine, Hal, HalUtil } from 'freshr';
 
 import { embed } from './embed';
 import { makeIndex } from './make-index';
 import { tags } from './tags';
 
-const processorFactories: {[name: string]: ProcessorFactory} = {
+export const processorFactories: {[name: string]: ProcessorFactory} = {
     // TODO: detect rels that use curies that haven't been defined
     // TODO: record local curie rels so we can generate warnings for rels that have no documentation resource */
     curies: () => ({
         name: 'curies', 
-        fn: (rs: ResourceState): ResourceState => {
-            const matchedCuries = filterCuries(rs.state.curies, Object.keys(rs.resource._links || {}));
+        fn: (rs: HypermediaEngine.ResourceState): HypermediaEngine.ResourceState => {
+            const matchedCuries = HalUtil.filterCuries(rs.state.curies, Object.keys(rs.resource._links || {}));
             return matchedCuries.length === 0?
                 rs:
                 { ...rs, resource: {
@@ -24,7 +24,7 @@ const processorFactories: {[name: string]: ProcessorFactory} = {
     /*
     breadcrumb: () => ({
         name: 'breadcrumb',
-        fn: (rs: ResourceState): ResourceState => {
+        fn: (rs: HypermediaEngine.ResourceState): HypermediaEngine.ResourceState => {
             const uriParts = rs.relativeUri.split('/').slice(0, -1);
             rs.resource._links = Object.assign({
                 'fs:breadcrumb': (uriParts.length === 0)? undefined:
@@ -54,16 +54,16 @@ const processorFactories: {[name: string]: ProcessorFactory} = {
     }),
     makeIndex,
     tags: () => tags,
+
+    /* higher-order processor that only runs the provided processor if the resource matches the designated profile */
+    matchProfile: (options: {profile: Hal.Uri, processor: Processor}): Processor => {
+        return {
+            name: `matchProfile-${options.profile}`,
+            fn: (rs) => HalUtil.resourceMatchesProfile(rs.resource, options.profile, rs.state.baseUri)?
+                options.processor.fn(rs):
+                rs
+        };
+    },
 };
 
-/* higher-order processor that only runs the provided processor if the resource matches the designated profile */
-export const matchProfile = (profile: HAL.Uri, processor: Processor): Processor => {
-    return {
-        name: 'matchProfile',
-        fn: (rs) => resourceMatchesProfile(rs.resource, profile, rs.state.baseUri)?
-            processor.fn(rs):
-            rs
-    };
-};
 
-export { processorFactories };

@@ -1,4 +1,4 @@
-import { ProcessorFactory, Hypermedia } from 'freshr';
+import { Hal, HypermediaEngine, ExtendedResource } from 'freshr';
 
 /**
  * add resources to the "_embedded" property for each rel in the "_embed" property. Then remove "_embed"
@@ -7,7 +7,7 @@ import { ProcessorFactory, Hypermedia } from 'freshr';
  * TODO: resolve hrefs correctly even if they aren't the full uri (e.g. /posts doesn't work but /posts/index.json does)
  * TODO: put "title" in embedded "_links" into the "self" link in the embedded cocument? it's annoying that the title no longer works correctly when linking to embedded document
  */
-export function embed(rs: Hypermedia.ResourceState): Hypermedia.ResourceState {
+export function embed(rs: HypermediaEngine.ResourceState): HypermediaEngine.ResourceState {
     const _embed: Embed = rs.resource._embed;
     if(!_embed) {
         return rs;
@@ -53,7 +53,7 @@ export function embed(rs: Hypermedia.ResourceState): Hypermedia.ResourceState {
                 }
                 return r;
             });
-        }).filter((r?: HAL.Resource) => !!r);
+        }).filter((r?: Hal.Resource) => !!r);
 
         // special case: if we got the href from a non-array "_link" entry, and there were no additional hrefs in "_embed", don't make the embedded resource an array.
         // this simplifies template code when you were only expecting a single link
@@ -80,4 +80,17 @@ export function embed(rs: Hypermedia.ResourceState): Hypermedia.ResourceState {
     return Object.assign(rs, {
         resource: Object.assign(resource, {_embedded: embedded})
     });
+}
+
+
+export type Embed = {[rel: string]: EmbedEntry};
+export interface EmbedEntry {
+    /** URIs of resources to embed. If omitted or fewer than "max", uses hrefs from the resource's _links property. */
+    href?: Hal.Uri | Hal.Uri[];
+    /** maximum number of entries to embed */
+    max?: number;
+    /** allows recursive inclusion of embedded resources. e.g. with value 1, each embedded resource will also contain its own "_embedded" property */
+    depth?: number;
+    /** if provided, only embed the specified properties */
+    properties?: string[];
 }

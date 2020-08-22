@@ -8,12 +8,9 @@ import { Observable, Observer } from 'rxjs';
 import { NextFunction, Router, Request, Response } from 'express';
 import { Graph, Edge } from 'graphlib';
 
-import * as HAL from '../hal';
-import { filterCuries, profilesMatch, resourceMatchesProfile, getProfiles } from '../hal-util';
-import { createSchema, walkDirectory, objectDifference } from '../util';
-
-import { Processor } from './processor';
-export * from './processor';
+import * as HAL from './hal';
+import { filterCuries, profilesMatch, resourceMatchesProfile, getProfiles } from './hal-util';
+import { createSchema, objectDifference } from './util';
 
 /** augments a hypermedia site with dynamic properties and resources
  * for example, adds "self" links and "breadcrumb"
@@ -21,9 +18,9 @@ export * from './processor';
  * dynamic tagging
  * use middleware to extend resources that match a certain profile
  */
-export class Hypermedia {
+export class HypermediaEngine {
     public router: Router;
-    public state: Hypermedia.State;
+    public state: HypermediaEngine.State;
     public processors: Processor[];
     /** maps relative uri to the original resource loaded from the file system */
     public files: {[uri: string]: string};
@@ -31,10 +28,10 @@ export class Hypermedia {
     /** each loaded resource is stored in the graph, and dependencies between resources are tracked here */
     public resourceGraph: Graph;
 
-    public event$: Observable<Hypermedia.Event>;
-    protected eventObserver!: Observer<Hypermedia.Event>;
+    public event$: Observable<HypermediaEngine.Event>;
+    protected eventObserver!: Observer<HypermediaEngine.Event>;
 
-    constructor(options: Hypermedia.Options) {
+    constructor(options: HypermediaEngine.Options) {
         this.event$ = new Observable((observer) => {
             this.eventObserver = observer;
         });
@@ -67,7 +64,7 @@ export class Hypermedia {
         return res.status(200).json(resource);
     }
 
-    protected log(event: Hypermedia.Event): void {
+    protected log(event: HypermediaEngine.Event): void {
         this.eventObserver.next(event);
     }
 
@@ -125,7 +122,7 @@ export class Hypermedia {
      * @returns true if the dependency did not exist before for this processor
      */
     protected addDependency(relativeUriSource: HAL.Uri, relativeUriTarget: HAL.Uri, processor: Processor): boolean {
-        const edge: ResourceEdge | undefined = this.resourceGraph.edge(relativeUriSource, relativeUriTarget);
+        const edge: HypermediaEngine.ResourceEdge | undefined = this.resourceGraph.edge(relativeUriSource, relativeUriTarget);
         if(!edge) {
             this.resourceGraph.setEdge(relativeUriSource, relativeUriTarget, {
                 processors: [processor]
@@ -196,7 +193,7 @@ export class Hypermedia {
         const startTime = hrtime.bigint();
         const normalizedUri = this.normalizeUri(relativeUri);
 
-        const node: ResourceNode | undefined = this.resourceGraph.node(normalizedUri);
+        const node: HypermediaEngine.ResourceNode | undefined = this.resourceGraph.node(normalizedUri);
         if(!node) {
             console.log(`Resource ${normalizedUri} has not been loaded, skipping`);
             return {};
@@ -228,12 +225,12 @@ export class Hypermedia {
                 return processor.fn({
                     ...d, 
                     hypermedia: this,
-                    calculateFrom: (dependencyUri: HAL.Uri | HAL.Uri[], fn: Hypermedia.CalculateFromResourceFn | Hypermedia.CalculateFromResourcesFn): any => {
+                    calculateFrom: (dependencyUri: HAL.Uri | HAL.Uri[], fn: HypermediaEngine.CalculateFromResourceFn | HypermediaEngine.CalculateFromResourcesFn): any => {
                         const dependencyUris = Array.isArray(dependencyUri)? dependencyUri: [dependencyUri];
                         // process dependencies
-                        const dependencyResourceParams: Hypermedia.CalculateFromResourceParams[] = dependencyUris.map((uri) => {
+                        const dependencyResourceParams: HypermediaEngine.CalculateFromResourceParams[] = dependencyUris.map((uri) => {
                             const normalizedDependencyUri = this.normalizeUri(uri);
-                            const dependencyResource: ResourceNode = this.resourceGraph.node(normalizedDependencyUri);
+                            const dependencyResource: HypermediaEngine.ResourceNode = this.resourceGraph.node(normalizedDependencyUri);
                             if(!dependencyResource) {
                                 this.log({
                                     eType: 'ProcessorError',
@@ -255,10 +252,10 @@ export class Hypermedia {
                         });
 
                         return Array.isArray(dependencyUri)?
-                            (fn as Hypermedia.CalculateFromResourcesFn)(dependencyResourceParams):
-                            (fn as Hypermedia.CalculateFromResourceFn)(dependencyResourceParams[0]);
+                            (fn as HypermediaEngine.CalculateFromResourcesFn)(dependencyResourceParams):
+                            (fn as HypermediaEngine.CalculateFromResourceFn)(dependencyResourceParams[0]);
                     },
-                    markDirty: (uri: HAL.Uri | HAL.Uri[], template?: string | Hypermedia.ExtendedResource) => {
+                    markDirty: (uri: HAL.Uri | HAL.Uri[], template?: string | ExtendedResource) => {
                         return (Array.isArray(uri)?
                             uri:
                             [uri]
@@ -325,25 +322,9 @@ export class Hypermedia {
                 this.processResource(uri)
         });
     }
-
-    /** recursively load files in a directory */
-     public loadDirectory(directoryPath: string, relativeUri: HAL.Uri = ''): Promise<Hypermedia.ResourceMap> {
-         return walkDirectory(
-             directoryPath,
-             (filePath: string, uri: string, fileContents: string) => {
-                 this.files[uri] = fileContents;
-                 if(Path.extname(filePath) === '.json') {
-                     return this.loadResource(uri, JSON.parse(fileContents), 'fs');
-                 }
-                 // TODO: don't return empty resource
-                 return {};
-             },
-             relativeUri,
-         );
-     }
 }
 
-export namespace Hypermedia {
+export namespace HypermediaEngine {
     export interface Options {
         /** if provided, this string prefixes the "href" property on all all site-local links. e.g. "https://example.com" */
         baseUri?: string;
@@ -365,10 +346,6 @@ export namespace Hypermedia {
         resourceGraph: Graph;
     }
 
-    export interface ExtendedResource extends HAL.Resource {
-        [uri: string]: any;
-    }
-
     export interface ResourceState<R extends HAL.Resource = ExtendedResource, S extends State = State> {
         resource: R;
         relativeUri: string;
@@ -387,7 +364,7 @@ export namespace Hypermedia {
          */
         markDirty: (relativeUri: HAL.Uri | HAL.Uri[], template?: string | ExtendedResource) => void;
         /** the hypermedia engine instance */
-        hypermedia: Hypermedia;
+        hypermedia: HypermediaEngine;
     }
 
     export type CalculateFromResource = {
@@ -452,32 +429,34 @@ export namespace Hypermedia {
             error: Error;
         }
     }
+
+    export interface ResourceNode {
+        /** the parsed resource before any processing has been applied */
+        originalResource: ExtendedResource;
+        /** the processed resource that will be served to the user
+         * should ALWAYS be serializable. nothing fancy in the resources */
+        resource?: ExtendedResource;
+        /** true if the resource is currently being processed */
+        processing: boolean;
+        /** indicates how the original resource was created */
+        origin: string;
+    }
+
+    export interface ResourceEdge {
+        processors: Processor[];
+    }
 }
 
-export interface ResourceNode {
-    /** the parsed resource before any processing has been applied */
-    originalResource: Hypermedia.ExtendedResource;
-    /** the processed resource that will be served to the user
-     * should ALWAYS be serializable. nothing fancy in the resources */
-    resource?: Hypermedia.ExtendedResource;
-    /** true if the resource is currently being processed */
-    processing: boolean;
-    /** indicates how the original resource was created */
-    origin: string;
+export interface ExtendedResource extends HAL.Resource {
+    [uri: string]: any;
 }
 
-export interface ResourceEdge {
-    processors: Processor[];
+
+export interface Processor {
+    name: string;
+    fn: ProcessorFn;
 }
 
-export type Embed = {[rel: string]: EmbedEntry};
-export interface EmbedEntry {
-    /** URIs of resources to embed. If omitted or fewer than "max", uses hrefs from the resource's _links property. */
-    href?: HAL.Uri | HAL.Uri[];
-    /** maximum number of entries to embed */
-    max?: number;
-    /** allows recursive inclusion of embedded resources. e.g. with value 1, each embedded resource will also contain its own "_embedded" property */
-    depth?: number;
-    /** if provided, only embed the specified properties */
-    properties?: string[];
-}
+/** takes in a HAL object and some external state, and returns transformed versions
+ * of each. */
+export type ProcessorFn = (rs: HypermediaEngine.ResourceState) => HypermediaEngine.ResourceState;

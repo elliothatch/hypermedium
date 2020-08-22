@@ -1,21 +1,23 @@
-export * from './server';
-export * from './hypermedia';
-export * from './hypermedia/processor';
-export * from './hypermedia-renderer';
-export * from './build';
+/** core types and libraries */
+export * as Build from './build';
+export * as Hal from './hal';
 export * from './plugin';
-export * from './freshr';
-export * from './util';
-export * from './hal-util';
 
-import * as HAL from './hal';
-export {HAL};
+/** core utilities */
+export * from './freshr';
+export * from './hypermedia';
+export * from './renderer';
+export * from './plugin-manager';
+export * as Server from './server';
+export * as HalUtil from './hal-util';
+
+// export * as Util from './util';
 
 import { Freshr } from './freshr';
 import * as Path from 'path';
 import { mergeMap, map } from 'rxjs/operators';
 
-import { PluginManager } from './plugin';
+import { PluginManager } from './plugin-manager';
 
 // import * as Minimist from 'minimist';
 
@@ -23,7 +25,7 @@ import { PluginManager } from './plugin';
 if(require.main === module) {
     // run as a script
     // const commandLine = Minimist(process.argv.slice(2));
-    const demoPath = Path.join(__dirname, '..', '..', '..', 'demo2');
+    const demoPath = Path.join(__dirname, '..', '..', '..', 'demo');
 
     // initialize freshr
     const freshr = new Freshr();

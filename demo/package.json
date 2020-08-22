@@ -1,0 +1,8 @@
+{
+    "name": "freshr-demo",
+    "version": "0.1.0",
+    "description": "freshr demo",
+    "main": "index.js",
+    "dependencies": {
+    }
+}

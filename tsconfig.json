@@ -1,31 +1,8 @@
 {
-  "compilerOptions": {
-    "module": "commonjs",
-    "target": "esnext",
-
-    "composite": true,
-    "rootDir": "src",
-
-    "declaration": true,
-    "declarationDir": "declarations",
-    "declarationMap": true,
-
-    "outDir": "build",
-    "sourceMap": true,
-
-    "strict": true,
-
-    "experimentalDecorators": true,
-    "preserveConstEnums": true
-  },
-  "include": [
-    "src/**/*",
-    "types/**/*"
-  ],
-  "baseUrl": ".",
-  "paths": {
-    "*": [
-      "node_modules/*"
-    ]
-  }
+	"files": [],
+	"include": [],
+	"references": [
+		{ "path": "./freshr" },
+		{ "path": "./freshr-core" }
+	]
 }
