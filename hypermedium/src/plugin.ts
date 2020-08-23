@@ -3,7 +3,7 @@ import { validate } from 'fresh-validation';
 import { HelperDelegate } from 'handlebars';
 
 import { ProfileLayoutMap } from './renderer';
-import { Processor } from './hypermedia';
+import { Processor } from './hypermedia-engine';
 import * as Build from './build';
 
 // TODO: should plugins be able to provide options for their dependencies, or otherwise control how their dependencies are initialized?
@@ -15,7 +15,10 @@ export class Plugin<T = any> {
     @validate()
     name!: string;
     @validate()
+    /** plugin version */
     version!: string;
+    /** plugin API version */
+    pluginApi!: string;
     /** names of plugins that the module depends on */
     @validate(false, String)
     dependencies!: string[];

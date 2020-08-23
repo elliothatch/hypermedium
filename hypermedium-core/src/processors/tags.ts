@@ -1,4 +1,4 @@
-import { HypermediaEngine, Hal, HalUtil, Processor } from 'freshr';
+import { HypermediaEngine, Hal, HalUtil, Processor } from 'hypermedium';
 
 export const tags: Processor = {
     name: 'tags',

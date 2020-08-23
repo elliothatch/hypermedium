@@ -6,14 +6,14 @@ import { mergeAll, map, tap } from 'rxjs/operators';
 import * as Build from './build';
 import { BuildManager } from './build-manager';
 import { HtmlRenderer } from './renderer';
-import { HypermediaEngine, Processor } from './hypermedia';
+import { HypermediaEngine, Processor } from './hypermedia-engine';
 import { NotFoundError, WatchEvent } from './util';
 import { Plugin, Module, ProcessorFactory } from './plugin';
 import { PluginManager } from './plugin-manager';
 
 /** sets up the hypermedia engine, html renderer, and build system
  */
-export class Freshr {
+export class Hypermedium {
 
     public pluginManager: PluginManager;
     public hypermedia: HypermediaEngine;
@@ -55,13 +55,20 @@ export class Freshr {
         );
     }
 
-    /** build the module if necessary, then subscribe to moduleEvents */
-    public registerModule(moduleInstance: Module.Instance): Observable<Build.Event | Module.Event> {
+    /** build the module if necessary, then subscribe to moduleEvents
+     * @param namespace - if provided, will override the default namespace (moduleInstance.name)
+     * */
+    public registerModule(moduleInstance: Module.Instance, namespace?: string): Observable<Build.Event | Module.Event> {
+        let moduleNamespace = namespace != null? namespace: moduleInstance.name;
+        if(moduleNamespace.length > 0) {
+            moduleNamespace += '/';
+        }
+
         let buildEvents: Observable<Build.Event> = EMPTY;
         if(moduleInstance.module.build) {
             if(moduleInstance.module.build.taskDefinitions) {
                 moduleInstance.module.build.taskDefinitions.forEach((taskDefinition) => {
-                    this.build.addTaskDefinition(`${moduleInstance.name}/${taskDefinition.name}`, taskDefinition);
+                    this.build.addTaskDefinition(moduleNamespace + taskDefinition.name, taskDefinition);
                 });
             }
 
@@ -84,7 +91,7 @@ export class Freshr {
                                             case'change':
                                                 return from(fs.readFile(moduleEvent.path, 'utf-8')).pipe(
                                                     map((fileContents) => {
-                                                        this.hypermedia.loadResource(moduleEvent.uri, JSON.parse(fileContents), 'fs');
+                                                        this.hypermedia.loadResource(`/` + moduleEvent.uri, JSON.parse(fileContents), 'fs');
                                                         this.hypermedia.processResource(moduleEvent.uri);
                                                     })
                                                 );
@@ -93,7 +100,7 @@ export class Freshr {
                                                 return EMPTY;
                                         }
                                     case 'processor-factory-changed':
-                                        this.processorFactories.set(`${moduleInstance.name}/${moduleEvent.name}`, moduleEvent.processorFactory);
+                                        this.processorFactories.set(moduleNamespace + moduleEvent.name, moduleEvent.processorFactory);
                                         return EMPTY;
                                 }
                             case 'renderer':
@@ -104,11 +111,11 @@ export class Freshr {
                                             case 'change':
                                                 return from(fs.readFile(moduleEvent.path, 'utf-8')).pipe(
                                                     map((fileContents) => {
-                                                        this.renderer.registerTemplate(moduleEvent.uri, fileContents, moduleInstance.name);
+                                                        this.renderer.registerTemplate(moduleNamespace + moduleEvent.uri, fileContents);
                                                     })
                                                 );
                                             case 'unlink':
-                                                this.renderer.unregisterTemplate(moduleEvent.uri, moduleInstance.name);
+                                                this.renderer.unregisterTemplate(moduleNamespace + moduleEvent.uri);
                                                 return EMPTY;
                                         }
                                     case 'partial-changed':
@@ -117,15 +124,15 @@ export class Freshr {
                                             case 'change':
                                                 return from(fs.readFile(moduleEvent.path, 'utf-8')).pipe(
                                                     map((fileContents) => {
-                                                        this.renderer.registerPartial(moduleEvent.uri, fileContents, moduleInstance.name);
+                                                        this.renderer.registerPartial(moduleNamespace + moduleEvent.uri, fileContents);
                                                     })
                                                 );
                                             case 'unlink':
-                                                this.renderer.unregisterPartial(moduleEvent.uri, moduleInstance.name);
+                                                this.renderer.unregisterPartial(moduleNamespace + moduleEvent.uri);
                                                 return EMPTY;
                                         }
                                     case 'handlebars-helper-changed':
-                                        this.renderer.registerHelper(`${moduleInstance.name}/${moduleEvent.name}`, moduleEvent.helper);
+                                        this.renderer.registerHelper(moduleNamespace + moduleEvent.name, moduleEvent.helper);
                                         return EMPTY;
 
                                     case 'profile-layout-changed':

@@ -1,4 +1,4 @@
-import { Hal, HypermediaEngine, ExtendedResource } from 'freshr';
+import { Hal, HypermediaEngine, ExtendedResource } from 'hypermedium';
 
 /**
  * add resources to the "_embedded" property for each rel in the "_embed" property. Then remove "_embed"

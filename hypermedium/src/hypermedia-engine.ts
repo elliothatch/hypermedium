@@ -3,7 +3,8 @@ import { promises as fs } from 'fs';
 import * as Url from 'url';
 import { hrtime } from 'process';
 
-import { Observable, Observer } from 'rxjs';
+import { Observable, Subject } from 'rxjs';
+import { publish, refCount } from 'rxjs/operators';
 
 import { NextFunction, Router, Request, Response } from 'express';
 import { Graph, Edge } from 'graphlib';
@@ -29,13 +30,9 @@ export class HypermediaEngine {
     public resourceGraph: Graph;
 
     public event$: Observable<HypermediaEngine.Event>;
-    protected eventObserver!: Observer<HypermediaEngine.Event>;
+    protected eventSubject!: Subject<HypermediaEngine.Event>;
 
     constructor(options: HypermediaEngine.Options) {
-        this.event$ = new Observable((observer) => {
-            this.eventObserver = observer;
-        });
-
         this.resourceGraph = new Graph();
 
         this.state = {
@@ -48,6 +45,13 @@ export class HypermediaEngine {
         };
         this.files = {};
         this.processors = options.processors;
+
+        this.eventSubject = new Subject();
+        this.event$ = this.eventSubject.pipe(
+            publish(),
+            refCount(),
+        );
+
         this.router = Router();
         this.router.get('/*', this.middleware);
     }
@@ -65,7 +69,7 @@ export class HypermediaEngine {
     }
 
     protected log(event: HypermediaEngine.Event): void {
-        this.eventObserver.next(event);
+        this.eventSubject.next(event);
     }
 
     // TODO: make this work with different MIME types with sensible default beahvior

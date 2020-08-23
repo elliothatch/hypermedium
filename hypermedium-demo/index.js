@@ -1,6 +1,7 @@
 const demoPlugin = {
-    name: 'freshr-demo',
+    name: 'hypermedium-demo',
     version: '0.1.0',
+    pluginApi: '1',
     dependencies: ['core'],
     moduleFactory: (options) => {
         return {
@@ -20,4 +21,4 @@ const demoPlugin = {
 
 };
 
-export default demoPlugin;
+module.exports = demoPlugin;

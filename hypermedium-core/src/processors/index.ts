@@ -1,4 +1,4 @@
-import { Processor, ProcessorFactory, HypermediaEngine, Hal, HalUtil } from 'freshr';
+import { Processor, ProcessorFactory, HypermediaEngine, Hal, HalUtil } from 'hypermedium';
 
 import { embed } from './embed';
 import { makeIndex } from './make-index';

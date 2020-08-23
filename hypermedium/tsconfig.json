@@ -16,6 +16,7 @@
 		"strict": true,
 
 		"experimentalDecorators": true,
+		"emitDecoratorMetadata": true,
 		"preserveConstEnums": true
 	},
 	"include": [

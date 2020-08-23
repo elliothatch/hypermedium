@@ -27,11 +27,11 @@ export class PluginManager {
         let jsModule: any;
         try {
             jsModule = require(pluginPath);
-            if(!jsModule || !jsModule.default) {
+            if(!jsModule) {
                 throw new LoadPluginError('no default export found', pluginPath);
             }
 
-            jsModule = jsModule.default;
+            jsModule = jsModule.default || jsModule;
         }
         catch(err) {
             throw new LoadPluginError(err.message, pluginPath, err);
@@ -53,18 +53,20 @@ export class PluginManager {
             throw new LoadPluginError(`The plugin '${plugin.name}' is already loaded (${node.pluginFile.path}). If you want to reload this plugin, unload it first with PluginManager.unloadPlugin('${plugin.name}')`, pluginPath);
         }
 
-        const pluginFile: Plugin.File = {
-            plugin,
-            path: pluginPath
+        const pluginNode: PluginManager.PluginNode = {
+            pluginFile: {
+                plugin,
+                path: require.resolve(pluginPath),
+            }
         };
 
-        this.dependencyGraph.setNode(plugin.name, pluginFile);
+        this.dependencyGraph.setNode(plugin.name, pluginNode);
 
         plugin.dependencies.forEach((dependency) => {
             this.dependencyGraph.setEdge(plugin.name, dependency);
         });
 
-        return pluginFile;
+        return pluginNode.pluginFile!;
     }
 
     /** @param name - unique identifier for the module. usually the same as plugin.name, unless this is an isolated instance */
@@ -95,7 +97,8 @@ export class PluginManager {
 
             // const modulePath = options.instancePath?
             // options.instancePath:
-            const pluginDir = Path.join(pluginNode.pluginFile.path, pluginNode.pluginFile.plugin.basePath || '');
+            // first '..' is to select the directory instead of the file
+            const pluginDir = Path.join(pluginNode.pluginFile.path, '..', pluginNode.pluginFile.plugin.basePath || '');
 
             // TODO: handle directory already exists
             // do we somehow mark a directory as an "instance" directory (e.g. via a file) so we know it is probably safe to overwrite?
@@ -140,7 +143,7 @@ export class PluginManager {
 
                 if(module.renderer) {
                     if(module.renderer.templatePaths) {
-                        const templatePaths = module.renderer.templatePaths.map((sitePath) => Path.join(modulePath, sitePath));
+                        const templatePaths = module.renderer.templatePaths.map((templatePath) => Path.join(modulePath, templatePath));
                         moduleEventSources.push(watchFiles(templatePaths).pipe(
                             filter((watchEvent) => ['add', 'change', 'unlink'].includes(watchEvent.eType)),
                             map((watchEvent) => ({
@@ -154,7 +157,7 @@ export class PluginManager {
                     }
 
                     if(module.renderer.partialPaths) {
-                        const partialPaths = module.renderer.partialPaths.map((sitePath) => Path.join(modulePath, sitePath));
+                        const partialPaths = module.renderer.partialPaths.map((partialPath) => Path.join(modulePath, partialPath));
                         moduleEventSources.push(watchFiles(partialPaths).pipe(
                             filter((watchEvent) => ['add', 'change', 'unlink'].includes(watchEvent.eType)),
                             map((watchEvent) => ({
@@ -220,11 +223,11 @@ export class PluginManager {
     public findMissingPlugins(plugin: Plugin<any>): string[] {
         return plugin.dependencies.reduce((missing, dependency) => {
             const node = this.dependencyGraph.node(dependency);
-            if(!node || !node.plugin) {
+            if(!node || !node.pluginFile) {
                 missing.push(dependency);
             }
             else {
-                missing.push(...this.findMissingPlugins(node.plugin));
+                missing.push(...this.findMissingPlugins(node.pluginFile.plugin));
             }
             return missing;
         }, [] as string[]);

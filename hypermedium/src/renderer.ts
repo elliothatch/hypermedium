@@ -14,7 +14,7 @@ import { Observable, Observer } from 'rxjs';
 import { NextFunction, Router, Request, Response } from 'express';
 import * as Handlebars from 'handlebars';
 
-import { HypermediaEngine, ExtendedResource } from './hypermedia';
+import { HypermediaEngine, ExtendedResource } from './hypermedia-engine';
 import * as HAL from './hal';
 import { expandCuri, getProfiles, htmlUri } from './hal-util';
 import { File } from './util';
@@ -63,7 +63,7 @@ export class HtmlRenderer {
         this.handlebarsEnvironment = Handlebars.create();
 
         this.hypermedia = options.hypermedia;
-        this.defaultTemplate = options.defaultTemplate || 'core/default.hbs';
+        this.defaultTemplate = options.defaultTemplate || 'default.hbs';
         this.siteContext = options.siteContext || {};
         this.profileLayouts = options.profileLayouts || {};
         this.templatePaths = options.templatePaths || [];
@@ -107,25 +107,18 @@ export class HtmlRenderer {
     //         uriPrefix);
     // }
 
-    public registerPartial(uri: string, contents: string, namespace: string): void {
-        const partialName = namespace.length > 0?
-            `${namespace}/${uri.replace(/^\//g, '')}`:
-            uri.replace(/^\//g, '');
-        this.handlebarsEnvironment.registerPartial(partialName, contents);
-        this.partials[partialName] = contents;
+    public registerPartial(uri: string, contents: string): void {
+        this.handlebarsEnvironment.registerPartial(uri, contents);
+        this.partials[uri] = contents;
     }
 
-    public unregisterPartial(uri: string, namespace: string): boolean {
-        const partialName = namespace.length > 0?
-            `${namespace}/${uri.replace(/^\//g, '')}`:
-            uri.replace(/^\//g, '');
-
-        if(!this.partials[partialName]) {
+    public unregisterPartial(uri: string): boolean {
+        if(!this.partials[uri]) {
             return false;
         }
 
-        this.handlebarsEnvironment.unregisterPartial(partialName);
-        delete this.partials[partialName];
+        this.handlebarsEnvironment.unregisterPartial(uri);
+        delete this.partials[uri];
         return true;
     }
 
@@ -155,25 +148,19 @@ export class HtmlRenderer {
         this.handlebarsEnvironment.unregisterHelper(name);
     }
 
-    public registerTemplate(uri: string, contents: string, namespace: string): void {
-        const templateName = namespace.length > 0?
-            `${namespace}/${uri.replace(/^\//g, '')}`:
-            uri.replace(/^\//g, '');
+    public registerTemplate(uri: string, contents: string): void {
         const template = this.handlebarsEnvironment.compile(contents);
         // execute the template to check for compile errors
         // template({});
-        this.templates[templateName] = template;
+        this.templates[uri] = template;
     }
 
-    public unregisterTemplate(uri: string, namespace: string): boolean {
-        const templateName = namespace.length > 0?
-            `${namespace}/${uri.replace(/^\//g, '')}`:
-            uri.replace(/^\//g, '');
-        if(!this.templates[templateName]) {
+    public unregisterTemplate(uri: string): boolean {
+        if(!this.templates[uri]) {
             return false
         }
 
-        delete this.templates[templateName];
+        delete this.templates[uri];
         return true;
     }
 

@@ -1,5 +1,5 @@
 import { HelperDelegate, SafeString  } from 'handlebars';
-import { HalUtil } from 'freshr';
+import { HalUtil } from 'hypermedium';
 
 const handlebarsHelpers: {[name: string]: HelperDelegate} = {
     'not': (lhs) => !lhs,

@@ -1,7 +1,9 @@
 {
 	"private": true,
-	"workspaces": ["freshr", "freshr-core", "demo"],
+	"workspaces": ["hypermedium", "hypermedium-core", "hypermedium-demo"],
 	"scripts": {
-		"build": "node_modules/.bin/tsc -b ."
+		"build": "./node_modules/.bin/tsc -b .",
+		"start": "node ./hypermedium/build/index.js",
+        "debug": "node --inspect-brk ./hypermedium/build/index.js"
 	}
 }

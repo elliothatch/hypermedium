@@ -1,4 +1,4 @@
-import { Processor, Hal, HalUtil } from 'freshr';
+import { Processor, Hal, HalUtil } from 'hypermedium';
 
 /** whenever a new resources matches the given profile, 
  * add it to the index and update the index page.
