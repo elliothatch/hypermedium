@@ -1,0 +1,21 @@
+{
+    "title": "posts",
+    "_links": {
+        "profile": {
+            "href": "/schema/index/schema/post"
+        }
+    },
+    "_index": {
+    	"order": {
+    		"key": "date-created",
+    		"ascending": false,
+    		"compare": "date"
+		}
+	},
+    "_embed": {
+        "fs:entries": {
+            "max": 2,
+            "properties": ["body", "title"]
+        }
+    }
+}

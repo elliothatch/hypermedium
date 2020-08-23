@@ -1,0 +1,17 @@
+{
+    "title": "hello world!",
+    "_links": {
+        "profile": {
+            "href": "/schema/post"
+        },
+        "tag": [{
+            "title": "blog",
+            "href": "/tags/blog"
+        }, {
+            "title": "hello",
+            "href": "/tags/hello"
+        }]
+    },
+    "date-created": "2020-07-01T09:09:19.344Z",
+    "body": "starting out the blog with a quick hello. hello!"
+}

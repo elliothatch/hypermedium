@@ -5,6 +5,19 @@ import { makeIndex } from './make-index';
 import { tags } from './tags';
 
 export const processorFactories: {[name: string]: ProcessorFactory} = {
+    self: () => ({
+        name: 'self',
+        fn: (rs: HypermediaEngine.ResourceState): HypermediaEngine.ResourceState => (
+            Object.assign(rs, {
+                resource: Object.assign(rs.resource, {
+                    _links: Object.assign({
+                        // self: {href: rs.state.baseUri? Url.resolve(rs.state.baseUri, rs.relativeUri): rs.relativeUri}
+                        self: {href: rs.relativeUri}
+                    }, rs.resource._links)
+                })
+            })
+        )
+    }),
     // TODO: detect rels that use curies that haven't been defined
     // TODO: record local curie rels so we can generate warnings for rels that have no documentation resource */
     curies: () => ({
@@ -18,7 +31,7 @@ export const processorFactories: {[name: string]: ProcessorFactory} = {
                         curies: matchedCuries,
                         ...rs.resource._links,
                     }}};
-            }
+        }
     }),
 
     /*
@@ -39,7 +52,7 @@ export const processorFactories: {[name: string]: ProcessorFactory} = {
             return rs;
         }
     }),
-    */
+     */
 
     /**
      * add resources to the "_embedded" property for each rel in the "_embed" property. Then remove "_embed"
@@ -60,8 +73,8 @@ export const processorFactories: {[name: string]: ProcessorFactory} = {
         return {
             name: `matchProfile-${options.profile}`,
             fn: (rs) => HalUtil.resourceMatchesProfile(rs.resource, options.profile, rs.state.baseUri)?
-                options.processor.fn(rs):
-                rs
+            options.processor.fn(rs):
+            rs
         };
     },
 };

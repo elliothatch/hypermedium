@@ -199,13 +199,20 @@ export class HypermediaEngine {
 
         const node: HypermediaEngine.ResourceNode | undefined = this.resourceGraph.node(normalizedUri);
         if(!node) {
-            console.log(`Resource ${normalizedUri} has not been loaded, skipping`);
+            this.log({
+                eType: 'Warning',
+                message: `Process Resource: ${normalizedUri} has not been loaded, skipping`
+            });
+
             return {};
             // throw new Error(`Resource ${normalizedUri} has not been loaded`);
         }
 
         if(node.processing) {
-            console.log(`Resource ${normalizedUri} is already being processed, skipping`);
+            this.log({
+                eType: 'Warning',
+                message: `Process resource: ${normalizedUri} is already being processed, skipping`
+            });
             return node.resource!;
             // throw new Error(`Resource ${normalizedUri} is already being processed`);
         }
@@ -385,7 +392,7 @@ export namespace HypermediaEngine {
 
     /** takes in a HAL object and some external state, and returns transformed versions
      * of each. */
-    export type Event = Event.ProcessResource | Event.ProcessResourceStart | Event.LoadResource  | Event.UnloadResource | Event.AddDependency | Event.ProcessorError;
+    export type Event = Event.ProcessResource | Event.ProcessResourceStart | Event.LoadResource  | Event.UnloadResource | Event.AddDependency | Event.ProcessorError | Event.Warning;
     export namespace Event {
         export interface ProcessResource {
             eType: 'ProcessResource';
@@ -431,6 +438,12 @@ export namespace HypermediaEngine {
 
             relativeUri: HAL.Uri;
             error: Error;
+        }
+
+        export interface Warning {
+            eType: 'Warning';
+
+            message: string;
         }
     }
 

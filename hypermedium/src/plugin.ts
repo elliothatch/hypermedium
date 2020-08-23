@@ -4,7 +4,7 @@ import { HelperDelegate } from 'handlebars';
 
 import { ProfileLayoutMap } from './renderer';
 import { Processor } from './hypermedia-engine';
-import * as Build from './build';
+import * as BuildManager from './build';
 
 // TODO: should plugins be able to provide options for their dependencies, or otherwise control how their dependencies are initialized?
 // TODO: include a way for plugins to describe the npm modules they require, for auto-installation. This should be a separate file (package.json), so the plugin file can import dependencies outside of the module factory?
@@ -54,7 +54,10 @@ export type Module = Partial<{
     // templatePaths desribe which templates will be used to serve which URLs
     hypermedia: Partial<{
         sitePaths: string[];
+        /** new types of processor factories that can be used in the hypermedia engine */
         processorFactories: {[name: string]: ProcessorFactory};
+        /** processors that should be created and added to the hypermedia engine */
+        processors: {name: string; options?: any}[];
         /** if set, this url is prepended to the URI of every HAL resources served from this module */
         baseUri: string;
         // websocket middleware
@@ -67,8 +70,8 @@ export type Module = Partial<{
     }>;
 
     build: Partial<{
-        buildSteps: Build.Step;
-        taskDefinitions: Build.TaskDefinition[];
+        buildSteps: BuildManager.Step;
+        taskDefinitions: BuildManager.TaskDefinition[];
     }>;
 
     componentPaths: string[];
@@ -100,9 +103,19 @@ export namespace Module {
     // TODO: support returning a promise/observable
     export type Factory<T> = (options: Options & T) => Module;
 
-    export type Event = Event.Hypermedia | Event.Renderer;
+    export type Event = Event.Module | Event.Hypermedia | Event.Renderer | Event.Build;
     export namespace Event {
-        export type Hypermedia = Hypermedia.ResourceChanged | Hypermedia.ProcessorFactoryChanged;
+        export type Module = Module.Initialized;
+        export namespace Module {
+            export interface Base {
+                eCategory: 'module';
+            }
+            /** emitted after all "install" events are complete */
+            export interface Initialized extends Base {
+                eType: 'initialized';
+            }
+        }
+        export type Hypermedia = Hypermedia.ResourceChanged | Hypermedia.ProcessorFactoryChanged | Hypermedia.ProcessorChanged;
         export namespace Hypermedia {
             export interface Base {
                 eCategory: 'hypermedia'
@@ -119,6 +132,12 @@ export namespace Module {
                 eType: 'processor-factory-changed';
                 name: string;
                 processorFactory: ProcessorFactory;
+            }
+
+            export interface ProcessorChanged extends Base {
+                eType: 'processor-changed';
+                name: string;
+                options?: any;
             }
         }
 
@@ -152,6 +171,18 @@ export namespace Module {
                 eType: 'profile-layout-changed';
                 profile: string;
                 layoutUri: string;
+            }
+        }
+
+        export type Build = Build.TaskDefinitionChanged;
+        export namespace Build {
+            export interface Base {
+                eCategory: 'build';
+            }
+
+            export interface TaskDefinitionChanged extends Base {
+                eType: 'task-definition-changed';
+                taskDefinition: BuildManager.TaskDefinition;
             }
         }
     }

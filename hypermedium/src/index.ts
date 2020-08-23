@@ -13,17 +13,21 @@ export * as HalUtil from './hal-util';
 
 // export * as Util from './util';
 
-import { Log } from 'freshlog';
-
-import { Hypermedium } from './hypermedium';
 import * as Path from 'path';
 import { from } from 'rxjs';
+import { Log } from 'freshlog';
 import { mergeMap, map } from 'rxjs/operators';
+import * as Express from 'express';
+
+import { Hypermedium } from './hypermedium';
+import { HypermediaEngine } from './hypermedia-engine';
+import * as Build from './build';
+import { Module } from './plugin';
+
 
 import { PluginManager } from './plugin-manager';
 
 import { server } from './server';
-import * as Express from 'express';
 
 // import * as Minimist from 'minimist';
 
@@ -39,31 +43,61 @@ if(require.main === module) {
     // initialize freshr
     const hypermedium = new Hypermedium();
 
+    hypermedium.hypermedia.event$.subscribe({
+        next: (event) => {
+            switch(event.eType) {
+                case 'Warning':
+                    Log.warn(event.message);
+                    break;
+                default: {
+                    const e: Partial<HypermediaEngine.Event> = Object.assign({}, event);
+                    if(e.eType === 'ProcessResource') {
+                        delete e.edges;
+                        delete e.resource;
+                    }
+                    if((e as any).relativeUri) {
+                        Log.trace(`hypermedia-engine: ${event.eType} ${(e as any).relativeUri}`, e);
+                    }
+                    else {
+                        Log.trace(`hypermedia-engine: ${event.eType}`, e);
+                    }
+                }
+            }
+        }
+    });
+
     // temporary: test plugin loading
     const demoPlugin = hypermedium.pluginManager.loadPlugin(demoPath);
     const corePlugin = hypermedium.pluginManager.loadPlugin(corePath);
 
+    // TODO: wait until 'initialized' event before loading next plugin
     from([corePlugin, demoPlugin]).pipe(
         mergeMap((plugin) => {
             return hypermedium.pluginManager.createModule(plugin.plugin.name, plugin.plugin.name, {}).pipe(
                 mergeMap((moduleInstance) => {
-                    Log.trace(`created module instance '${moduleInstance.name}'`, moduleInstance);
+                    Log.info(`Create module: ${moduleInstance.name}`, moduleInstance);
                     if(moduleInstance.name === demoPlugin.plugin.name || corePlugin.plugin.name) {
                         // don't namespace the user plugin or core plugin
-                        return hypermedium.registerModule(moduleInstance, '');
+                        // TODO: we should probably actually leave the core prefix?
+                        // TODO: look into overriding namespaces. it would be nice if you could use e.g. core/layout/default.hbs but override with your own includes/header.hbs, etc. right now the override probably doesn't work and if it does it probably shows the most recently edited file
+                        return hypermedium.registerModule(moduleInstance, '').pipe(
+                            map((event) => ({moduleInstance, event}))
+                        );
                     }
 
-                    return hypermedium.registerModule(moduleInstance);
+                    return hypermedium.registerModule(moduleInstance).pipe(
+                        map((event) => ({moduleInstance, event}))
+                    );
                 }),
             );
         })
     ).subscribe({
-        next: (event) => {
+        next: ({moduleInstance, event}) => {
             if(event.eType === 'resource-changed') {
-                Log.info(`${event.fileEvent} HAL resource: ${event.uri}`, event);
+                Log.info(`${moduleInstance.name}: ${event.fileEvent} HAL resource: ${event.uri}`, {event, moduleInstance});
             }
             else {
-                Log.trace(`${event.eType}: ${(event as any).name || (event as any).uri || (event as any).profile || ''}`, event);
+                Log.trace(`${moduleInstance.name}: ${event.eType}: ${(event as any).name || (event as any).uri || (event as any).profile || ''}`, {event, moduleInstance});
             }
         },
         error: (error) => {

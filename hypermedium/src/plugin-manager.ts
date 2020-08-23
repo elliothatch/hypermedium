@@ -112,13 +112,20 @@ export class PluginManager {
         }).pipe(
             map(([pluginFile, modulePath]) => {
                 const module = pluginFile.plugin.moduleFactory(options);
+                // install event sources contain all events that need to be performed before "ongoing/file watch" events. this includes creating processor factories, handlebars helpers, and task definitions
+                const installEventSources: Array<Observable<Module.Event>> = [];
                 const moduleEventSources: Array<Observable<Module.Event>> = [];
 
                 // set up watch events for the module
                 if(module.hypermedia) {
                     if(module.hypermedia.sitePaths) {
                         const sitePaths = module.hypermedia.sitePaths.map((sitePath) => Path.join(modulePath, sitePath));
-                        moduleEventSources.push(watchFiles(sitePaths, module.hypermedia.baseUri).pipe(
+                        // hypermedia resources should always be absolute paths
+                        // TODO: should hypermedia engine should deal with uri normalization?
+                        const baseUri = module.hypermedia.baseUri != null?
+                            module.hypermedia.baseUri:
+                            '/';
+                        moduleEventSources.push(watchFiles(sitePaths, baseUri).pipe(
                             filter((watchEvent) => ['add', 'change', 'unlink'].includes(watchEvent.eType)),
                             map((watchEvent) => ({
                                 eCategory: 'hypermedia',
@@ -137,7 +144,18 @@ export class PluginManager {
                             name,
                             processorFactory: module.hypermedia!.processorFactories![name]
                         }));
-                        moduleEventSources.push(from(factoryEvents));
+                        installEventSources.push(from(factoryEvents));
+                    }
+
+                    if(module.hypermedia.processors) {
+                        // TODO: is this a race condition with processorFactories?
+                        const processorEvents = module.hypermedia.processors.map((processor) => ({
+                            eCategory: 'hypermedia' as const,
+                            eType: 'processor-changed' as const,
+                            name: processor.name,
+                            options: processor.options,
+                        }));
+                        moduleEventSources.push(from(processorEvents));
                     }
                 }
 
@@ -177,7 +195,7 @@ export class PluginManager {
                             name,
                             helper: module.renderer!.handlebarsHelpers![name],
                         }));
-                        moduleEventSources.push(from(helperEvents));
+                        installEventSources.push(from(helperEvents));
                     }
 
                     if(module.renderer.profileLayouts) {
@@ -191,12 +209,30 @@ export class PluginManager {
                     }
                 }
 
-                const moduleInstance = {
+                if(module.build) {
+                    if(module.build.taskDefinitions) {
+                        const taskDefinitionEvents = module.build.taskDefinitions.map((taskDefinition) => ({
+                            eCategory: 'build' as const,
+                            eType: 'task-definition-changed' as const,
+                            taskDefinition,
+                        }));
+                        installEventSources.push(from(taskDefinitionEvents));
+                    }
+                }
+
+                const moduleInstance: Module.Instance = {
                     name,
                     pluginFile: pluginFile,
                     module,
                     modulePath,
-                    moduleEvents: merge(...moduleEventSources)
+                    moduleEvents: concat(
+                        merge(...installEventSources),
+                        of({
+                            eCategory: 'module' as const,
+                            eType: 'initialized' as const,
+                        }),
+                        merge(...moduleEventSources)
+                    )
                 };
 
                 this.modules.set(name, moduleInstance);

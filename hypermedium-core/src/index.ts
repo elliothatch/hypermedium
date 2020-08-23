@@ -21,6 +21,11 @@ const corePlugin: Plugin<CoreOptions> = {
                 templatePaths: ['templates'],
                 partialPaths: ['partials'],
                 handlebarsHelpers,
+                profileLayouts: {
+					'/schema/post': 'layouts/post.hbs',
+                    '/schema/index/schema/post': 'layouts/index.hbs',
+                    '/schema/index/schema/index/tags': 'layouts/tags-index.hbs',
+                }
             }
         };
     },

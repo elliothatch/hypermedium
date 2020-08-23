@@ -1,7 +1,7 @@
 import * as Process from 'process';
 import * as fs from 'fs-extra';
-import { concat, defer, EMPTY, from, Observable, Subject } from 'rxjs';
-import { mergeAll, map, tap } from 'rxjs/operators';
+import { concat, defer, EMPTY, from, of, Observable, Subject } from 'rxjs';
+import { concatMap, mergeAll, map, tap } from 'rxjs/operators';
 
 import * as Build from './build';
 import { BuildManager } from './build-manager';
@@ -58,91 +58,98 @@ export class Hypermedium {
     /** build the module if necessary, then subscribe to moduleEvents
      * @param namespace - if provided, will override the default namespace (moduleInstance.name)
      * */
-    public registerModule(moduleInstance: Module.Instance, namespace?: string): Observable<Build.Event | Module.Event> {
+    public registerModule(moduleInstance: Module.Instance, namespace?: string): Observable<Module.Event | Build.Event> {
         let moduleNamespace = namespace != null? namespace: moduleInstance.name;
         if(moduleNamespace.length > 0) {
             moduleNamespace += '/';
         }
 
-        let buildEvents: Observable<Build.Event> = EMPTY;
-        if(moduleInstance.module.build) {
-            if(moduleInstance.module.build.taskDefinitions) {
-                moduleInstance.module.build.taskDefinitions.forEach((taskDefinition) => {
-                    this.build.addTaskDefinition(moduleNamespace + taskDefinition.name, taskDefinition);
-                });
-            }
+        return moduleInstance.moduleEvents.pipe(
+            tap((moduleEvent) => {
+                defer(() => {
+                    switch(moduleEvent.eCategory) {
+                        case 'hypermedia':
+                            switch(moduleEvent.eType) {
+                                case 'resource-changed':
+                                    switch(moduleEvent.fileEvent) {
+                                        case 'add':
+                                        case'change':
+                                            return from(fs.readFile(moduleEvent.path, 'utf-8')).pipe(
+                                                map((fileContents) => {
+                                                    this.hypermedia.loadResource(moduleEvent.uri, JSON.parse(fileContents), 'fs');
+                                                    this.hypermedia.processResource(moduleEvent.uri);
+                                                })
+                                            );
+                                        case 'unlink':
+                                            this.hypermedia.unloadResource(moduleEvent.uri);
+                                            return EMPTY;
+                                    }
+                                case 'processor-factory-changed':
+                                    this.processorFactories.set(moduleNamespace + moduleEvent.name, moduleEvent.processorFactory);
+                                    return EMPTY;
 
-            if(moduleInstance.module.build.buildSteps) {
-                buildEvents = this.build.build(moduleInstance.module.build.buildSteps, moduleInstance.modulePath);
-            }
-        }
+                                case 'processor-changed':
+                                    this.addProcessor(moduleEvent.name, moduleEvent.options);
+                                    this.hypermedia.processAllResources();
+                                    return EMPTY;
+                            }
+                        case 'renderer':
+                            switch(moduleEvent.eType) {
+                                case 'template-changed':
+                                    switch(moduleEvent.fileEvent) {
+                                        case 'add':
+                                        case 'change':
+                                            return from(fs.readFile(moduleEvent.path, 'utf-8')).pipe(
+                                                map((fileContents) => {
+                                                    this.renderer.registerTemplate(moduleNamespace + moduleEvent.uri, fileContents);
+                                                })
+                                            );
+                                        case 'unlink':
+                                            this.renderer.unregisterTemplate(moduleNamespace + moduleEvent.uri);
+                                            return EMPTY;
+                                    }
+                                case 'partial-changed':
+                                    switch(moduleEvent.fileEvent) {
+                                        case 'add':
+                                        case 'change':
+                                            return from(fs.readFile(moduleEvent.path, 'utf-8')).pipe(
+                                                map((fileContents) => {
+                                                    this.renderer.registerPartial(moduleNamespace + moduleEvent.uri, fileContents);
+                                                })
+                                            );
+                                        case 'unlink':
+                                            this.renderer.unregisterPartial(moduleNamespace + moduleEvent.uri);
+                                            return EMPTY;
+                                    }
+                                case 'handlebars-helper-changed':
+                                    this.renderer.registerHelper(moduleNamespace + moduleEvent.name, moduleEvent.helper);
+                                    return EMPTY;
 
-        return concat(
-            buildEvents,
-            moduleInstance.moduleEvents.pipe(
-                tap((moduleEvent) => {
-                    defer(() => {
-                        switch(moduleEvent.eCategory) {
-                            case 'hypermedia':
-                                switch(moduleEvent.eType) {
-                                    case 'resource-changed':
-                                        switch(moduleEvent.fileEvent) {
-                                            case 'add':
-                                            case'change':
-                                                return from(fs.readFile(moduleEvent.path, 'utf-8')).pipe(
-                                                    map((fileContents) => {
-                                                        this.hypermedia.loadResource(`/` + moduleEvent.uri, JSON.parse(fileContents), 'fs');
-                                                        this.hypermedia.processResource(moduleEvent.uri);
-                                                    })
-                                                );
-                                            case 'unlink':
-                                                this.hypermedia.unloadResource(moduleEvent.uri);
-                                                return EMPTY;
-                                        }
-                                    case 'processor-factory-changed':
-                                        this.processorFactories.set(moduleNamespace + moduleEvent.name, moduleEvent.processorFactory);
-                                        return EMPTY;
-                                }
-                            case 'renderer':
-                                switch(moduleEvent.eType) {
-                                    case 'template-changed':
-                                        switch(moduleEvent.fileEvent) {
-                                            case 'add':
-                                            case 'change':
-                                                return from(fs.readFile(moduleEvent.path, 'utf-8')).pipe(
-                                                    map((fileContents) => {
-                                                        this.renderer.registerTemplate(moduleNamespace + moduleEvent.uri, fileContents);
-                                                    })
-                                                );
-                                            case 'unlink':
-                                                this.renderer.unregisterTemplate(moduleNamespace + moduleEvent.uri);
-                                                return EMPTY;
-                                        }
-                                    case 'partial-changed':
-                                        switch(moduleEvent.fileEvent) {
-                                            case 'add':
-                                            case 'change':
-                                                return from(fs.readFile(moduleEvent.path, 'utf-8')).pipe(
-                                                    map((fileContents) => {
-                                                        this.renderer.registerPartial(moduleNamespace + moduleEvent.uri, fileContents);
-                                                    })
-                                                );
-                                            case 'unlink':
-                                                this.renderer.unregisterPartial(moduleNamespace + moduleEvent.uri);
-                                                return EMPTY;
-                                        }
-                                    case 'handlebars-helper-changed':
-                                        this.renderer.registerHelper(moduleNamespace + moduleEvent.name, moduleEvent.helper);
-                                        return EMPTY;
+                                case 'profile-layout-changed':
+                                    this.renderer.setProfileLayout(moduleEvent.profile, moduleEvent.layoutUri);
+                                    return EMPTY;
+                            }
 
-                                    case 'profile-layout-changed':
-                                        this.renderer.setProfileLayout(moduleEvent.profile, moduleEvent.layoutUri);
-                                        return EMPTY;
-                                }
-                        }
-                    }).subscribe();
-                })
-            )
+                        case 'build':
+                            switch(moduleEvent.eType) {
+                                case 'task-definition-changed':
+                                    this.build.addTaskDefinition(moduleNamespace + moduleEvent.taskDefinition.name, moduleEvent.taskDefinition);
+                                    return EMPTY;
+                            }
+                    }
+                }).subscribe();
+            }),
+            concatMap((moduleEvent) => {
+                if(moduleEvent.eCategory === 'module'
+                    && moduleEvent.eType === 'initialized'
+                    && moduleInstance.module.build 
+                    && moduleInstance.module.build.buildSteps) {
+
+                    return this.build.build(moduleInstance.module.build.buildSteps, moduleInstance.modulePath);
+                }
+
+                return of(moduleEvent);
+            }),
         );
     }
 
