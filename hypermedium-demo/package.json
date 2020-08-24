@@ -4,5 +4,6 @@
     "description": "hypermedium demo",
     "main": "index.js",
     "dependencies": {
+        "sanitize.css": "^12.0.1"
     }
 }

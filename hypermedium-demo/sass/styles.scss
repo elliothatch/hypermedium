@@ -1,0 +1,30 @@
+@use 'sanitize.css/sanitize';
+
+header {
+	width: 100%;
+	display: flex;
+	justify-content: center;
+}
+
+main {
+	display: grid;
+	grid-template-columns:
+		[full-start] minmax(1em, 1fr)
+		[main-start] minmax(0, 40em)
+		[main-end] minmax(1em, 1fr)
+		[full-end];
+}
+
+main > * {
+	grid-column: main;
+}
+
+.full-width {
+	grid-column: full;
+}
+
+footer {
+	width: 100%;
+	display: flex;
+	justify-content: center;
+}

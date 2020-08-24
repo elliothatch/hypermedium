@@ -2,6 +2,7 @@ import { Plugin } from 'hypermedium';
 
 import { handlebarsHelpers } from './handlebars';
 import { processorFactories } from './processors';
+import { taskDefinitions } from './task-definitions';
 
 export interface CoreOptions {
 }
@@ -22,10 +23,14 @@ const corePlugin: Plugin<CoreOptions> = {
                 partialPaths: ['partials'],
                 handlebarsHelpers,
                 profileLayouts: {
-					'/schema/post': 'layouts/post.hbs',
+                    '/schema/post': 'layouts/post.hbs',
                     '/schema/index/schema/post': 'layouts/index.hbs',
+                    '/schema/index/tags': 'layouts/index.hbs',
                     '/schema/index/schema/index/tags': 'layouts/tags-index.hbs',
                 }
+            },
+            build: {
+                taskDefinitions,
             }
         };
     },

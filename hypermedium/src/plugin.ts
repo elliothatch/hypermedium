@@ -67,6 +67,8 @@ export type Module = Partial<{
         partialPaths: string[];
         handlebarsHelpers: {[name: string]: HelperDelegate};
         profileLayouts: ProfileLayoutMap;
+        /** every property in this object is assigned to the handlebars context object */
+        context: {[property: string]: any};
     }>;
 
     build: Partial<{
@@ -141,7 +143,7 @@ export namespace Module {
             }
         }
 
-        export type Renderer = Renderer.TemplateChanged | Renderer.PartialChanged | Renderer.HandlebarsHelperChanged | Renderer.ProfileLayoutChanged;
+        export type Renderer = Renderer.TemplateChanged | Renderer.PartialChanged | Renderer.HandlebarsHelperChanged | Renderer.ProfileLayoutChanged | Renderer.ContextChanged;
         export namespace Renderer {
             export interface Base {
                 eCategory: 'renderer';
@@ -171,6 +173,11 @@ export namespace Module {
                 eType: 'profile-layout-changed';
                 profile: string;
                 layoutUri: string;
+            }
+
+            export interface ContextChanged extends Base {
+                eType: 'context-changed';
+                context: {[property: string]: any};
             }
         }
 

@@ -1,9 +1,19 @@
 {
 	"private": true,
-	"workspaces": ["hypermedium", "hypermedium-core", "hypermedium-demo"],
+	"workspaces": {
+		"packages": [
+			"hypermedium",
+			"hypermedium-core",
+			"hypermedium-sass",
+			"hypermedium-demo"
+		],
+		"nohoist": ["hypermedium-demo/sanitize.css"]
+	},
 	"scripts": {
 		"build": "./node_modules/.bin/tsc -b .",
 		"start": "node ./hypermedium/build/index.js",
+		"dev": "sift node ./hypermedium/build/index.js",
+		"demo": "sift node ./hypermedium/build/index.js -S -s hypermedium-demo/dist",
         "debug": "node --inspect-brk ./hypermedium/build/index.js"
 	}
 }

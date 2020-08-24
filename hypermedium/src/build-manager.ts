@@ -76,12 +76,12 @@ export class BuildManager {
                 };
 
                 taskLogger.info('Process files', fileOptions);
-                return taskDefinition.func(
+                return from(taskDefinition.func(
                     fileOptions.inputs,
                     fileOptions.outputs,
                     fileOptions.options,
                     taskLogger
-                );
+                ));
             })
         )).pipe(
             map((result) => ({

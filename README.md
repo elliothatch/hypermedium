@@ -250,3 +250,7 @@ concerns:
  	 - does the module really need to customize the build steps? can't it have a "defaultBuildSteps" returned in loadPlugin, and then allow user to customize the build steps from there?
  	 - concern: how do the paths get set if a mirrored instance is created? it is prepended to buildSteps regardless? think about the user's site-plugin. we may want to include files outside of the plugin (dependencies)
  	 - note: TaskDefinitions are NOT customizable by module factory, and can be used as soon as the module is loaded.
+
+
+# demo
+We use nohoist for build assets in the demo workspace, so the sass includePath is the same as if you downloaded and modified the demo package directly.

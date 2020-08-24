@@ -58,7 +58,7 @@ export class Hypermedium {
     /** build the module if necessary, then subscribe to moduleEvents
      * @param namespace - if provided, will override the default namespace (moduleInstance.name)
      * */
-    public registerModule(moduleInstance: Module.Instance, namespace?: string): Observable<Module.Event | Build.Event> {
+    public registerModule(moduleInstance: Module.Instance, namespace?: string): Observable<Module.Event | ({eCategory: 'build-event'} & Build.Event)> {
         let moduleNamespace = namespace != null? namespace: moduleInstance.name;
         if(moduleNamespace.length > 0) {
             moduleNamespace += '/';
@@ -128,6 +128,14 @@ export class Hypermedium {
                                 case 'profile-layout-changed':
                                     this.renderer.setProfileLayout(moduleEvent.profile, moduleEvent.layoutUri);
                                     return EMPTY;
+                                case 'context-changed':
+                                    if(moduleNamespace) {
+                                        this.renderer.siteContext = Object.assign(this.renderer.siteContext, {[moduleNamespace]: moduleEvent.context});
+                                    }
+                                    else {
+                                        this.renderer.siteContext = Object.assign(this.renderer.siteContext, moduleEvent.context);
+                                    }
+                                    return EMPTY;
                             }
 
                         case 'build':
@@ -145,7 +153,12 @@ export class Hypermedium {
                     && moduleInstance.module.build 
                     && moduleInstance.module.build.buildSteps) {
 
-                    return this.build.build(moduleInstance.module.build.buildSteps, moduleInstance.modulePath);
+                    return this.build.build(moduleInstance.module.build.buildSteps, moduleInstance.modulePath).pipe(
+                        map((buildEvent) => ({
+                            eCategory: 'build-event' as const,
+                            ...buildEvent
+                        }))
+                    );
                 }
 
                 return of(moduleEvent);

@@ -207,6 +207,14 @@ export class PluginManager {
                         }));
                         moduleEventSources.push(from(profileEvents));
                     }
+
+                    if(module.renderer.context) {
+                        moduleEventSources.push(of({
+                            eCategory: 'renderer' as const,
+                            eType: 'context-changed' as const,
+                            context: module.renderer.context,
+                        }));
+                    }
                 }
 
                 if(module.build) {

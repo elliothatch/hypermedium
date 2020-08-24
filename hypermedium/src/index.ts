@@ -29,16 +29,114 @@ import { PluginManager } from './plugin-manager';
 
 import { server } from './server';
 
-// import * as Minimist from 'minimist';
+import * as Minimist from 'minimist';
 
-/** freshr may be used as a library or a script */
+/** hypermedium may be used as a library or a script */
 if(require.main === module) {
+    HypermediumCmd(process.argv.slice(2));
+}
+
+export function HypermediumCmd(argv: string[]) {
     Log.handlers.get('trace')!.enabled = true;
 
-    // run as a script
+    const args = Minimist(argv);
+
+    const commands = [{
+        flags: ['h', 'help'],
+        fn: (args: Minimist.ParsedArgs) => {
+            const execName = 'hypermedium';
+            const usageStrings = commands.map((command) => {
+                const flags = command.flags.map((flag) => (flag.length > 1? '--': '-') + flag).join(' ');
+                const flagArg = command.argName? ' ' + command.argName: '';
+                const unamedArgs = command.unamedArgs? (' ' + command.unamedArgs + '...'):'';
+                const options = command.options? ' [options]': '';
+                return `   ${execName} {${flags}}${flagArg}${options}${unamedArgs}`;
+            });
+
+            console.error(`usage: ${execName} <command> [...]`);
+            console.error(usageStrings.join('\n'));
+            return 1;
+        }
+    }, {
+        flags: ['O', 'output'],
+        argName: 'OUTPUT_DIR',
+        unamedArgs: 'PLUGINS',
+        options: true,
+        fn: (args: Minimist.ParsedArgs) => {
+            return 0;
+        }
+    }, {
+        flags: ['S', 'server'],
+        unamedArgs: 'PLUGINS',
+        options: true,
+        fn: (args: Minimist.ParsedArgs) => {
+            // TODO: get list of plugins, plugin-lookup dirs (e.g. node_modules)
+            // const hypermedium = new Hypermedium();
+            let staticMappingStrs: string | string[] = args['s'] || args['static'] || [];
+            if(!Array.isArray(staticMappingStrs)) {
+                staticMappingStrs = [staticMappingStrs];
+            }
+
+            const staticMappings = staticMappingStrs.map((mapping) => {
+                const parts = mapping.split(':');
+                if(parts.length === 1) {
+                    return {
+                        path: parts[0],
+                        uri: '/',
+                    };
+                }
+                else if(parts.length === 2) {
+                    return {
+                        path: parts[0],
+                        uri: parts[1],
+                    };
+                }
+
+                throw new Error(`Invalid static mapping: ${mapping}`);
+            });
+
+            initializeHypermedium(staticMappings);
+            // return 0;
+        }
+    }];
+
+    const options = [{
+        flags: ['p', 'pluginDir'],
+        // commandsAllowed: [],
+        description: 'Add this path to the list of directories to search when loading plugins.\nSpecify this option multiple times to add multiple directories.',
+        defaultValue: ['.', 'node_modules'],
+    }, {
+        flags: ['s', 'static'],
+        description: 'Format: <path>:<uri>\nMap the file or directory to a static uri in the output or server, If it is a directory, include all contents recursively.',
+    // }, {
+        // flags: ['m', 'main'],
+        // description: 'Load the plugin as a "main" plugin. ',
+    }];
+
+    const flags = Object.keys(args);
+    for(let command of commands) {
+        if(command.flags.some((flag) => flags.includes(flag))) {
+            const code = command.fn(args);
+            if(code != null) {
+                process.exit(code);
+            }
+            return;
+        }
+    }
+
+    // no command specified: default command
+    const code = commands[0].fn(args);
+    if(code != null) {
+        process.exit(code);
+    }
+}
+
+// temp function
+function initializeHypermedium(staticMappings: StaticMapping[]) {
     // const commandLine = Minimist(process.argv.slice(2));
     const demoPath = Path.join(__dirname, '..', '..', 'hypermedium-demo');
     const corePath = Path.join(__dirname, '..', '..', 'hypermedium-core');
+    const sassPath = Path.join(__dirname, '..', '..', 'hypermedium-sass');
 
     // initialize freshr
     const hypermedium = new Hypermedium();
@@ -69,9 +167,10 @@ if(require.main === module) {
     // temporary: test plugin loading
     const demoPlugin = hypermedium.pluginManager.loadPlugin(demoPath);
     const corePlugin = hypermedium.pluginManager.loadPlugin(corePath);
+    const sassPlugin = hypermedium.pluginManager.loadPlugin(sassPath);
 
     // TODO: wait until 'initialized' event before loading next plugin
-    from([corePlugin, demoPlugin]).pipe(
+    from([corePlugin, sassPlugin, demoPlugin]).pipe(
         mergeMap((plugin) => {
             return hypermedium.pluginManager.createModule(plugin.plugin.name, plugin.plugin.name, {}).pipe(
                 mergeMap((moduleInstance) => {
@@ -94,10 +193,19 @@ if(require.main === module) {
     ).subscribe({
         next: ({moduleInstance, event}) => {
             if(event.eType === 'resource-changed') {
-                Log.info(`${moduleInstance.name}: ${event.fileEvent} HAL resource: ${event.uri}`, {event, moduleInstance});
+                Log.info(`${moduleInstance.name}: ${event.fileEvent} HAL resource: ${event.uri}`, {event, moduleInstance: {name: moduleInstance.name, modulePath: moduleInstance.modulePath}});
+            }
+            else if(event.eCategory === 'build-event') {
+                // TODO: print nicer, use correct log levels
+                const message = event.eType === 'log'?
+                    ' ' + event.log.message:
+                    event.eType === 'error'?
+                    ' ' + event.error.message:
+                    '';
+                Log.trace(`${moduleInstance.name}: ${event.eCategory} ${event.eType}${message}`, {event, moduleInstance: {name: moduleInstance.name, modulePath: moduleInstance.modulePath}});
             }
             else {
-                Log.trace(`${moduleInstance.name}: ${event.eType}: ${(event as any).name || (event as any).uri || (event as any).profile || ''}`, {event, moduleInstance});
+                Log.trace(`${moduleInstance.name}: ${event.eType}: ${(event as any).name || (event as any).uri || (event as any).profile || ''}`, {event, moduleInstance: {name: moduleInstance.name, modulePath: moduleInstance.modulePath}});
             }
         },
         error: (error) => {
@@ -107,6 +215,11 @@ if(require.main === module) {
 
     // set up the http server
     const app = Express();
+
+    staticMappings.forEach((mapping) => {
+        app.use(mapping.uri, Express.static(mapping.path));
+    });
+
     app.use(hypermedium.renderer.router);
     app.use(hypermedium.hypermedia.router);
 
@@ -128,4 +241,9 @@ interface FreshrCmdOptions {
     pluginNames: string[];
     /** context used in HTML templating */
     siteContext: any;
+}
+
+interface StaticMapping {
+    path: string;
+    uri: string;
 }

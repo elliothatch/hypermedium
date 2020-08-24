@@ -7,20 +7,21 @@
 		<title>{{#if title}}{{title}} | {{/if}}{{_site.title}}</title>
 		<meta name="viewport" content="width=device-width">
 
-		<link rel="stylesheet" href="/css/freshr.css">
+		{{#> includes/head.hbs }}
+		{{/ includes/head.hbs }}
 	</head>
 	<body>
 		<script>
 			window.freshrResource = {{ json-stringify this }};
 		</script>
 		{{> includes/header.hbs }}
-		<div class="page-content">
+		<main>
 			{{#> (lookup _site 'layout') }}
 				{{#> layouts/default.hbs }}
 					<!-- no layout found -->
 				{{/ layouts/default.hbs }}
 			{{/ undefined }}
-		</div>
+		</main>
 		{{> includes/footer.hbs }}
 	</body>
 </html>

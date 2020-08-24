@@ -1,5 +1,4 @@
 import * as Path from 'path';
-import * as fs from 'fs-extra';
 import { from, Observable } from 'rxjs';
 
 import { Logger } from 'freshlog';
@@ -80,7 +79,7 @@ export type Status =  Step & {
 /** function that performs a build task (e.g. compiles sass into css)
  * @returns data describing the result. This will be included in the build log.
  */
-export type TaskDefinitionFn = (inputs: FileMap, outputs: FileMap, options: any, logger: Logger) => Observable<any>;
+export type TaskDefinitionFn = (inputs: FileMap, outputs: FileMap, options: any, logger: Logger) => Promise<any>;
 
 /**
  * blueprint for a type of task (copy, compile sass)
@@ -95,43 +94,6 @@ export interface TaskDefinition<T = undefined> {
     inputs: {[name: string]: FileSpec.Input};
     /* maps the name of each output group to a file spec */
     outputs: {[name: string]: FileSpec.Output};
-}
-
-export namespace TaskDefinition {
-    export const Clean: TaskDefinition = {
-        name: 'clean',
-        description: 'Delete a file or directory',
-        func: (inputs, outputs, options, logger) => {
-            logger.info("Removing '" + inputs.target[0] + "'");
-            return from(fs.remove(inputs.target[0]));
-        },
-        inputs: {
-            target:  {
-                count: [1],
-            }
-        },
-        outputs: {}
-    };
-
-    export const Copy: TaskDefinition = {
-        name: 'copy',
-        description: 'Copy a file or directory',
-        func: (inputs, outputs, options, logger) => {
-            logger.info("Copying '" + inputs.target[0] + "' to '" + outputs.destination[0] + "'");
-            return from(fs.copy(inputs.target[0], outputs.destination[0]));
-        },
-        inputs: {
-            target: {
-                count: 1,
-            }
-        },
-        outputs: {
-            destination: {
-                count: 1,
-                hint: '{0}'
-            }
-        }
-    };
 }
 
 export interface StepLog {

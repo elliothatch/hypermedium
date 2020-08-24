@@ -3,6 +3,7 @@
 	"include": [],
 	"references": [
 		{ "path": "./hypermedium" },
-		{ "path": "./hypermedium-core" }
+		{ "path": "./hypermedium-core" },
+		{ "path": "./hypermedium-sass" }
 	]
 }
