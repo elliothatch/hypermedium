@@ -1,9 +1,19 @@
 {
-    "name": "hypermedium-demo",
-    "version": "0.1.0",
-    "description": "hypermedium demo",
-    "main": "index.js",
-    "dependencies": {
-        "sanitize.css": "^12.0.1"
-    }
+	"name": "hypermedium-demo",
+	"version": "0.1.0",
+	"description": "hypermedium demo",
+	"main": "index.js",
+	"scripts": {
+		"start": "node_modules/.bin/hypermedium -S -s dist",
+		"dev": "sift node_modules/.bin/hypermedium -S -s dist",
+		"static": "node_modules/.bin/hypermedium -O static -s dist"
+	},
+	"dependencies": {
+		"sanitize.css": "^12.0.1",
+		"hypermedium-core": "^0.1.0",
+		"hypermedium-sass": "^0.1.0"
+	},
+	"devDependencies": {
+		"hypermedium": "^0.1.0"
+	}
 }

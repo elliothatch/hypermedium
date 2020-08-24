@@ -1,7 +1,7 @@
 /**
  * The difference between partials and templates:
  * In handlebars, a template is the base of an HTML page, while a partial is a snippet of HTML that can be injected into a template.
- * In freshr, templates and partials are applied to HAL resources in distinct ways. Partials that are used as layout are associated with a resource based on its `profile` field. This allows you to reuse layouts for common types of resources (e.g. a blog post with profile `/schema/post` is expected to have certain fields [name, body, author, etc.]. by associating a this profile with a layout, we can quickly create new posts without needing to worry about how to generate the HTML to display a post)
+ * In hypermedium, templates and partials are applied to HAL resources in distinct ways. Partials that are used as layout are associated with a resource based on its `profile` field. This allows you to reuse layouts for common types of resources (e.g. a blog post with profile `/schema/post` is expected to have certain fields [name, body, author, etc.]. by associating a this profile with a layout, we can quickly create new posts without needing to worry about how to generate the HTML to display a post)
  * In contrast, templates can be thought of as "themes" for an entire website, and are selected by configuring URL routing paths with expressjs. While multiple websites can easily share the same partial layout, templates dictate the look and feel of the website "around" the blog post, and thus are not selected based on the content of the HAL resource.
  * You can still acheive powerful profile-based templating through the use of layouts by using a minimal template and very large layout partials, but templates allow the look of a website to remain consistent for many different types of resources.
  */
@@ -217,7 +217,7 @@ export namespace HtmlRenderer {
         hypermedia: HypermediaEngine;
         defaultTemplate?: HAL.Uri;
         /** provides dynamic context data that can be accessed in partials as the "_site" object
-         * e.g. providing the object {title: "freshr"} allows you to use {{_site.title}} in a partial to display "freshr"
+         * e.g. providing the object {title: "hypermedium"} allows you to use {{_site.title}} in a partial to display "hypermedium"
          * WARNING: if the underlying HAL resource contains a "_site" property on the root object, it will override these values
          * TODO: only partially override (e.g. keep _site.title if the HAL only contains {_site: {author: "elliot"}}
          */

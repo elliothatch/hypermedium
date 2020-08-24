@@ -25,7 +25,7 @@ export class Hypermedium {
 
     public processorFactories: Map<string, ProcessorFactory>;
 
-    constructor(options?: Partial<Freshr.Options>) {
+    constructor(options?: Partial<Hypermedium.Options>) {
         this.pluginManager = new PluginManager();
         this.hypermedia = new HypermediaEngine(Object.assign(
             {
@@ -178,7 +178,7 @@ export class Hypermedium {
     }
 }
 
-export namespace Freshr {
+export namespace Hypermedium {
     export interface Options {
         hypermedia: Partial<HypermediaEngine.Options>;
         renderer: Partial<HtmlRenderer.Options>;

@@ -9,7 +9,7 @@ import * as BuildManager from './build';
 // TODO: should plugins be able to provide options for their dependencies, or otherwise control how their dependencies are initialized?
 // TODO: include a way for plugins to describe the npm modules they require, for auto-installation. This should be a separate file (package.json), so the plugin file can import dependencies outside of the module factory?
 
-/** Freshr functionality can be extended via modules. a Plugin describes how to create a module by defining a ModuleFactory */
+/** Hypermedium functionality can be extended via modules. a Plugin describes how to create a module by defining a ModuleFactory */
 export class Plugin<T = any> {
     /** unique identifier of the plugin */
     @validate()
@@ -45,7 +45,7 @@ export namespace Plugin {
     }
 }
 
-/** The moduleFactory of a Plugin returns a Module that can be registered to extend freshr
+/** The moduleFactory of a Plugin returns a Module that can be registered to extend hypermedium
  * all paths are relative to Plugin.baseUrl
  */
 export type Module = Partial<{
@@ -88,9 +88,9 @@ export namespace Module {
         /** absolute path to the root directory of the module. all Module paths are relative to this path
          * created by combining Plugin.basePath with Options.instancePath */
         modulePath: string;
-        /** communicate when any resource, asset, or setting in the module has been added, changed, or removed. Freshr subscribes to moduleEvents on module initialization to register the plugin in freshr's hypermedia and render engines.
+        /** communicate when any resource, asset, or setting in the module has been added, changed, or removed. hypermedium subscribes to moduleEvents on module initialization to register the plugin in hypermedium's hypermedia and render engines.
          * NOTE that Build events are NOT included in the moduleEvents stream. This is because the module may need to be built before it is used.
-         * Freshr must register task definitions and perform the build BEFORE moduleEvents is subscribed to.
+         * Hypermedium must register task definitions and perform the build BEFORE moduleEvents is subscribed to.
          * Task definitions MUST be registered before the build is started, as the plugin may use its own task definitions in its build steps.
          */
         moduleEvents: Observable<Module.Event>;

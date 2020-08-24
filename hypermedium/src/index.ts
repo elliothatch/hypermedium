@@ -138,7 +138,7 @@ function initializeHypermedium(staticMappings: StaticMapping[]) {
     const corePath = Path.join(__dirname, '..', '..', 'hypermedium-core');
     const sassPath = Path.join(__dirname, '..', '..', 'hypermedium-sass');
 
-    // initialize freshr
+    // initialize hypermedium
     const hypermedium = new Hypermedium();
 
     hypermedium.hypermedia.event$.subscribe({
@@ -234,7 +234,7 @@ function initializeHypermedium(staticMappings: StaticMapping[]) {
     // generate a static site
 }
 
-interface FreshrCmdOptions {
+interface HypermediumCmdOptions {
     /** list of paths that will be used as a base directory for plugin lookups */
     pluginsPaths: string[];
     /** list of plugins to load. will be searched for in pluginsPaths */
