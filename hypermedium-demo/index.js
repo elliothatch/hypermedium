@@ -50,6 +50,7 @@ const demoPlugin = {
 						// include node_modules so we can @use any installed package (e.g. sanitize.css)
 						includePaths: [Path.join(__dirname, 'node_modules')]
 					},
+					watch: true,
 					files: [{
 						inputs: {target: ['sass/styles.scss']},
 						outputs: {

@@ -1,13 +1,16 @@
 # Hypermedium
 Hypermedium is a NodeJs tool for creating static and dynamic websites.
 
+## Hypermedium is alpha software. It may have bugs, and APIs and functionality are subject to change over the course of development.
+### The Plugin API will remain as stable as possible, but until the release of Hypermedium v1.0.0, breaking changes may be introduced if deemed necessary.
+
  - Let hypermedia processors do the hard work by enhancing your pages with dynamic data--whether that's creating an index of all your posts or displaying your users' latest comments.
  - Maintain full creative control over the look and feel of your site with the fully customizable HTML renderer, built on the [Handlebars](https://handlebarsjs.com/) template engine.
  - Utilize 3rd party tools like [Sass](https://sass-lang.com/) to perform advanced asset preprocessing with the build manager.
 
 
 # Overview
-Core goals:
+Features:
  - Simple templating: Create a template for the overall structure of your site, then further customize how specific types of posts are displayed with the layout system.
  - Fully customizable: Hypermedium completely separates the data that makes up your posts and how they are presented in your web browser, giving you full control over how your website looks, even when extending it with plugins.
  - Extendable: Plugins are simple to integrate into your site and easy to create using modern Javascript tools and libraries. Since the core resources of your site are just JSON objects, plugins can build on each other and enrich your pages without relying on hardcoded HTML or complex hooks.
@@ -31,6 +34,28 @@ The flexible plugin system allows you to extend any part of your website by enha
 The live dashboard gives you full control over your website. This is where you create, edit, and publish posts. You can also manage plugins, processors, templates, layouts, and build tasks.
 
 # Roadmap
+The ultimate goal for Hypermedium is to provide a friendly, WYSIWYG user experience that can be used by anyone to build fully featured, dynamic websites.
+This experience will be delivered through a live web dashboard (implemented as a Hypermedium plugin), similar to other popular CMSs.
+
+The primary use case is for blogs and focused websites whose main purpose is to deliver content or information to their audence.
+Hypermedium should also enable two-way communication between a creator and their community, through comments, a forum, storefront, etc.
+
+From a technical standpoint, Hypermedium is focused two separate, but related tasks:
+1. Building a network of interconnected resources.
+2. Presenting those resources to people as a tailored, cohesive experience.
+
+Let's talk about how Hypermedium approaches each of these tasks.
+
+## Building a network of resources
+
+# Presentation
+
+There are already many excellent tools for building different types of websites, but these tools are almost exclusively focused on delivering HTML to be viewed through a web browser.
+Hypermedium aims to create a data-driven foundation for managing web content, assets, and interactions in a format easily understood by humans and interpreted by programs, to give users the most possible freedom in how they present that information.
+Whenever possible, it should leverage existing web standards ([HAL](http://stateless.co/hal_specification.html), [schema.org](https://schema.org/), etc.).
+
+
+## Planned Feature
  - HAL API extension
  	- Plugins can add HTTP and Websocket APIs that are exposed through a standarized HAL extension.
  - Data sources
@@ -55,6 +80,8 @@ The live dashboard gives you full control over your website. This is where you c
  	- Forum
  	- Storefront
 
+## Technical Goals
+
 # Get Started
 Starter repo coming soon! In the meantime, you can follow these steps to get started:
 
@@ -74,10 +101,13 @@ It is highly recommended to run the Hypermedium server with [sift-cli](https://w
 See the tutorial (coming soon) for a full overview of Hypermedium's functionality and plugin structure.
 
 ## Other usage
-Hypermedium can also be used as a library.
+Hypermedium can also be used as a library. The commandline version of Hypermedium offers a limited, application focused set of configurablility provided by Hypermedium and the Plugin Manager. My goal is to eventually close the gap between the commandline and library interfaces, primarily through extensions to the Plugin API.
+
+After instantiating the `Hypermedium` class, you can use `hypermedia.router` and `renderer.router` in your Express app.
+
 
 # API Reference
-TODO: technical overview of the different systems involved, plugin structure, intended usage such as layout format, etc.
+TODO: technical overview of the different systems involved, plugin structure, intended usage such as layout format, etc.  
 TODO: full API documentation with typedoc
 
 # Development
@@ -90,7 +120,7 @@ yarn
 
 ## Build
 ```
-yarn build`
+yarn build
 ```
 
 ## Run demo

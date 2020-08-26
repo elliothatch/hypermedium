@@ -1,9 +1,88 @@
 @use 'sanitize.css/sanitize';
 
+$fg-main: #000000;
+$bg-main: #ffffff;
+
+$fg-primary: #6F00D9;
+$bg-primary: #ffffff;
+
+$fg-accent: #770000;
+$bg-accent: #ffffff;
+
+html {
+	height: 100%;
+}
+
+body {
+	min-height: 100%;
+	display: grid;
+	grid-template-rows:
+	[header-start] auto
+	[header-end main-start] 1fr
+	[main-end footer-start] auto
+	[body-end footer-end];
+
+	background: $bg-main;
+	color: $fg-main;
+
+	font-family: sans-serif;
+}
+
+a {
+	background: $bg-primary;
+	color: $fg-primary;
+
+	text-decoration: none;
+
+	&:hover {
+		text-decoration: underline;
+	}
+}
+
+button {
+	background: $fg-primary;
+	color: $bg-primary;
+}
+
 header {
-	width: 100%;
-	display: flex;
-	justify-content: center;
+	display: grid;
+	grid-template-columns:
+		[title-start] minmax(1em, auto)
+		[title-end] minmax(1em, 1fr)
+		[nav-start] minmax(1em, auto)
+		[nav-end];
+
+	background: $fg-primary;
+	color: $bg-primary;
+
+	h1 {
+		padding-left: 1em;
+		padding-right: 1em;
+	}
+
+	a {
+		background: $fg-primary;
+		color: $bg-primary;
+
+		text-decoration: none;
+
+		&:hover {
+			text-decoration: underline;
+		}
+	}
+
+	nav {
+		display: flex;
+		margin-left: 1em;
+		margin-right: 1em;
+
+		align-items: center;
+
+		a {
+			margin-left: 0.4em;
+			margin-right: 0.4em;
+		}
+	}
 }
 
 main {
@@ -13,6 +92,10 @@ main {
 		[main-start] minmax(0, 40em)
 		[main-end] minmax(1em, 1fr)
 		[full-end];
+
+	grid-auto-rows: max-content;
+
+	margin-top: 1em;
 }
 
 main > * {
@@ -24,7 +107,12 @@ main > * {
 }
 
 footer {
+	grid-row-start: 'footer-start';
+	grid-row-end: 'footer-end';
 	width: 100%;
 	display: flex;
 	justify-content: center;
+
+	background: $fg-primary;
+	color: $bg-primary;
 }

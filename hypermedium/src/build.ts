@@ -29,6 +29,11 @@ export interface Task {
         outputs: FileMap,
         options?: object
     }>;
+
+    /** if true, watch the input files for changes and automatically rerun this task when a change is detected.
+     * the watch is registered when task is used in build().
+     * if there already exists a watch with the same path and definition, a new one will not be registered */
+    watch?: boolean;
 }
 
 /**

@@ -21,7 +21,7 @@ export class Hypermedium {
     public build: BuildManager;
 
     protected pluginFileEvent$: Subject<Observable<WatchEvent>>;
-    public watchEvent$: Observable<WatchEvent>;
+    // public watchEvent$: Observable<WatchEvent>;
 
     public processorFactories: Map<string, ProcessorFactory>;
 
@@ -50,9 +50,9 @@ export class Hypermedium {
         this.processorFactories = new Map();
 
         this.pluginFileEvent$ = new Subject();
-        this.watchEvent$ = this.pluginFileEvent$.pipe(
-            mergeAll()
-        );
+        // this.watchEvent$ = this.pluginFileEvent$.pipe(
+            // mergeAll()
+        // );
     }
 
     /** build the module if necessary, then subscribe to moduleEvents
@@ -153,6 +153,7 @@ export class Hypermedium {
                     && moduleInstance.module.build 
                     && moduleInstance.module.build.buildSteps) {
 
+                    // TODO: deal with unwatching files on module unregister
                     return this.build.build(moduleInstance.module.build.buildSteps, moduleInstance.modulePath).pipe(
                         map((buildEvent) => ({
                             eCategory: 'build-event' as const,

@@ -48,7 +48,7 @@ export function HypermediumCmd(argv: string[]) {
             const usageStrings = commands.map((command) => {
                 const flags = command.flags.map((flag) => (flag.length > 1? '--': '-') + flag).join(' ');
                 const flagArg = command.argName? ' ' + command.argName: '';
-                const unamedArgs = command.unamedArgs? (' ' + command.unamedArgs + '...'):'';
+                const unamedArgs = command.unamedArgs? (' ' + command.unamedArgs):'';
                 const options = command.options? ' [options]': '';
                 return `   ${execName} {${flags}}${flagArg}${options}${unamedArgs}`;
             });
@@ -60,14 +60,14 @@ export function HypermediumCmd(argv: string[]) {
     }, {
         flags: ['O', 'output'],
         argName: 'OUTPUT_DIR',
-        unamedArgs: 'PLUGINS',
+        unamedArgs: '<plugin(s)>',
         options: true,
         fn: (args: Minimist.ParsedArgs) => {
             return 0;
         }
     }, {
         flags: ['S', 'server'],
-        unamedArgs: 'PLUGINS',
+        unamedArgs: '<plugin(s)>',
         options: true,
         fn: (args: Minimist.ParsedArgs) => {
             // TODO: get list of plugins, plugin-lookup dirs (e.g. node_modules)
@@ -103,14 +103,18 @@ export function HypermediumCmd(argv: string[]) {
     const options = [{
         flags: ['p', 'pluginDir'],
         // commandsAllowed: [],
-        description: 'Add this path to the list of directories to search when loading plugins.\nSpecify this option multiple times to add multiple directories.',
+        description: 'Add this path to the list of directories to search when loading plugins.\nThis option may be specified multiple times.',
         defaultValue: ['.', 'node_modules'],
     }, {
         flags: ['s', 'static'],
         description: 'Format: <path>:<uri>\nMap the file or directory to a static uri in the output or server, If it is a directory, include all contents recursively.',
-    // }, {
-        // flags: ['m', 'main'],
-        // description: 'Load the plugin as a "main" plugin. ',
+    }, {
+        flags: ['m', 'main'],
+        description: 'Designate the plugin as a "main" module. Main modules register their assets in the global namespace.\nIf this option is used, the plugin does not need to be specified in the main PLUGINS list.\nThis option may be specified multiple times.',
+        defaultValue: ['core'],
+    }, {
+        flags: [''],
+        description: ''
     }];
 
     const flags = Object.keys(args);
@@ -164,6 +168,12 @@ function initializeHypermedium(staticMappings: StaticMapping[]) {
         }
     });
 
+    hypermedium.build.watchEvents.subscribe({
+        next: (event) => {
+            logBuildEvent({eCategory: 'build-event', ...event});
+        },
+    });
+
     // temporary: test plugin loading
     const demoPlugin = hypermedium.pluginManager.loadPlugin(demoPath);
     const corePlugin = hypermedium.pluginManager.loadPlugin(corePath);
@@ -196,13 +206,7 @@ function initializeHypermedium(staticMappings: StaticMapping[]) {
                 Log.info(`${moduleInstance.name}: ${event.fileEvent} HAL resource: ${event.uri}`, {event, moduleInstance: {name: moduleInstance.name, modulePath: moduleInstance.modulePath}});
             }
             else if(event.eCategory === 'build-event') {
-                // TODO: print nicer, use correct log levels
-                const message = event.eType === 'log'?
-                    ' ' + event.log.message:
-                    event.eType === 'error'?
-                    ' ' + event.error.message:
-                    '';
-                Log.trace(`${moduleInstance.name}: ${event.eCategory} ${event.eType}${message}`, {event, moduleInstance: {name: moduleInstance.name, modulePath: moduleInstance.modulePath}});
+                logBuildEvent(event, moduleInstance);
             }
             else {
                 Log.trace(`${moduleInstance.name}: ${event.eType}: ${(event as any).name || (event as any).uri || (event as any).profile || ''}`, {event, moduleInstance: {name: moduleInstance.name, modulePath: moduleInstance.modulePath}});
@@ -246,4 +250,19 @@ interface HypermediumCmdOptions {
 interface StaticMapping {
     path: string;
     uri: string;
+}
+
+function logBuildEvent(event: Build.Event & {eCategory: 'build-event'}, moduleInstance?: Module.Instance) {
+    // TODO: print nicer, use correct log levels
+    const message = event.eType === 'log'?
+        ' ' + event.log.message:
+        event.eType === 'error'?
+        ' ' + event.error.message:
+        '';
+    if(moduleInstance) {
+        Log.trace(`${moduleInstance.name}: ${event.eCategory} ${event.eType}${message}`, {event, moduleInstance: {name: moduleInstance.name, modulePath: moduleInstance.modulePath}});
+    }
+    else {
+        Log.trace(`${event.eCategory} watch: ${event.eType}${message}`, {event});
+    }
 }

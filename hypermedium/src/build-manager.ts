@@ -1,5 +1,5 @@
-import { defer, Observable, from, of, forkJoin, concat, Subject, merge } from 'rxjs';
-import { map, catchError, toArray, filter, finalize } from 'rxjs/operators';
+import { defer, Observable, from, of, forkJoin, concat, Subject, merge, Subscription } from 'rxjs';
+import { debounceTime, map, mergeMap, catchError, toArray, filter, finalize, skip, tap } from 'rxjs/operators';
 import * as fs from 'fs-extra';
 import * as Path from 'path';
 import { Router, RequestHandler } from 'express';
@@ -7,6 +7,7 @@ import { Router, RequestHandler } from 'express';
 import { Logger, Target, Serializer } from 'freshlog';
 
 import * as Build from './build';
+import { watchFiles } from './util';
 
 /**
  * Static asset build system, e.g. for compiling SASS into CSS, etc.
@@ -17,11 +18,22 @@ export class BuildManager {
     public basePath: string;
     public router: Router;
     public buildSteps: Build.StepMap;
+    public watchDebounceMs: number = 100;
+
+    public watchEvents: Observable<Build.Event>;
+    protected watchSubject: Subject<Build.Event>;
+
+    /** file path -> task definition -> watch entry */
+    protected watchedFiles: Map<string, Map<string, {task: Build.Task, eventSubscription: Subscription}>>;
 
     constructor(basePath: string) {
         this.taskDefinitions = new Map();
 
         this.buildSteps = {};
+        this.watchedFiles = new Map();
+
+        this.watchSubject = new Subject();
+        this.watchEvents = this.watchSubject.asObservable();
 
         this.basePath = basePath;
         this.router = Router();
@@ -35,6 +47,27 @@ export class BuildManager {
 
         this.taskDefinitions.set(name, taskDefinition);
         return taskDefinition;
+    }
+
+    public unwatchFile(path: string, taskDefinition: string): boolean {
+        const watchFile = this.watchedFiles.get(path);
+        if(!watchFile) {
+            return false;
+        }
+
+        const watchEntry = watchFile.get(taskDefinition);
+        if(!watchEntry) {
+            return false;
+        }
+
+        watchEntry.eventSubscription.unsubscribe();
+        watchFile.delete(taskDefinition);
+
+        if(watchFile.size === 0) {
+            this.watchedFiles.delete(path);
+        }
+
+        return true;
     }
 
     protected middleware: RequestHandler = (req, res, next) => {
@@ -81,7 +114,48 @@ export class BuildManager {
                     fileOptions.outputs,
                     fileOptions.options,
                     taskLogger
-                ));
+                )).pipe(
+                    tap((result) => {
+                        if(task.watch) {
+                            Object.keys(fileOptions.inputs).forEach((inputName) => {
+                                fileOptions.inputs[inputName].forEach((inputPath) => {
+                                    let watchFile = this.watchedFiles.get(inputPath);
+                                    if(!watchFile) {
+                                        watchFile = new Map();
+                                        this.watchedFiles.set(inputPath, watchFile);
+                                    }
+
+                                    let watchEntry = watchFile.get(task.definition);
+                                    if(!watchEntry) {
+                                        watchEntry = {
+                                            task,
+                                            eventSubscription: watchFiles(inputPath).pipe(
+                                                skip(1), // skip the first event, which notifies us that the file exists
+                                                debounceTime(this.watchDebounceMs),
+                                                mergeMap((watchEvent) => {
+                                                    return this.buildTask(task, basePath, buildStepPath)
+                                                })
+                                            ).subscribe({
+                                                next: (buildEvent) => {
+                                                    this.watchSubject.next(buildEvent);
+                                                },
+                                                error: (error) => {
+                                                    this.watchSubject.next({
+                                                        buildStepPath,
+                                                        eType: 'error' as const,
+                                                        error
+                                                    });
+                                                }
+                                            })
+                                        };
+
+                                        watchFile.set(task.definition, watchEntry);
+                                    }
+                                });
+                            })
+                        }
+                    })
+                );
             })
         )).pipe(
             map((result) => ({
@@ -128,6 +202,7 @@ export class BuildManager {
     /**
      * Builds the project
      */
+    // TODO: include contextual information about the task (moduleInstance)
     public build(step: Build.Step, basePath?: string, buildStepPath?: number[]): Observable<Build.Event> {
         basePath = basePath || this.basePath;
         buildStepPath = buildStepPath || [];
