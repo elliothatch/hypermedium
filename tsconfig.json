@@ -4,6 +4,7 @@
 	"references": [
 		{ "path": "./hypermedium" },
 		{ "path": "./hypermedium-core" },
-		{ "path": "./hypermedium-sass" }
+		{ "path": "./hypermedium-sass" },
+		{ "path": "./hypermedium-markdown" }
 	]
 }

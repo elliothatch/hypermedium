@@ -11,8 +11,9 @@ import { Graph, Edge } from 'graphlib';
 
 import * as HAL from './hal';
 import { filterCuries, profilesMatch, resourceMatchesProfile, getProfiles } from './hal-util';
-import { createSchema, objectDifference } from './util';
+import { createSchema, NotFoundError, objectDifference } from './util';
 
+// TODO: add log functions to processors
 /** augments a hypermedia site with dynamic properties and resources
  * for example, adds "self" links and "breadcrumb"
  * dynamic resources like comments can be updated with CRUD actions through hypermedia
@@ -22,12 +23,18 @@ import { createSchema, objectDifference } from './util';
 export class HypermediaEngine {
     public router: Router;
     public state: HypermediaEngine.State;
+
+    public processorFactories: Map<string, Processor.Factory>;
+
     public processors: Processor[];
     /** maps relative uri to the original resource loaded from the file system */
     public files: {[uri: string]: string};
 
     /** each loaded resource is stored in the graph, and dependencies between resources are tracked here */
     public resourceGraph: Graph;
+
+    // uri -> processor -> Promise
+    public execAsyncResults: Map<string, Map<Processor, HypermediaEngine.ExecAsyncEntry>>;
 
     public event$: Observable<HypermediaEngine.Event>;
     protected eventSubject!: Subject<HypermediaEngine.Event>;
@@ -44,7 +51,10 @@ export class HypermediaEngine {
             suffix: options.suffix || '.json',
         };
         this.files = {};
+        this.processorFactories = new Map();
         this.processors = options.processors;
+
+        this.execAsyncResults = new Map();
 
         this.eventSubject = new Subject();
         this.event$ = this.eventSubject.pipe(
@@ -54,6 +64,22 @@ export class HypermediaEngine {
 
         this.router = Router();
         this.router.get('/*', this.middleware);
+    }
+
+    public makeProcessor(generatorName: string, options?: any): Processor {
+        const generator = this.processorFactories.get(generatorName);
+        if(!generator) {
+            throw new NotFoundError(generatorName);
+        }
+
+        const processor = generator(options);
+        return processor;
+    }
+
+    public addProcessor(generatorName: string, options?: any): Processor {
+        const processor = this.makeProcessor(generatorName, options);
+        this.processors.push(processor);
+        return processor;
     }
 
     // pagination:
@@ -233,7 +259,17 @@ export class HypermediaEngine {
         // TODO: figure out the normalized uri mess
         const result = this.processors.reduce(
             (d, processor) => {
-                return processor.fn({
+                const execAsyncEntry = this.getExecAsyncResult(normalizedUri, processor);
+                if(execAsyncEntry && execAsyncEntry.result.status !== 'pending') {
+                    // delete the cache
+                    const promiseMap = this.execAsyncResults.get(normalizedUri)!;
+                    promiseMap.delete(processor);
+                    if(promiseMap.size === 0) {
+                        this.execAsyncResults.delete(normalizedUri);
+                    }
+                }
+
+                const resourceState: HypermediaEngine.ResourceState = {
                     ...d, 
                     hypermedia: this,
                     calculateFrom: (dependencyUri: HAL.Uri | HAL.Uri[], fn: HypermediaEngine.CalculateFromResourceFn | HypermediaEngine.CalculateFromResourcesFn): any => {
@@ -282,8 +318,51 @@ export class HypermediaEngine {
                             }
                             this.addDependency(this.normalizeUri(u), normalizedUri, processor)
                         })
-                    }
-                });
+                    },
+                    execAsync: (fn) => {
+                        let processorMap = this.execAsyncResults.get(normalizedUri);
+                        if(!processorMap) {
+                            processorMap = new Map();
+                            this.execAsyncResults.set(normalizedUri, processorMap);
+                        }
+
+                        let promiseStatus: 'pending' | 'resolved' | 'rejected' = 'pending';
+                        const promise = fn().catch((error) => {
+                            promiseStatus = 'rejected';
+                            return error;
+                        }).then((result) => {
+                            promiseStatus = 'resolved';
+                            const cachedResult = this.getExecAsyncResult(normalizedUri, processor);
+
+                            if(!cachedResult || cachedResult.promise !== promise) {
+                                // cached promise doesn't match or was deleted; discard result
+                                return;
+                            }
+
+                            cachedResult.result = {
+                                status: promiseStatus,
+                                result,
+                            };
+                            this.processResource(relativeUri);
+                        });
+
+                        const entry: HypermediaEngine.ExecAsyncEntry = {
+                            result: {status: promiseStatus},
+                            promise
+                        };
+                        processorMap.set(processor, entry);
+                        return entry;
+                    },
+                    execAsyncResult: execAsyncEntry && execAsyncEntry.result
+                };
+
+                try {
+                    return processor.fn(resourceState);
+                }
+                catch(error) {
+                    throw new Error(`Processor '${processor.name}' error: ${error}`);
+                    return resourceState;
+                }
             }, {resource: node.originalResource, relativeUri: normalizedUri, state: this.state});
 
         this.state = result.state;
@@ -307,6 +386,15 @@ export class HypermediaEngine {
             .forEach(({v, w}) => this.processResource(v));
 
         return node.resource;
+    }
+
+    protected getExecAsyncResult(uri: string, processor: Processor): HypermediaEngine.ExecAsyncEntry | undefined {
+        const cachedPromiseMap = this.execAsyncResults.get(uri);
+        if(!cachedPromiseMap) {
+            return undefined;
+        }
+
+        return cachedPromiseMap.get(processor);
     }
 
     /** processes each loaded resource that has not already been processed */
@@ -376,6 +464,24 @@ export namespace HypermediaEngine {
         markDirty: (relativeUri: HAL.Uri | HAL.Uri[], template?: string | ExtendedResource) => void;
         /** the hypermedia engine instance */
         hypermedia: HypermediaEngine;
+        /** Processors synchronously update a resource, and should complete very quickly to prevent blocking.
+         * if a processor needs to do a long-running task, like read a file or query a database
+         * it can defer execution by passing a callback to execAsync.
+         * the callback will be executed outside of the processor loop.
+         * when it resolves or rejects, the result is cached and this resource will reprocessed.
+         * the result of the async process will be available in rs.execAsyncResult and is removed from the cache.
+         * if the processor currently has an execAsyncResult with status 'pending', the result of
+         * the previous execAsync call will be discarded and the resource will not be reprocessed until
+         * the latest invocation is complete
+         */
+        execAsync: (fn: () => Promise<any>) => ExecAsyncEntry | undefined;
+        /** if this resource was processed because an execAsync call completed,
+         * this contains the result of the Promise.
+         * this value is ONLY accessible to the resource and processor that invoked it
+         * if the processor is invoked before the previous execAsync call is complete, this will
+         * have the status 'pending'.
+         */
+        execAsyncResult?: ExecAsyncResult;
     }
 
     export type CalculateFromResource = {
@@ -389,6 +495,8 @@ export namespace HypermediaEngine {
     export type CalculateFromResourceParams = {href: HAL.Uri, resource?: ExtendedResource};
 
     export type ResourceMap = {[uri: string]: HAL.Resource};
+    export type ExecAsyncResult = {status: 'resolved' | 'rejected' | 'pending', result?: any};
+    export type ExecAsyncEntry = {result: HypermediaEngine.ExecAsyncResult, promise: Promise<any>};
 
     /** takes in a HAL object and some external state, and returns transformed versions
      * of each. */
@@ -472,6 +580,10 @@ export interface ExtendedResource extends HAL.Resource {
 export interface Processor {
     name: string;
     fn: ProcessorFn;
+}
+
+export namespace Processor {
+    export type Factory = (options?: any) => Processor;
 }
 
 /** takes in a HAL object and some external state, and returns transformed versions

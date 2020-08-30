@@ -1,13 +1,26 @@
-<div class="container">Index:
-	<ul>
-		{{#each _embedded.fs:entries}}
-			<li>
-				<h3><a rel="{{expandCuri @root "fs:entries"}}" href="{{html-uri _links.self.href}}">{{title}}</a></h3>
-				<p>{{body}}</p>
-			</li>
-		{{/each}}
-		{{#each _links.fs:entries}}
-			<li>{{hal-link "fs:entries" this}}</li>
-		{{/each}}
-	</ul>
-</div>
+<h1>{{title}}</h1>
+<ol>
+	{{#each _embedded.fs:entries}}
+	<li>
+		<article>
+			<header>
+				<h2><a rel="{{expandCuri @root "fs:entries"}}" href="{{html-uri _links.self.href}}">{{title}}</a></h2>
+			{{#if date-created}}{{datetime date-created 'MMMM D, YYYY'}}{{/if}}
+			</header>
+			<main>
+				{{#if excerptHtml}}
+				{{{excerptHtml}}}
+				{{else}}
+				<p>{{replace excerpt '\n' '<br>'}}</p>
+				{{/if}}
+			</main>
+			<footer>
+				<a rel="{{expandCuri @root "fs:entries"}}" href="{{html-uri _links.self.href}}">Read more »</a>
+			</footer>
+		</article>
+	</li>
+	{{/each}}
+	{{#each _links.fs:entries}}
+	<li>{{hal-link "fs:entries" this}}{{#if date-created}} - {{datetime date-created 'MMMM D, YYYY'}}{{/if}}</li>
+	{{/each}}
+</ol>

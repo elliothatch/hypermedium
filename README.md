@@ -22,7 +22,7 @@ The hypermedia engine is at the core of Hypermedium. Every page on your site sta
 Since all this processing is happening at the JSON data layer, it's easy to mix and match multiple processors without needing to worry about compatibility or visual congruity. You have full control over the appearance of your website in the next step with the HTML renderer.
 
 ## HTML Renderer
-The HTML renderer takes a HAL resource and converts it into a full HTML page that can be viewed in your web browser. Based on the minimal but powerful [handlebars template engine](https://handlebarsjs.com), the HTML renderer allows you to easily display all the rich data from your HAL resources however you like. Create the base template that ties together your whole site with one unified look, and then further customize the layout for each specific type of page, be it a blog post, image gallery, or a unique page like your homepage. Since layouts inherit the look of your base template, its easy to utilize advanced user interfaces from plugins, while maintaining the look and feel of your personal website.
+The HTML renderer takes a HAL resource and converts it into a full HTML page that can be viewed in your web browser. Based on the minimal but powerful [handlebars template engine](https://handlebarsjs.com), the HTML renderer allows you to easily display all the rich data from your HAL resources however you like. Create the base template that ties together your whole site with one unified look, and then further customize the layout for each specific type of page, be it a blog post, image gallery, or a unique page like your homepage. Since layouts inherit the look of your base template, it's easy to utilize advanced user interfaces from plugins while maintaining the look and feel of your personal website.
 
 ## Build Manager
 Advanced sites may require extensive preprocessing steps to generate javascript, stylesheets, and other assets that your webpages rely on. The build manager is a general-purpose tool for organizing and running these tasks, allowing you to leverage 3rd party tools like [SASS](https://sass-lang.com), [Rollup](https://rollupjs.org), and [React](https://reactjs.org) while building your website.
@@ -48,7 +48,7 @@ Let's talk about how Hypermedium approaches each of these tasks.
 
 ## Building a network of resources
 
-# Presentation
+## Presentation
 
 There are already many excellent tools for building different types of websites, but these tools are almost exclusively focused on delivering HTML to be viewed through a web browser.
 Hypermedium aims to create a data-driven foundation for managing web content, assets, and interactions in a format easily understood by humans and interpreted by programs, to give users the most possible freedom in how they present that information.
@@ -85,7 +85,7 @@ Whenever possible, it should leverage existing web standards ([HAL](http://state
 # Get Started
 Starter repo coming soon! In the meantime, you can follow these steps to get started:
 
-1. Copy the `hypermedium-demo` directory and navigate to it.
+1. Copy the `hypermedium-demo` and navigate to it.
 2. Run `npm install` or `yarn`.
 
 To generate a static website:

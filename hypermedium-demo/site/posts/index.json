@@ -15,7 +15,7 @@
     "_embed": {
         "fs:entries": {
             "max": 2,
-            "properties": ["body", "title"]
+            "properties": ["title", "date-created", "excerpt"]
         }
     }
 }

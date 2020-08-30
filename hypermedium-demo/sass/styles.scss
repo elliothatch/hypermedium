@@ -39,12 +39,63 @@ a {
 	}
 }
 
+ul {
+	list-style-type: none;
+}
+
+ol {
+	padding-left: 0;
+	list-style-type: none;
+
+	li {
+		article {
+			margin-bottom: 1em;
+			padding-bottom: 1em;
+			border-bottom: solid 1px $fg-primary;
+
+			header {
+				display: flex;
+				justify-content: space-between;
+				align-content: center;
+
+				h2 {
+					margin: 0;
+				}
+			}
+
+			main {
+				margin: 1em;
+
+				h1 {
+					font-size: 1.5em;
+				}
+
+				h2 {
+					font-size: 1.3em;
+				}
+
+				h3 {
+					font-size: 1.2em;
+				}
+
+				h4 {
+					font-size: 1.1em;
+				}
+
+				p {
+					text-align: justify;
+				}
+			}
+		}
+	}
+}
+
 button {
 	background: $fg-primary;
 	color: $bg-primary;
 }
 
-header {
+body > header {
 	display: grid;
 	grid-template-columns:
 		[title-start] minmax(1em, auto)
@@ -63,12 +114,6 @@ header {
 	a {
 		background: $fg-primary;
 		color: $bg-primary;
-
-		text-decoration: none;
-
-		&:hover {
-			text-decoration: underline;
-		}
 	}
 
 	nav {
@@ -85,7 +130,7 @@ header {
 	}
 }
 
-main {
+body > main {
 	display: grid;
 	grid-template-columns:
 		[full-start] minmax(1em, 1fr)
@@ -98,21 +143,30 @@ main {
 	margin-top: 1em;
 }
 
-main > * {
+body > main > * {
 	grid-column: main;
 }
 
-.full-width {
-	grid-column: full;
-}
 
-footer {
+body > footer {
 	grid-row-start: 'footer-start';
 	grid-row-end: 'footer-end';
 	width: 100%;
 	display: flex;
 	justify-content: center;
 
+	padding-top: 1em;
+	padding-bottom: 1em;
+
 	background: $fg-primary;
 	color: $bg-primary;
+
+	a {
+		background: $fg-primary;
+		color: $bg-primary;
+	}
+}
+
+.full-width {
+	grid-column: full;
 }

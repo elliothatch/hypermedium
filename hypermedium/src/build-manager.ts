@@ -1,5 +1,5 @@
 import { defer, Observable, from, of, forkJoin, concat, Subject, merge, Subscription } from 'rxjs';
-import { debounceTime, map, mergeMap, catchError, toArray, filter, finalize, skip, tap } from 'rxjs/operators';
+import { debounceTime, map, mergeMap, catchError, toArray, filter, finalize, retry, skip, tap } from 'rxjs/operators';
 import * as fs from 'fs-extra';
 import * as Path from 'path';
 import { Router, RequestHandler } from 'express';
@@ -115,7 +115,7 @@ export class BuildManager {
                     fileOptions.options,
                     taskLogger
                 )).pipe(
-                    tap((result) => {
+                    finalize(() => {
                         if(task.watch) {
                             Object.keys(fileOptions.inputs).forEach((inputName) => {
                                 fileOptions.inputs[inputName].forEach((inputPath) => {
@@ -130,23 +130,24 @@ export class BuildManager {
                                         watchEntry = {
                                             task,
                                             eventSubscription: watchFiles(inputPath).pipe(
-                                                skip(1), // skip the first event, which notifies us that the file exists
+                                                skip(Object.keys(fileOptions.inputs).length), // skip the first event for each file when they're first detected
                                                 debounceTime(this.watchDebounceMs),
                                                 mergeMap((watchEvent) => {
                                                     return this.buildTask(task, basePath, buildStepPath)
-                                                })
-                                            ).subscribe({
-                                                next: (buildEvent) => {
-                                                    this.watchSubject.next(buildEvent);
-                                                },
-                                                error: (error) => {
+                                                }),
+                                                catchError((error) => {
                                                     this.watchSubject.next({
                                                         buildStepPath,
                                                         eType: 'error' as const,
                                                         error
                                                     });
-                                                }
-                                            })
+
+                                                    throw error;
+                                                }),
+                                                retry(),
+                                            ).subscribe((buildEvent) => {
+                                                    this.watchSubject.next(buildEvent);
+                                            }),
                                         };
 
                                         watchFile.set(task.definition, watchEntry);

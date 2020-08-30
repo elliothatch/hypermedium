@@ -91,3 +91,45 @@ export function profilesMatch(profile: Hal.Uri, targetProfile?: Hal.Uri, baseUri
         profile === targetProfile || Url.resolve(baseUri, profile) === targetProfile:
         profile === targetProfile;
 }
+
+/**
+ * Gets a property from an object if it exists. Supports nested properties with dot notation
+ * @param obj - root object
+ * @param propertyName - name of the property to retrieved. Nested properties are specified with dot notation ('a.b.c')
+ */
+export function getProperty(obj: any, propertyName: string): any {
+    if(!obj) {
+        return undefined;
+    }
+
+    const properties = propertyName.split('.');
+    const value = obj[properties[0]];
+    if(properties.length === 1) {
+        return value;
+    }
+
+    return getProperty(value, properties.slice(1).join('.'));
+}
+
+/**
+ * sets a property on an object. Supports nested properties, creates nested objects when necessary
+ * @param obj - root object
+ * @param propertyName - name of the property to set. Nested properties are specified with dot notation ('a.b.c')
+ * @param value - the value to set. if undefined, do nothing and don't create nested objects
+ */
+export function setProperty(obj: any, propertyName: string, value: any): any {
+    if(!obj) {
+        return undefined;
+    }
+
+    const properties = propertyName.split('.');
+    if(properties.length === 1) {
+        obj[properties[0]] = value;
+        return obj;
+    }
+
+    if(!obj[properties[0]]) {
+        obj[properties[0]] = {};
+    }
+    return setProperty(obj[properties[0]], properties.slice(1).join('.'), value);
+}

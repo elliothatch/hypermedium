@@ -10,8 +10,7 @@ export * from './renderer';
 export * from './plugin-manager';
 export * as Server from './server';
 export * as HalUtil from './hal-util';
-
-// export * as Util from './util';
+export * as Util from './util';
 
 import * as Path from 'path';
 import { from } from 'rxjs';
@@ -141,6 +140,7 @@ function initializeHypermedium(staticMappings: StaticMapping[]) {
     const demoPath = Path.join(__dirname, '..', '..', 'hypermedium-demo');
     const corePath = Path.join(__dirname, '..', '..', 'hypermedium-core');
     const sassPath = Path.join(__dirname, '..', '..', 'hypermedium-sass');
+    const markdownPath = Path.join(__dirname, '..', '..', 'hypermedium-markdown');
 
     // initialize hypermedium
     const hypermedium = new Hypermedium();
@@ -178,9 +178,10 @@ function initializeHypermedium(staticMappings: StaticMapping[]) {
     const demoPlugin = hypermedium.pluginManager.loadPlugin(demoPath);
     const corePlugin = hypermedium.pluginManager.loadPlugin(corePath);
     const sassPlugin = hypermedium.pluginManager.loadPlugin(sassPath);
+    const markdownPlugin = hypermedium.pluginManager.loadPlugin(markdownPath);
 
     // TODO: wait until 'initialized' event before loading next plugin
-    from([corePlugin, sassPlugin, demoPlugin]).pipe(
+    from([corePlugin, sassPlugin, markdownPlugin, demoPlugin]).pipe(
         mergeMap((plugin) => {
             return hypermedium.pluginManager.createModule(plugin.plugin.name, plugin.plugin.name, {}).pipe(
                 mergeMap((moduleInstance) => {

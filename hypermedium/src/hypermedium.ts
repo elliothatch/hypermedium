@@ -7,8 +7,8 @@ import * as Build from './build';
 import { BuildManager } from './build-manager';
 import { HtmlRenderer } from './renderer';
 import { HypermediaEngine, Processor } from './hypermedia-engine';
-import { NotFoundError, WatchEvent } from './util';
-import { Plugin, Module, ProcessorFactory } from './plugin';
+import { WatchEvent } from './util';
+import { Plugin, Module } from './plugin';
 import { PluginManager } from './plugin-manager';
 
 /** sets up the hypermedia engine, html renderer, and build system
@@ -22,8 +22,6 @@ export class Hypermedium {
 
     protected pluginFileEvent$: Subject<Observable<WatchEvent>>;
     // public watchEvent$: Observable<WatchEvent>;
-
-    public processorFactories: Map<string, ProcessorFactory>;
 
     constructor(options?: Partial<Hypermedium.Options>) {
         this.pluginManager = new PluginManager();
@@ -46,8 +44,6 @@ export class Hypermedium {
         ));
 
         this.build = new BuildManager(Process.cwd());
-
-        this.processorFactories = new Map();
 
         this.pluginFileEvent$ = new Subject();
         // this.watchEvent$ = this.pluginFileEvent$.pipe(
@@ -85,11 +81,11 @@ export class Hypermedium {
                                             return EMPTY;
                                     }
                                 case 'processor-factory-changed':
-                                    this.processorFactories.set(moduleNamespace + moduleEvent.name, moduleEvent.processorFactory);
+                                    this.hypermedia.processorFactories.set(moduleNamespace + moduleEvent.name, moduleEvent.processorFactory);
                                     return EMPTY;
 
                                 case 'processor-changed':
-                                    this.addProcessor(moduleEvent.name, moduleEvent.options);
+                                    this.hypermedia.addProcessor(moduleEvent.name, moduleEvent.options);
                                     this.hypermedia.processAllResources();
                                     return EMPTY;
                             }
@@ -160,22 +156,12 @@ export class Hypermedium {
                             ...buildEvent
                         }))
                     );
+                    // TODO: deal with build failure
                 }
 
                 return of(moduleEvent);
             }),
         );
-    }
-
-    addProcessor(generatorName: string, options?: any): Processor {
-        const generator = this.processorFactories.get(generatorName);
-        if(!generator) {
-            throw new NotFoundError(generatorName);
-        }
-
-        const processor = generator(options);
-        this.hypermedia.processors.push(processor);
-        return processor;
     }
 }
 

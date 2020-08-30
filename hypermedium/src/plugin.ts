@@ -55,7 +55,7 @@ export type Module = Partial<{
     hypermedia: Partial<{
         sitePaths: string[];
         /** new types of processor factories that can be used in the hypermedia engine */
-        processorFactories: {[name: string]: ProcessorFactory};
+        processorFactories: {[name: string]: Processor.Factory};
         /** processors that should be created and added to the hypermedia engine */
         processors: {name: string; options?: any}[];
         /** if set, this url is prepended to the URI of every HAL resources served from this module */
@@ -133,7 +133,7 @@ export namespace Module {
             export interface ProcessorFactoryChanged extends Base {
                 eType: 'processor-factory-changed';
                 name: string;
-                processorFactory: ProcessorFactory;
+                processorFactory: Processor.Factory;
             }
 
             export interface ProcessorChanged extends Base {
@@ -194,6 +194,3 @@ export namespace Module {
         }
     }
 }
-
-export type ProcessorFactory = (options?: any) => Processor;
-

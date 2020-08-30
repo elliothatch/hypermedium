@@ -4,18 +4,62 @@ const demoPlugin = {
 	name: 'hypermedium-demo',
 	version: '0.1.0',
 	pluginApi: '1',
-	dependencies: ['core', 'sass'],
+	dependencies: ['core', 'sass', 'markdown'],
 	moduleFactory: (options) => {
 		return {
 			hypermedia: {
 				sitePaths: ['site'],
 				processors: [
 					{name: 'self'},
+					{name: 'matchProfile', options: {
+						profile: '/schema/post',
+						processorFactory: 'extend',
+						options: {
+							obj: {
+								_excerpt: {
+									property: 'body',
+									"max": 50,
+								},
+								_markdown: {
+									input: 'body',
+									output: 'bodyHtml',
+								}
+							}
+						}
+					}},
+					{name: 'excerpt'},
 					{name: 'tags'},
 					{name: 'makeIndex', options: '/schema/post'},
 					{name: 'makeIndex', options: '/schema/index/tags'},
 					{name: 'curies'},
 					{name: 'embed'},
+					{name: 'matchProfile', options: {
+						profile: '/schema/index/schema/post',
+						processorFactory: 'forEach',
+						options: {
+							property: '_embedded.fs:entries',
+							key: '_links.self.href',
+							processorFactory: 'extend',
+							options: {
+								obj: {
+									_markdown: {
+										input: 'excerpt',
+										output: 'excerptHtml',
+									}
+								}
+							}
+						}
+					}},
+					{name: 'markdown'},
+					{name: 'matchProfile', options: {
+						profile: '/schema/index/schema/post',
+						processorFactory: 'forEach',
+						options: {
+							property: '_embedded.fs:entries',
+							key: '_links.self.href',
+							processorFactory: 'markdown',
+						}
+					}},
 				]
 			},
 			renderer: {

@@ -1,13 +1,15 @@
-<div class="container">
-	<h1>{{title}}</h1>
-	<p>{{body}}</p>
+<h1>{{title}}</h1>
+{{#if bodyHtml}}
+{{{bodyHtml}}}
+{{else}}
+<p>{{body}}</p>
+{{/if}}
 
-	<div>
-		<h3>Tags</h3>
-		<ul>
-			{{#each _links.tag}}
-				<li>{{hal-link @key this}}</li>
-			{{/each}}
-		</ul>
-	</div>
+<div>
+	<h3>Tags</h3>
+	<ul>
+		{{#each _links.tag}}
+		<li>{{hal-link @key this}}</li>
+		{{/each}}
+	</ul>
 </div>
