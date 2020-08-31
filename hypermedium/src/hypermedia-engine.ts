@@ -45,8 +45,8 @@ export class HypermediaEngine {
         this.state = {
             baseUri: options.baseUri,
             curies: options.curies,
-            tags: {},
-            indexes: {},
+            tags: new Map(),
+            indexes: new Map(),
             resourceGraph: this.resourceGraph,
             suffix: options.suffix || '.json',
         };
@@ -69,7 +69,7 @@ export class HypermediaEngine {
     public makeProcessor(generatorName: string, options?: any): Processor {
         const generator = this.processorFactories.get(generatorName);
         if(!generator) {
-            throw new NotFoundError(generatorName);
+            throw new Error(`makeProcessor: processor factory not found: ${generatorName}`);
         }
 
         const processor = generator(options);
@@ -360,7 +360,11 @@ export class HypermediaEngine {
                     return processor.fn(resourceState);
                 }
                 catch(error) {
-                    throw new Error(`Processor '${processor.name}' error: ${error}`);
+                    this.log({
+                        eType: 'ProcessorError',
+                        relativeUri: normalizedUri,
+                        error: new Error(`Processor '${processor.name}' error: ${error}`),
+                    });
                     return resourceState;
                 }
             }, {resource: node.originalResource, relativeUri: normalizedUri, state: this.state});
@@ -434,13 +438,14 @@ export namespace HypermediaEngine {
     }
 
     /** Dynamically calculated properties of the hypermedia site. */
+    // TODO: move some processor specific state into "external" data store/cache
     export interface State {
         baseUri?: HAL.Uri;
         curies: HAL.Curie[];
-        /** maps tag name to list of URIs that contain this tag */
-        tags: {[tag: string]: HAL.Uri[]};
-        /** maps profiles to list of hrefs that have that profile */
-        indexes: {[profile: string]: HAL.Uri[]};
+        /** maps tag name to set of URIs that contain this tag */
+        tags: Map<string, Set<HAL.Uri>>;
+        /** maps profiles to set of hrefs that have that profile */
+        indexes: Map<string, Set<HAL.Uri>>;
         suffix: string;
         resourceGraph: Graph;
     }

@@ -1,4 +1,4 @@
-import { Processor, Hal, HalUtil } from 'hypermedium';
+import { Processor, Hal, HalUtil, ExtendedResource } from 'hypermedium';
 
 /** whenever a new resources matches the given profile, 
  * add it to the index and update the index page.
@@ -17,66 +17,70 @@ export const makeIndex = (profile: Hal.Uri): Processor => {
         name: `index:${profile}`,
         fn: (rs) => {
             if(HalUtil.resourceMatchesProfile(rs.resource, profile, rs.state.baseUri)) {
-                const index = rs.state.indexes[profile] || [];
-                if(index.indexOf(rs.relativeUri) === -1) {
-                    index.push(rs.relativeUri);
-                    rs.state.indexes[profile] = index;
+                addToIndex(rs.state.indexes, profile, rs.relativeUri);
+
+                // update all indexes that should include this resource
+                const indexSet = rs.state.indexes.get(indexProfile);
+                if(indexSet) {
+                    rs.markDirty(Array.from(indexSet));
                 }
 
-                if(rs.state.indexes[indexProfile]) {
-                    rs.markDirty(rs.state.indexes[indexProfile]);
-                }
                 return rs;
             }
             else if(HalUtil.resourceMatchesProfile(rs.resource, indexProfile, rs.state.baseUri)) {
-                const index = rs.state.indexes[indexProfile] || [];
-                if(index.indexOf(rs.relativeUri) === -1) {
-                    index.push(rs.relativeUri);
-                    rs.state.indexes[indexProfile] = index;
-                }
+                // this is an index file
+                addToIndex(rs.state.indexes, indexProfile, rs.relativeUri);
 
-                const indexOptions = Object.assign({
-                    order: Object.assign({
-                        key: 'title',
-                        ascending: true,
-                        compare: 'text'
-                    }, rs.resource._index && rs.resource._index.order || {})
-                }, rs.resource._index || {});
+                // add the indexed links to this resource
+                const indexOptions = {
+                    key: 'title',
+                    ...rs.resource._index
+                };
 
-                const baseCompareFn: (a: any, b: any) => number = indexOptions.order.compare === 'number'?
-                        (a: number, b: number) => a - b:
-                    indexOptions.order.compare === 'date'?
-                        (a: string, b: string) => new Date(a).valueOf() - new Date(b).valueOf():
-                    // indexOptions.order.compare === 'text'?
-                        (a: string, b: string) => a < b? -1: a > b? 1: 0;
+                const uriSet = rs.state.indexes.get(profile);
+                const indexLinks = (uriSet? Array.from(uriSet): []).map((href: Hal.Uri) => {
+                    const entry: any = {
+                        href,
+                        profile,
+                        title: rs.calculateFrom(href, ({resource}) => resource && resource.title),
+                    };
 
-                const compareFn = indexOptions.order.ascending?
-                    baseCompareFn:
-                    (a: any, b: any) => baseCompareFn(b, a);
+                    // include sorting order key
+                    if(indexOptions.key !== 'title') {
+                        entry[indexOptions.key] = rs.calculateFrom(href, ({resource}) =>
+                            resource && resource[indexOptions.key]);
+                    }
 
-                return { ...rs, 
-                    resource: {
-                        ...rs.resource, _links: {
-                            'fs:entries': (rs.state.indexes[profile] || []).map((href: Hal.Uri) => {
-                                const entry: any = {
-                                    href,
-                                    profile,
-                                    title: rs.calculateFrom(href, ({resource}) => resource && resource.title),
-                                };
+                    return entry;
+                });
 
-                                // include sorting order key
-                                if(indexOptions.order.key !== 'title') {
-                                    entry[indexOptions.order.key] = rs.calculateFrom(href, ({resource}) =>
-                                        resource && resource[indexOptions.order.key]);
-                                }
+                const resource: ExtendedResource = {
+                    ...rs.resource,
+                    _links: {
+                        'fs:entries': indexLinks,
+                        ...rs.resource._links,
+                    }
+                };
 
-                                return entry;
-                            }).sort((a, b) => compareFn(a[indexOptions.order.key], b[indexOptions.order.key])),
-                            ...rs.resource._links,
-                        }}};
+                delete resource._index;
+
+                return {
+                    ...rs, 
+                    resource,
+                };
             }
 
             return rs;
         }
     };
 };
+
+function addToIndex(index: Map<string, Set<Hal.Uri>>, profile: Hal.Uri, uri: Hal.Uri): void {
+    let uriSet = index.get(profile);
+    if(!uriSet) {
+        uriSet = new Set();
+        index.set(profile, uriSet);
+    }
+
+    uriSet.add(uri);
+}

@@ -4,6 +4,8 @@ import { embed } from './embed';
 import { makeIndex } from './make-index';
 import { tags } from './tags';
 
+// TODO: rewrite the core processors to all work with dot notation, and allow more customization in which properties and values are read and set
+
 export const processorFactories: {[name: string]: Processor.Factory} = {
     self: () => ({
         name: 'self',
@@ -108,6 +110,66 @@ export const processorFactories: {[name: string]: Processor.Factory} = {
             };
         }
     }),
+    /** sorts any fields described by _sort a built-in or custom comparison function if it is an array
+     * _sort can be an array of sortoptions object to specify multiple sorts
+     * */
+    sort: (options?: Sort.FactoryOptions) => {
+        const compareFns: {[name: string]: (a: any, b: any) => number} = {
+            'number': (a: number, b: number) => a - b,
+            'date': (a: string, b: string) => new Date(a).valueOf() - new Date(b).valueOf(),
+            'default': (a: string, b: string) => a < b? -1: a > b? 1: 0, // string
+            ...(options && options.compareFns)
+        };
+
+        return {
+            name: 'sort',
+            fn: (rs) => {
+                if(!rs.resource._sort) {
+                    return rs;
+                }
+
+                const unsortedOptions = (Array.isArray(rs.resource._sort)?
+                    rs.resource._sort:
+                    [rs.resource._sort]
+                ).filter((_sort) => {
+                    const sortOptions: Sort.Options = {
+                        ascending: true,
+                        ..._sort
+                    }
+
+                    if(!sortOptions.key) {
+                        return true;
+                    }
+
+                    const baseCompareFn = compareFns[sortOptions.key] || compareFns['default'];
+                    const compareFn = sortOptions.ascending?
+                        baseCompareFn:
+                        (a: any, b: any) => baseCompareFn(b, a);
+
+                    const array = HalUtil.getProperty(rs.resource, sortOptions.property);
+                    if(!array || !Array.isArray(array)) {
+                        return true;
+                    }
+
+                    // TODO: non-immutible assignment. do we even care about that?
+                    array.sort((a, b) => compareFn(
+                        HalUtil.getProperty(a, sortOptions.key),
+                        HalUtil.getProperty(b, sortOptions.key)
+                    ));
+
+                    return false;
+                });
+
+                if(unsortedOptions.length === 0) {
+                    delete rs.resource._sort;
+                }
+                else {
+                    rs.resource._sort = unsortedOptions;
+                }
+                return rs;
+            }
+        };
+    },
     /*
     breadcrumb: () => ({
         name: 'breadcrumb',
@@ -135,12 +197,9 @@ export const processorFactories: {[name: string]: Processor.Factory} = {
      * TODO: resolve hrefs correctly even if they aren't the full uri (e.g. /posts doesn't work but /posts/index.json does)
      * TODO: put "title" in embedded "_links" into the "self" link in the embedded cocument? it's annoying that the title no longer works correctly when linking to embedded document
      */
-    embed: () => ({
-        name: 'embed',
-        fn: embed,
-    }),
+    embed,
     makeIndex,
-    tags: () => tags,
+    tags,
 
     /* higher-order processor that only runs the provided processor if the resource matches the designated profile */
     matchProfile: (options: {profile: Hal.Uri, processorFactory: string, options?: any}): Processor => {
@@ -166,8 +225,9 @@ export const processorFactories: {[name: string]: Processor.Factory} = {
      * @param property - property of an array to loop over, using dot notation
      * @param key - a unique key that can be used to match up execAsync results with the elements that produced them. uses dot notation, relative to property
      * */
-    forEach: (options: {property: string, key: string, processorFactory: string, options?: any}): Processor => {
+    forEach: (factoryOptions: {property: string, key: string, processorFactory: string, options?: any}): Processor => {
         // TODO: standardize parameter checking
+        /*
         if(!options) {
             throw new Error('forEach factory: options required');
         }
@@ -182,11 +242,21 @@ export const processorFactories: {[name: string]: Processor.Factory} = {
         if(!options.processorFactory) {
             throw new Error('forEach factory: options.processorFactory required');
         }
+        */
 
         let processor: Processor;
         return {
-            name: `forEach-${options.property}-${options.processorFactory}`,
+            name: `forEach-${(factoryOptions && factoryOptions.processorFactory)? '-' + factoryOptions.processorFactory: ''}`,
             fn: (rs) => {
+                const options = {
+                    ...factoryOptions,
+                    ...rs.resource._forEach
+                };
+
+                if(!options.processorFactory || !options.property || !options.key) {
+                    return rs;
+                }
+
                 if(rs.execAsyncResult && rs.execAsyncResult.status === 'pending') {
                     return rs;
                 }
@@ -275,6 +345,7 @@ export const processorFactories: {[name: string]: Processor.Factory} = {
 
 
                 HalUtil.setProperty(resource, options.property, newArray);
+                delete rs.resource._forEach;
                 return {
                     ...rs,
                     resource,
@@ -296,3 +367,19 @@ export interface ExcerptOptions {
     // min: number;
 }
 
+
+export namespace Sort {
+    export type CompareFn = (a: any, b: any) => number;
+    export interface Options {
+        /** property containing the array to sort */
+        property: string;
+        /** each element of the array will be ordered by this key */
+        key: string;
+        compare?: string;
+        ascending?: boolean;
+    }
+
+    export interface FactoryOptions {
+        compareFns?: {[compareFnName: string]: CompareFn};
+    }
+}

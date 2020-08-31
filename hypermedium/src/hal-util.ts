@@ -116,6 +116,7 @@ export function getProperty(obj: any, propertyName: string): any {
  * @param obj - root object
  * @param propertyName - name of the property to set. Nested properties are specified with dot notation ('a.b.c')
  * @param value - the value to set. if undefined, do nothing and don't create nested objects
+ * @returns obj
  */
 export function setProperty(obj: any, propertyName: string, value: any): any {
     if(!obj) {
@@ -131,5 +132,6 @@ export function setProperty(obj: any, propertyName: string, value: any): any {
     if(!obj[properties[0]]) {
         obj[properties[0]] = {};
     }
-    return setProperty(obj[properties[0]], properties.slice(1).join('.'), value);
+    setProperty(obj[properties[0]], properties.slice(1).join('.'), value);
+    return obj;
 }

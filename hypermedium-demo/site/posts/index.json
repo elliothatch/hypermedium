@@ -6,16 +6,18 @@
         }
     },
     "_index": {
-    	"order": {
-    		"key": "date-created",
-    		"ascending": false,
-    		"compare": "date"
-		}
+		"key": "date-created"
+	},
+    "_sort": {
+		"property": "_links.fs:entries",
+		"key": "date-created",
+    	"ascending": false,
+		"compare": "date"
 	},
     "_embed": {
         "fs:entries": {
             "max": 2,
-            "properties": ["title", "date-created", "excerpt"]
+            "properties": ["title", "author", "date-created", "excerpt"]
         }
     }
 }

@@ -5,9 +5,17 @@
             "href": "/schema/index/schema/index/tags"
         }
     },
+    "_index": {
+		"key": "date-created"
+	},
+    "_sort": {
+		"property": "_links.fs:entries",
+		"key": "title",
+    	"ascending": true
+	},
     "_embed": {
         "fs:entries": {
-            "properties": ["title", "_links"]
+            "properties": ["_links", "title", "_embedded"]
         }
     }
 }

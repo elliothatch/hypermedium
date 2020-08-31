@@ -135,3 +135,23 @@ yarn dev
 ```
 ## Notes
 We use nohoist for build assets in the demo workspace, so the sass includePath is the same as if you downloaded and modified the demo package directly.
+
+## Issues
+ - processor ordering can be confusing
+ 	 - some resources use the processors in a different order than others. dealing with this means adding duplicate processors before and after when they are needed.
+ 	 - it probably makes sense for resources to be able to define the order of their processors explicitly.
+		 - allows duplicate uses of the procssors
+		 - more performant and understandable
+		 - we can have a plugin-level list of "global" processors, but then only run additional processors we need on each resource
+		 - processor execution/options embedded in a fixed namespace, not just floating around "waiting" for a processor to come along
+
+ - embed processor is not easy to use:
+    - removing the embedded resource from the original resource is frustrating in some circumstances (you either end up duplicating resources or missing some, and need to account for that in your template).
+		- frustrating e.g. referring to fields from another resource (that are gone because they're in "_embedded". and it feels like incredibly bad practice to depend on embedded properties from another resource)
+		- useful e.g. when making a list of articles where some are embellished but others aren't (no dupes)
+	- embedding a list with a max number of elements obtails the items based on sort order
+    - it would be nice to just augment a resource with extra data, without "embedding" it.
+    	- concern: this muddles the "source" of hypermedia data that is derived from other resources
+    	- counterpoint: does that matter all that much? what if the data is all on a HAL "_link" element? is that violating the spec? it's at least unambiguous that the data came from that link.
+ - the hal-link helper is really annoying
+ - curies don't work

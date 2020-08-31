@@ -1,5 +1,7 @@
 @use 'sanitize.css/sanitize';
 
+$main-max-width: 40em;
+
 $fg-main: #000000;
 $bg-main: #ffffff;
 
@@ -17,16 +19,104 @@ body {
 	min-height: 100%;
 	display: grid;
 	grid-template-rows:
-	[header-start] auto
-	[header-end main-start] 1fr
-	[main-end footer-start] auto
-	[body-end footer-end];
+		[header-start] auto
+		[header-end main-start] 1fr
+		[main-end footer-start] auto
+		[body-end footer-end];
+
+	grid-template-columns:
+		[full-start] minmax(1em, 1fr)
+		[main-start] minmax(0, $main-max-width)
+		[main-end] minmax(1em, 1fr)
+		[full-end];
+
 
 	background: $bg-main;
 	color: $fg-main;
 
 	font-family: sans-serif;
 }
+
+body > header {
+	grid-row: header;
+	grid-column: full;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+
+	background: $fg-primary;
+	color: $bg-primary;
+
+	h1 {
+		// margin: 1em;
+		margin-left: 0.5em;
+		margin-right: 0.5em;
+		hyphens: auto;
+	}
+
+	a {
+		background: $fg-primary;
+		color: $bg-primary;
+	}
+
+	nav {
+		flex-shrink: 2;
+		margin-left: 0.5em;
+		margin-right: 0.5em;
+
+		display: flex;
+		flex-wrap: wrap;
+
+		align-items: center;
+		align-content: center;
+
+		a {
+			margin-left: 0.4em;
+			margin-right: 0.4em;
+		}
+	}
+}
+
+body > main {
+	grid-row: main;
+	grid-column: main;
+
+	// grid-auto-rows: max-content;
+
+	margin-top: 2em;
+	margin-bottom: 2em;
+}
+
+body > main > * {
+	/* remove top/bottom margins from first/last children of main since margins don't collapse between grid rows */
+	&:first-child {
+		margin-top: 0;
+	}
+	&:last-child {
+		margin-bottom: 0;
+	}
+}
+
+
+body > footer {
+	grid-row: footer;
+	grid-column: full;
+	width: 100%;
+	display: flex;
+	justify-content: center;
+
+	padding-top: 1em;
+	padding-bottom: 1em;
+
+	background: $fg-primary;
+	color: $bg-primary;
+
+	a {
+		background: $fg-primary;
+		color: $bg-primary;
+	}
+}
+
 
 a {
 	background: $bg-primary;
@@ -39,32 +129,91 @@ a {
 	}
 }
 
+h1 {
+	border-bottom: solid 3px $fg-primary;
+}
+
 ul {
 	list-style-type: none;
 }
 
-ol {
+article {
+	margin-bottom: 1em;
+
+	header {
+		display: flex;
+		justify-content: space-between;
+		flex-wrap: wrap;
+
+		margin-bottom: 2em;
+
+		h1 {
+			margin: 0;
+			flex-grow: 1;
+		}
+
+		h2 {
+			margin: 0;
+			flex-grow: 1;
+		}
+
+		.byline {
+			margin-top: 1em;
+			display: flex;
+			align-items: end;
+			flex-wrap: wrap;
+
+			margin-left: 3em;
+		}
+
+		.byline > * {
+
+			&:first-child::before { 
+				content: none;
+			}
+
+			&::before { 
+				content: '-';
+				margin-left: 0.5em;
+				margin-right: 0.5em;
+			}
+		}
+
+	}
+
+	main {
+		border-bottom: solid 1px $fg-primary;
+		min-height: 5em;
+	}
+}
+
+ol.tags {
+	margin-left: 0;
 	padding-left: 0;
+
+	ol {
+		margin-left: 2em;
+	}
+}
+
+ol.articles {
+	margin: 0;
+	padding: 0;
 	list-style-type: none;
 
 	li {
 		article {
-			margin-bottom: 1em;
 			padding-bottom: 1em;
 			border-bottom: solid 1px $fg-primary;
 
 			header {
-				display: flex;
-				justify-content: space-between;
-				align-content: center;
-
-				h2 {
-					margin: 0;
-				}
+				margin-bottom: 1em;
 			}
 
 			main {
 				margin: 1em;
+				min-height: 0;
+				border-bottom: none;
 
 				h1 {
 					font-size: 1.5em;
@@ -89,82 +238,14 @@ ol {
 		}
 	}
 }
+ol.tags {
+	list-style-type: none;
+}
+
 
 button {
 	background: $fg-primary;
 	color: $bg-primary;
-}
-
-body > header {
-	display: grid;
-	grid-template-columns:
-		[title-start] minmax(1em, auto)
-		[title-end] minmax(1em, 1fr)
-		[nav-start] minmax(1em, auto)
-		[nav-end];
-
-	background: $fg-primary;
-	color: $bg-primary;
-
-	h1 {
-		padding-left: 1em;
-		padding-right: 1em;
-	}
-
-	a {
-		background: $fg-primary;
-		color: $bg-primary;
-	}
-
-	nav {
-		display: flex;
-		margin-left: 1em;
-		margin-right: 1em;
-
-		align-items: center;
-
-		a {
-			margin-left: 0.4em;
-			margin-right: 0.4em;
-		}
-	}
-}
-
-body > main {
-	display: grid;
-	grid-template-columns:
-		[full-start] minmax(1em, 1fr)
-		[main-start] minmax(0, 40em)
-		[main-end] minmax(1em, 1fr)
-		[full-end];
-
-	grid-auto-rows: max-content;
-
-	margin-top: 1em;
-}
-
-body > main > * {
-	grid-column: main;
-}
-
-
-body > footer {
-	grid-row-start: 'footer-start';
-	grid-row-end: 'footer-end';
-	width: 100%;
-	display: flex;
-	justify-content: center;
-
-	padding-top: 1em;
-	padding-bottom: 1em;
-
-	background: $fg-primary;
-	color: $bg-primary;
-
-	a {
-		background: $fg-primary;
-		color: $bg-primary;
-	}
 }
 
 .full-width {

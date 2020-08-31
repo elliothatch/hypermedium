@@ -1,15 +1,25 @@
-<h1>{{title}}</h1>
-{{#if bodyHtml}}
-{{{bodyHtml}}}
-{{else}}
-<p>{{body}}</p>
-{{/if}}
-
-<div>
-	<h3>Tags</h3>
-	<ul>
-		{{#each _links.tag}}
-		<li>{{hal-link @key this}}</li>
-		{{/each}}
-	</ul>
-</div>
+<article>
+	<header>
+		<h1>{{title}}</h1>
+		<div class="byline">
+			{{#if author}}<div>by <span class="author">{{author}}</span></div>{{/if}}
+			{{#if date-created}}{{datetime date-created}}{{/if}}
+		</div>
+	</header>
+	<main>
+		{{#if bodyHtml}}
+		{{{bodyHtml}}}
+		{{else}}
+		<p>{{body}}</p>
+		{{/if}}
+	</main>
+	<footer>
+		<div>
+			<h3>Tags</h3>
+			<ul>
+				{{#each _links.tag}}
+				<li>{{hal-link @key this}}</li>
+				{{/each}}
+			</ul>
+		</div>
+	</footer>

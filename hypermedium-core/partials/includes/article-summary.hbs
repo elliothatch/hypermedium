@@ -1,0 +1,19 @@
+<article>
+	<header>
+		<h2><a rel="{{rel}}" href="{{html-uri _links.self.href}}">{{title}}</a></h2>
+		<div class="byline">
+			{{#if author}}<div>by <span class="author">{{author}}</span></div>{{/if}}
+			{{#if date-created}}{{datetime date-created}}{{/if}}
+		</div>
+	</header>
+	<main>
+		{{#if excerptHtml}}
+		{{{excerptHtml}}}
+		{{else if excerpt}}
+		<p>{{replace excerpt '\n' '<br>'}}</p>
+		{{/if}}
+	</main>
+	<footer>
+		<a rel="{{rel}}" href="{{html-uri _links.self.href}}">Read more »</a>
+	</footer>
+</article>

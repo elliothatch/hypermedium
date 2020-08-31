@@ -11,6 +11,17 @@ const handlebarsHelpers: {[name: string]: HelperDelegate} = {
     'isArray': (val) => Array.isArray(val),
     'typeof': (val) => typeof val,
     'json': (val) => JSON.parse(val),
+
+    /** creates a shallow copy of the object and sets/overwrites top-level properties with the provided values */
+	'extend': (target, context) => {
+	    return {
+	        ...target,
+	        ...context,
+        };
+	},
+	// 'extend-context': function(context, options) {
+		// return options.fn(Object.assign(Object.assign({}, this), JSON.parse(context)));
+	// },
     'json-stringify': (val) => new SafeString(JSON.stringify(val)),
     'html-uri': HalUtil.htmlUri,
     'expandCuri': HalUtil.expandCuri,
@@ -28,13 +39,14 @@ const handlebarsHelpers: {[name: string]: HelperDelegate} = {
      * TODO: add option to not use html-link shortening
      */
     'hal-link': (rel, link, ...options) => {
-        let resource = options[0];
-        if(options.length === 1) {
+        // let resource = options[0];
+        // if(options.length === 1) {
             // no resource provided, use the root resource
-            resource = options[0].data.root;
-        }
+            // resource = options[0].data.root;
+        // }
 
-        const relHtml = typeof rel === 'string'? `rel=${HalUtil.expandCuri(resource, rel)}`: '';
+        // const relHtml = typeof rel === 'string'? `rel=${HalUtil.expandCuri(resource, rel)}`: '';
+        const relHtml = typeof rel === 'string'? `rel=${rel}`: '';
 
         return new SafeString(`<a ${relHtml} href=${HalUtil.htmlUri(link.href)}>${link.title || link.href}</a>`)
     },

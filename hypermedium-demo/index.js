@@ -12,10 +12,11 @@ const demoPlugin = {
 				processors: [
 					{name: 'self'},
 					{name: 'matchProfile', options: {
-						profile: '/schema/post',
 						processorFactory: 'extend',
+						profile: '/schema/post',
 						options: {
 							obj: {
+								author: 'elliot',
 								_excerpt: {
 									property: 'body',
 									"max": 50,
@@ -27,19 +28,41 @@ const demoPlugin = {
 							}
 						}
 					}},
+					// configure tags index pages
+					{name: 'matchProfile', options: {
+						processorFactory: 'extend',
+						profile: '/schema/index/tags',
+						options: {
+							obj: {
+								"_embed": {
+									"fs:entries": {
+										"properties": ["title", "date-created"]
+									}
+								},
+								"_sort": {
+									"property": "_embedded.fs:entries",
+									"key": "date-created",
+									"ascending": false,
+									"compare": "date"
+								},
+							}
+						}
+					}},
+					{name: 'forEach'},
 					{name: 'excerpt'},
 					{name: 'tags'},
 					{name: 'makeIndex', options: '/schema/post'},
 					{name: 'makeIndex', options: '/schema/index/tags'},
 					{name: 'curies'},
+					{name: 'sort'},
 					{name: 'embed'},
 					{name: 'matchProfile', options: {
-						profile: '/schema/index/schema/post',
 						processorFactory: 'forEach',
+						profile: '/schema/index/schema/post',
 						options: {
+							processorFactory: 'extend',
 							property: '_embedded.fs:entries',
 							key: '_links.self.href',
-							processorFactory: 'extend',
 							options: {
 								obj: {
 									_markdown: {
@@ -52,14 +75,15 @@ const demoPlugin = {
 					}},
 					{name: 'markdown'},
 					{name: 'matchProfile', options: {
-						profile: '/schema/index/schema/post',
 						processorFactory: 'forEach',
+						profile: '/schema/index/schema/post',
 						options: {
+							processorFactory: 'markdown',
 							property: '_embedded.fs:entries',
 							key: '_links.self.href',
-							processorFactory: 'markdown',
 						}
 					}},
+					{name: 'sort'}, // final sort for embedded values, etc.
 				]
 			},
 			renderer: {

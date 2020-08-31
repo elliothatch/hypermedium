@@ -158,7 +158,12 @@ function initializeHypermedium(staticMappings: StaticMapping[]) {
                         delete e.resource;
                     }
                     if((e as any).relativeUri) {
-                        Log.trace(`hypermedia-engine: ${event.eType} ${(e as any).relativeUri}`, e);
+                        if(event.eType === 'ProcessorError') {
+                            Log.error(`hypermedia-engine: ${event.eType} ${(e as any).relativeUri}`, e);
+                        }
+                        else {
+                            Log.trace(`hypermedia-engine: ${event.eType} ${(e as any).relativeUri}`, e);
+                        }
                     }
                     else {
                         Log.trace(`hypermedia-engine: ${event.eType}`, e);

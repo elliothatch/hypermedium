@@ -1,6 +1,6 @@
 import { HypermediaEngine, Hal, HalUtil, Processor } from 'hypermedium';
 
-export const tags: Processor = {
+export const tags: Processor.Factory = () => ({
     name: 'tags',
     fn: (rs: HypermediaEngine.ResourceState): HypermediaEngine.ResourceState => {
         const tagIndexProfile = '/schema/index/tags';
@@ -18,22 +18,33 @@ export const tags: Processor = {
             }, undefined as string | undefined);
 
         if(tagIndex) {
-            return { ...rs, 
+            const tagUriSet = rs.state.tags.get(tagIndex);
+            const tagLinks = (tagUriSet? Array.from(tagUriSet): []).map((href: Hal.Uri) => ({
+                href,
+                title: rs.calculateFrom(href, ({resource}) => { return resource && resource.title;}),
+            }));
+
+            return {
+                ...rs, 
                 resource: {
-                    ...rs.resource, _links: {
-                        'fs:entries': (rs.state.tags[tagIndex] || []).map((href: Hal.Uri) => ({
-                            href,
-                            title: rs.calculateFrom(href, ({resource}) => { return resource && resource.title;}),
-                        })),
+                    ...rs.resource,
+                    _links: {
+                        'fs:entries': tagLinks,
                         ...rs.resource._links,
-                    }}};
+                    }
+                }
+            };
         }
+
         const tags = getTags(rs.resource);
         tags.forEach((t) => {
-            if(!rs.state.tags[t.href]) {
-                rs.state.tags[t.href] = [];
+            let tagUris = rs.state.tags.get(t.href);
+            if(!tagUris) {
+                tagUris = new Set();
+                rs.state.tags.set(t.href, tagUris);
             }
-            rs.state.tags[t.href].push(rs.relativeUri);
+
+            tagUris.add(rs.relativeUri);
         });
 
         tags.map((t) => {
@@ -50,7 +61,7 @@ export const tags: Processor = {
         });
         return rs;
     }
-};
+});
 
 /** get all "tag" links, or empty array */
 function getTags(resource: Hal.Resource): Hal.Link[] {
