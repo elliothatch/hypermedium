@@ -11,9 +11,10 @@ const demoPlugin = {
 				sitePaths: ['site'],
 				processors: [
 					{name: 'self'},
+					// process posts
 					{name: 'matchProfile', options: {
-						processorFactory: 'extend',
 						profile: '/schema/post',
+						processorFactory: 'extend',
 						options: {
 							obj: {
 								author: 'elliot',
@@ -30,8 +31,8 @@ const demoPlugin = {
 					}},
 					// configure tags index pages
 					{name: 'matchProfile', options: {
-						processorFactory: 'extend',
 						profile: '/schema/index/tags',
+						processorFactory: 'extend',
 						options: {
 							obj: {
 								"_embed": {
@@ -56,9 +57,10 @@ const demoPlugin = {
 					{name: 'curies'},
 					{name: 'sort'},
 					{name: 'embed'},
+					// add excerpts to each post in index
 					{name: 'matchProfile', options: {
-						processorFactory: 'forEach',
 						profile: '/schema/index/schema/post',
+						processorFactory: 'forEach',
 						options: {
 							processorFactory: 'extend',
 							property: '_embedded.fs:entries',
@@ -74,9 +76,10 @@ const demoPlugin = {
 						}
 					}},
 					{name: 'markdown'},
+					//  render markdown on embedded posts
 					{name: 'matchProfile', options: {
-						processorFactory: 'forEach',
 						profile: '/schema/index/schema/post',
+						processorFactory: 'forEach',
 						options: {
 							processorFactory: 'markdown',
 							property: '_embedded.fs:entries',

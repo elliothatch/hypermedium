@@ -8,14 +8,17 @@
     "_index": {
 		"key": "date-created"
 	},
-    "_sort": {
-		"property": "_links.fs:entries",
-		"key": "title",
-    	"ascending": true
-	},
-    "_embed": {
-        "fs:entries": {
-            "properties": ["_links", "title", "_embedded"]
-        }
-    }
+	"_processors": [{
+		"name": "embed",
+		"options": {
+			"properties": ["_links", "title", "_embedded"]
+		}
+	}, {
+		"name": "sort",
+		"options": {
+			"property": "_links.fs:entries",
+			"key": "title",
+			"ascending": true
+		}
+	}]
 }

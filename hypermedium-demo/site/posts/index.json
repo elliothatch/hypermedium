@@ -8,16 +8,39 @@
     "_index": {
 		"key": "date-created"
 	},
-    "_sort": {
-		"property": "_links.fs:entries",
-		"key": "date-created",
-    	"ascending": false,
-		"compare": "date"
-	},
-    "_embed": {
-        "fs:entries": {
-            "max": 2,
-            "properties": ["title", "author", "date-created", "excerpt"]
-        }
-    }
+
+    "_processors": [{
+        "processorFactory": "_embed",
+        "options": {
+			"fs:entries": {
+				"max": 2,
+				"properties": ["title", "author", "date-created", "excerpt"]
+			}
+		}
+	}, {
+    	"processorFactory": "forEach",
+    	"options": {
+    		"processorFactory": "extend",
+    		"options": {
+				"property": "_embedded.fs:entries",
+				"key": "_links.self.href",
+				"options": {
+					"obj": {
+						"_markdown": {
+							"input": "excerpt",
+							"output": "excerptHtml"
+						}
+					}
+				}
+			}
+		}
+	}, {
+    	"processorFactory": "_sort",
+    	"options": {
+			"property": "_links.fs:entries",
+			"key": "date-created",
+			"ascending": false,
+			"compare": "date"
+		}
+	}]
 }

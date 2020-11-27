@@ -13,6 +13,11 @@ import * as HAL from './hal';
 import { filterCuries, profilesMatch, resourceMatchesProfile, getProfiles } from './hal-util';
 import { createSchema, NotFoundError, objectDifference } from './util';
 
+/*
+ * Processor Phases:
+ * 1. embedding
+ */
+
 // TODO: add log functions to processors
 /** augments a hypermedia site with dynamic properties and resources
  * for example, adds "self" links and "breadcrumb"

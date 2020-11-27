@@ -353,7 +353,23 @@ export const processorFactories: {[name: string]: Processor.Factory} = {
             }
         };
     },
+    /** allows a resource to define additional processors to be executed when it is processed.
+     * WARNING: this is a very powerful, but dangerous processor, which allows resources to trigger unbounded processor code execution.
+     */
+    processors: (options?: ProcessorsFactoryOptions) => {
+        return {
+            name: 'processors',
+            fn: (rs) => {
+                return rs;
+            }
+        };
+    },
 };
+
+export interface ProcessorsFactoryOptions {
+    processors: {[name: string]: Processor};
+    allowProcessorCreation: boolean;
+}
 
 export interface ExcerptOptions {
     /** property containing the text to summarize */
