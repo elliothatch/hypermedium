@@ -6,7 +6,7 @@
     "types": "declarations/index.d.ts",
     "dependencies": {
         "hypermedium": "^0.1.0",
-        "marked": "^1.1.1"
+        "marked": "^2.0.0"
     },
     "devDependencies": {
         "@types/marked": "^1.1.0"
