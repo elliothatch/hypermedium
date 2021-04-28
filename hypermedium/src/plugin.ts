@@ -55,9 +55,9 @@ export type Module = Partial<{
     hypermedia: Partial<{
         sitePaths: string[];
         /** new types of processor factories that can be used in the hypermedia engine */
-        processorFactories: {[name: string]: Processor.Factory};
+        processorDefinitions: Processor.Definition[];
         /** processors that should be created and added to the hypermedia engine */
-        processors: {name: string; options?: any}[];
+        processors: {[stage: string]: Processor[]};
         /** if set, this url is prepended to the URI of every HAL resources served from this module */
         baseUri: string;
         // websocket middleware
@@ -132,14 +132,13 @@ export namespace Module {
 
             export interface ProcessorDefinitionChanged extends Base {
                 eType: 'processor-definition-changed';
-                name: string;
                 processorDefinition: Processor.Definition;
             }
 
             export interface ProcessorChanged extends Base {
                 eType: 'processor-changed';
-                name: string;
-                options?: any;
+                processor: Processor;
+                stage: string; //'pre' | 'post';
             }
         }
 

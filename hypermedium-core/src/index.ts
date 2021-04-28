@@ -1,7 +1,7 @@
 import { Plugin } from 'hypermedium';
 
 import { handlebarsHelpers } from './handlebars';
-import { processorFactories } from './processors';
+import { processorDefinitions } from './processors';
 import { taskDefinitions } from './task-definitions';
 
 export interface CoreOptions {
@@ -16,7 +16,7 @@ const corePlugin: Plugin<CoreOptions> = {
     moduleFactory: (options) => {
         return {
             hypermedia: {
-                processorFactories,
+                processorDefinitions,
             },
             renderer: {
                 templatePaths: ['templates'],

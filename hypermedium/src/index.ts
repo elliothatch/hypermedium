@@ -19,7 +19,7 @@ import { mergeMap, map } from 'rxjs/operators';
 import * as Express from 'express';
 
 import { Hypermedium } from './hypermedium';
-import { HypermediaEngine } from './hypermedia-engine';
+import * as HypermediaEngine from './hypermedia-engine';
 import * as Build from './build';
 import { Module } from './plugin';
 
@@ -145,7 +145,7 @@ function initializeHypermedium(staticMappings: StaticMapping[]) {
     // initialize hypermedium
     const hypermedium = new Hypermedium();
 
-    hypermedium.hypermedia.event$.subscribe({
+    hypermedium.hypermedia.events.subscribe({
         next: (event) => {
             switch(event.eType) {
                 case 'Warning':

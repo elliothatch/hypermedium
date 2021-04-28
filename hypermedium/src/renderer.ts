@@ -193,10 +193,11 @@ export class HtmlRenderer {
 
     /** if templateUri is empty or undefined, use the default template */
     protected middleware = (templateUri?: string) => (req: Request, res: Response, next: NextFunction) => {
-        if(Path.extname(req.path) === this.hypermedia.state.suffix || req.headers.accept === "application/hal+json") {
+        const suffix = '.json';
+        if(Path.extname(req.path) === suffix || req.headers.accept === "application/hal+json") {
             return next();
         }
-        const resource = this.hypermedia.getResource(req.path);
+        const resource = this.hypermedia.resourceGraph.getResource(req.path);
         if(!resource) {
             return next();
         }

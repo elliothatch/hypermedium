@@ -9,7 +9,14 @@ const demoPlugin = {
 		return {
 			hypermedia: {
 				sitePaths: ['site'],
-				processors: []
+				processors: {
+					post: [{
+						name: 'index',
+						options: {
+							property: '_links.profile.href'
+						}
+					}]
+				}
 			},
 			renderer: {
 				templatePaths: ['templates'],

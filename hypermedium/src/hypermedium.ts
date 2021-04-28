@@ -73,11 +73,11 @@ export class Hypermedium {
                                             return EMPTY;
                                     }
                                 case 'processor-definition-changed':
-                                    this.hypermedia.processorDefinitions.set(moduleNamespace + moduleEvent.name, moduleEvent.processorDefinition);
+                                    this.hypermedia.processorDefinitions.set(moduleNamespace + moduleEvent.processorDefinition.name, moduleEvent.processorDefinition);
                                     return EMPTY;
 
                                 case 'processor-changed':
-                                    this.hypermedia.addProcessor(moduleEvent.name, moduleEvent.options);
+                                    this.hypermedia.addGlobalProcessor(moduleEvent.processor, moduleEvent.stage);
                                     this.hypermedia.processAllResources();
                                     return EMPTY;
                             }

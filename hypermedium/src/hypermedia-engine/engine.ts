@@ -81,8 +81,9 @@ import { Logger } from 'freshlog';
  */
 
 export class HypermediaEngine {
+    public router: Router;
     public resourceGraph: ResourceGraph;
-    public processorDefinitions: Map<string, Processor.ProcessorDefinition>;
+    public processorDefinitions: Map<string, Processor.Definition>;
     public globalProcessors: {
         pre: Processor[],
         post: Processor[],
@@ -104,6 +105,22 @@ export class HypermediaEngine {
             publish(),
             refCount(),
         );
+
+        this.router = Router();
+        this.router.get('/*', this.middleware);
+    }
+
+    protected middleware = (req: Request, res: Response, next: NextFunction) => {
+        const resource = this.resourceGraph.getResource(normalizeUri(req.path));
+        if(!resource) {
+            return next();
+        }
+
+        return res.status(200).json(resource);
+    }
+
+    public addGlobalProcessor(processor: Processor, stage: string): void {
+        (this.globalProcessors as any)[stage].push(processor);
     }
 
     public loadResource(uri: HAL.Uri, resource: HAL.Resource, origin: string): ResourceGraph.Node {
@@ -237,9 +254,9 @@ export class HypermediaEngine {
         });
     }
 
-    // public loadResource()
-    // public unloadResource()
-    // public processResource()
+    public processAllResources(): Observable<ExtendedResource> {
+        return merge(...this.resourceGraph.graph.sources().map((uri) => this.processResource(uri)));
+    }
 
     protected executeProcessor(processor: Processor, uri: HAL.Uri, resource: ExtendedResource): Observable<ExtendedResource> {
         const processorDefinition = this.processorDefinitions.get(processor.name);
@@ -293,7 +310,7 @@ export class HypermediaEngine {
                                 "href": `/schema/hypermedium/state/${processor.name}`
                             }
                         },
-                    }, processor.name);
+                    }, 'state');
                 }
                 HalUtil.setProperty(stateNode.originalResource, property, value);
             },

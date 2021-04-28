@@ -6,6 +6,7 @@ import { concat, defer, EMPTY, from, merge, of, Observable } from 'rxjs';
 import { filter, map, mergeMap } from 'rxjs/operators';
 
 import { WatchEvent, watchFiles } from './util';
+import { Processor } from './hypermedia-engine';
 
 import { Plugin, Module } from './plugin';
 
@@ -137,23 +138,26 @@ export class PluginManager {
                         ));
                     }
 
-                    if(module.hypermedia.processorFactories) {
-                        const processorDefinitionEvents = Object.keys(module.hypermedia.processorFactories).map((name) => ({
+                    if(module.hypermedia.processorDefinitions) {
+                        const processorDefinitionEvents = module.hypermedia.processorDefinitions.map((processorDefinition) => ({
                             eCategory: 'hypermedia' as const,
                             eType: 'processor-definition-changed' as const,
-                            name,
-                            processorDefinition: module.hypermedia!.processorDefinitions![name]
+                            processorDefinition
                         }));
                         installEventSources.push(from(processorDefinitionEvents));
                     }
 
                     if(module.hypermedia.processors) {
-                        // TODO: is this a race condition with processorFactories?
-                        const processorEvents = module.hypermedia.processors.map((processor) => ({
+                        // TODO: is this a race condition with processorDefinitions?
+
+
+                        const processorEvents = Object.keys(module.hypermedia.processors).reduce((arr: {processor: Processor, stage: string}[], stage) => {
+                            return arr.concat(module.hypermedia!.processors![stage].map((processor) => ({processor, stage})));
+                        }, []).map(({processor, stage}) => ({
                             eCategory: 'hypermedia' as const,
                             eType: 'processor-changed' as const,
-                            name: processor.name,
-                            options: processor.options,
+                            processor,
+                            stage
                         }));
                         moduleEventSources.push(from(processorEvents));
                     }

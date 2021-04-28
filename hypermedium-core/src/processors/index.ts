@@ -1,8 +1,8 @@
-import { Processor, HypermediaEngine, Hal, HalUtil } from 'hypermedium';
+import { Processor, ResourceState, HypermediaEngine, Hal, HalUtil } from 'hypermedium';
 
-import { embed } from './embed';
-import { makeIndex } from './make-index';
-import { tags } from './tags';
+// import { embed } from './embed';
+// import { makeIndex } from './make-index';
+// import { tags } from './tags';
 
 export interface IndexOptions {
     /** dot-notation of the property to use as the index */
@@ -15,11 +15,11 @@ export interface IndexOptions {
 //    reverseIndex: Map<Hal.Uri, value>;
 // }
 export interface PropertyIndex {
-    index: {[value: string]: {[uri: Hal.Uri]: true}};
+    index: {[value: string]: {[uri: string]: true}};
     /** neeeded to quickly remove all instances of Uri from index */
-    reverseIndex: {[uri: Hal.Uri]: {[value: string]: true}};
+    reverseIndex: {[uri: string]: {[value: string]: true}};
 }
-export type IndexState = {[property: string], PropertyIndex};
+export type IndexState = {[property: string]: PropertyIndex};
 
 // {
 //    index: {
@@ -43,15 +43,15 @@ export type IndexState = {[property: string], PropertyIndex};
 // NOTE: uris are NOT REMOVED FROM INDEX if the resource is deleted
 // many proessors probably need to do some cleanup on delete. should there be an optional onDelete hook?
 
-const index = {
+export const processorDefinitions: Processor.Definition[] = [{
     name: 'index',
-    onInit: (rs: HypermediaEngine.ResourceState, options: IndexOptions) => {
+    onInit: (rs: ResourceState, options: IndexOptions) => {
         rs.setState(options.property, {
             index: {},
             reverseIndex: {}
         });
     },
-    onProcess: (rs: HypermediaEngine.ResourceState, options: IndexOptions) => {
+    onProcess: (rs: ResourceState, options: IndexOptions) => {
         let values = HalUtil.getProperty(rs.resource, options.property);
 
         if(!values) {
@@ -63,12 +63,14 @@ const index = {
         }
 
         const propertyIndex: PropertyIndex = rs.getState(options.property);
-        values.forEach((value) => {
+        values.forEach((value: any) => {
             HalUtil.setProperty(propertyIndex.index, `${value}.${rs.uri}`, true);
             HalUtil.setProperty(propertyIndex.reverseIndex, `${rs.uri}.${value}`, true);
         });
+
+        return rs.resource;
     },
-    onDelete: (rs: HypermediaEngine.ResourceState, options: IndexOptions) => {
+    onDelete: (rs: ResourceState, options: IndexOptions) => {
         const propertyIndex: PropertyIndex = rs.getState(options.property);
         const values = propertyIndex.reverseIndex[rs.uri];;
         if(values) {
@@ -79,7 +81,7 @@ const index = {
             delete propertyIndex.reverseIndex[rs.uri];
         }
     },
-};
+}];
 
 // TODO: rewrite the core processors to all work with dot notation, and allow more customization in which properties and values are read and set
 

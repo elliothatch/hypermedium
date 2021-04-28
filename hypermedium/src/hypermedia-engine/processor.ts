@@ -25,7 +25,7 @@ export interface Processor {
 }
 
 export namespace Processor {
-    export interface ProcessorDefinition {
+    export interface Definition {
         name: string;
         onInit?: (rs: ResourceState, options: any) => void;
         onProcess: (rs: ResourceState, options: any) => ExtendedResource | Promise<ExtendedResource>;
