@@ -25,15 +25,7 @@ export class Hypermedium {
 
     constructor(options?: Partial<Hypermedium.Options>) {
         this.pluginManager = new PluginManager();
-        this.hypermedia = new HypermediaEngine(Object.assign(
-            {
-                curies: [],
-            },
-            options && options.hypermedia,
-            {
-                processors: [],
-            }
-        ));
+        this.hypermedia = new HypermediaEngine();
 
         this.renderer = new HtmlRenderer(Object.assign(
             {},
@@ -80,8 +72,8 @@ export class Hypermedium {
                                             this.hypermedia.unloadResource(moduleEvent.uri);
                                             return EMPTY;
                                     }
-                                case 'processor-factory-changed':
-                                    this.hypermedia.processorFactories.set(moduleNamespace + moduleEvent.name, moduleEvent.processorFactory);
+                                case 'processor-definition-changed':
+                                    this.hypermedia.processorDefinitions.set(moduleNamespace + moduleEvent.name, moduleEvent.processorDefinition);
                                     return EMPTY;
 
                                 case 'processor-changed':

@@ -1,0 +1,58 @@
+import * as HAL from '../hal';
+
+import { ResourceGraph } from './resource-graph';
+
+export type Event = Event.ProcessResource | Event.ProcessResourceStart | Event.LoadResource  | Event.UnloadResource | Event.AddDependency | Event.ProcessorError | Event.Warning;
+export namespace Event {
+    export interface ProcessResource {
+        eType: 'ProcessResource';
+
+        /** execution time in milliseconds */
+        duration: number;
+        uri: HAL.Uri;
+        edges: ResourceGraph.Edge[];
+        resource: HAL.Resource;
+    }
+
+    export interface ProcessResourceStart {
+        eType: 'ProcessResourceStart';
+
+        uri: HAL.Uri;
+    }
+
+    export interface LoadResource {
+        eType: 'LoadResource';
+
+        uri: HAL.Uri;
+        resource: HAL.Resource;
+    }
+
+    export interface UnloadResource {
+        eType: 'UnloadResource';
+
+        uri: HAL.Uri;
+    }
+
+    export interface AddDependency {
+        eType: 'AddDependency';
+
+        v: string;
+        w: string;
+
+        /** name of the processor */
+        processor: string;
+    }
+
+    export interface ProcessorError {
+        eType: 'ProcessorError';
+
+        uri: HAL.Uri;
+        error: Error;
+    }
+
+    export interface Warning {
+        eType: 'Warning';
+
+        message: string;
+    }
+}

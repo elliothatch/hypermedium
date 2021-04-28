@@ -135,3 +135,16 @@ export function setProperty(obj: any, propertyName: string, value: any): any {
     setProperty(obj[properties[0]], properties.slice(1).join('.'), value);
     return obj;
 }
+
+// TODO: make this work with different MIME types with sensible default beahvior
+export function normalizeUri(relativeUri: Hal.Uri): Hal.Uri {
+    const suffix = '.json';
+    if(relativeUri.slice(-1) === '/') {
+        return `${relativeUri}index${suffix}`;
+    }
+    else if(relativeUri.lastIndexOf('.') < relativeUri.lastIndexOf('/')) {
+        return relativeUri + suffix;
+    }
+    return relativeUri;
+}
+

@@ -13,54 +13,7 @@ import * as HAL from './hal';
 import { filterCuries, profilesMatch, resourceMatchesProfile, getProfiles } from './hal-util';
 import { createSchema, NotFoundError, objectDifference } from './util';
 
-/**
- * currently:
- * processors are dumb stateless functions. every processor is executed on every resource (inefficient), and can be disabled conditionally through the use of higher-order processors.
- * A higher order processor works by locally instantiating a processor and storing it through closure.
- * Processors must manually check if the resource contains a special "options" property, and noop if not found.
- * Async is implemented by triggering processResource once the target promise has resolved. This is nice because it ensures that processes cannot hang the processor queue, but it requires a significant amount of non-trivial code to handle async situations
- *
- * ISSUES
- *  - unnecessary execution of processors
- *  - no ability to detect conflicting processor properties
- *  - confusing async support
- *  - doesn't support resource-local processors easily (have to store state, create proessors, etc.
- *  - high memory usage as number of processors increases
- *  - no logging
- *  - can only store state by making changes to core resource-state object
- *  - processor execution order determined by global registration order. this makes configuring some pages a specific way difficult (sort before or after embed, etc.
- *   - some "indexing" processsors (makeIndex/tags) need to track state about the entire site (e.g. which pages have which tags). currently they are excuted on every document once to track index state, the have additional code that only executes on "index page" resources. these would be easier to understand if they were done in two steps--a "read only" indexing step, and a separate "processor" step for building the index pages.
- *
- * GOALS
- *  - Isolated
- *    - processors can be easily written without knowlede of other processors
- *    - resources shouldn't need to worry about the "global execution order" of processors
- *    - user is notified when multiple processors modify the same properties?
- *     - configuring different processors for various types of resources should be simple
- *    - options used to configure a processor should just be passed to the processor. simplify or remove the concept of "processorFactory" which was used to accomplish this
- *
- *  - Async
- *    - doesn't hang the processor queue
- *    - shouldn't require tons of confusing boilerplate to support async functions
- *    - shouldn't span across multiple executions of the processor. all code for an async process should be contained within one execution cycle of the process.
- *    - don't trigger dependent reprocessing until the async flow is complete
- *       - multiple async processors on the same resource are "bundled"
- *  - static site generation
- *
- * OPTIONS
- *   - global processors include array of "matcher" functions which determine if the processor is used. much simpler and easier to use than nesting higher order processors
- *   - processors should store state with a Storage API. differentiate between persistent storage and temporary/intermediate storage
- *   - support dependency processing triggered by modifications to specific properties, rather than the entire resource
- *   - instantiate processors on the fly to reduce unnecessary memory usage
- *   - add helper function for inserting links from another page
- *   - local processor stages? "pre" stage is executed before global processors, "postGlobal" executed after local, "post" executes locally after postGlobal
- *   - higher-order processors are still useful as they allow constructs like "forEach" to be added. support these by making them first-class i.e. easy to execute other processors from the current one. good "isolation" makes this possible without a ton of boilerplate or extra work.
- *
- * SOLUTIONS
- *   - global processors only should be used if you actually want the processor to be executed on every document or every "matching" document
- *   - local processors executed after global processors. instantiated only for as long as the resource is actully being processed
- */
-/**
+/*
  * Processor Phases:
  * 1. embedding
  */

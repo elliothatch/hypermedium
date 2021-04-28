@@ -117,7 +117,7 @@ export namespace Module {
                 eType: 'initialized';
             }
         }
-        export type Hypermedia = Hypermedia.ResourceChanged | Hypermedia.ProcessorFactoryChanged | Hypermedia.ProcessorChanged;
+        export type Hypermedia = Hypermedia.ResourceChanged | Hypermedia.ProcessorDefinitionChanged | Hypermedia.ProcessorChanged;
         export namespace Hypermedia {
             export interface Base {
                 eCategory: 'hypermedia'
@@ -130,10 +130,10 @@ export namespace Module {
                 uri: string;
             }
 
-            export interface ProcessorFactoryChanged extends Base {
-                eType: 'processor-factory-changed';
+            export interface ProcessorDefinitionChanged extends Base {
+                eType: 'processor-definition-changed';
                 name: string;
-                processorFactory: Processor.Factory;
+                processorDefinition: Processor.Definition;
             }
 
             export interface ProcessorChanged extends Base {

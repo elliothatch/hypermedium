@@ -138,13 +138,13 @@ export class PluginManager {
                     }
 
                     if(module.hypermedia.processorFactories) {
-                        const factoryEvents = Object.keys(module.hypermedia.processorFactories).map((name) => ({
+                        const processorDefinitionEvents = Object.keys(module.hypermedia.processorFactories).map((name) => ({
                             eCategory: 'hypermedia' as const,
-                            eType: 'processor-factory-changed' as const,
+                            eType: 'processor-definition-changed' as const,
                             name,
-                            processorFactory: module.hypermedia!.processorFactories![name]
+                            processorDefinition: module.hypermedia!.processorDefinitions![name]
                         }));
-                        installEventSources.push(from(factoryEvents));
+                        installEventSources.push(from(processorDefinitionEvents));
                     }
 
                     if(module.hypermedia.processors) {
