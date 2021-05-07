@@ -42,7 +42,7 @@
 		"freshlog": "^0.2.4",
 		"fs-extra": "^9.0.1",
 		"graphlib": "^2.1.8",
-		"handlebars": "^4.7.6",
+		"handlebars": "^4.7.7",
 		"minimist": "^1.2.5",
 		"rxjs": "^6.6.2",
 		"uri-template": "^1.0.1"
