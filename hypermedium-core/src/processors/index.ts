@@ -4,74 +4,194 @@ import { Processor, ResourceState, HypermediaEngine, Hal, HalUtil } from 'hyperm
 // import { makeIndex } from './make-index';
 // import { tags } from './tags';
 
-export interface IndexOptions {
-    /** dot-notation of the property to use as the index */
-    property: string;
+export namespace Core {
+    export type Processors =
+        Processors.Self |
+        Processors.Insert |
+        Processors.Extend |
+        Processors.Copy |
+        Processors.CopyState |
+        Processors.ObjectKeys |
+        Processors.ForEach |
+        Processors.Index |
+        Processors.GetIndex;
+
+    export namespace Processors {
+        export type Self = Processor<'self'>;
+        export type Insert = Processor<'insert', {
+            property: string | string[];
+            values: any[];
+            index: number;
+        }>;
+        export type Extend = Processor<'extend', {obj: any}>;
+        export type Copy = Processor<'copy', {
+            uri: Hal.Uri;
+            from: string | string[];
+            to: string | string[];
+        }>;
+        export type CopyState = Processor<'copyState', {
+            processor: string;
+            from: string | string[];
+            to: string | string[];
+        }>;
+        export type ObjectKeys = Processor<'objectKeys', {
+            property: string | string[];
+            to?: string | string[];
+        }>;
+        export type ForEach = Processor<'forEach', {
+            property: string | string[],
+            processor: Processor;
+            /** the property 'toOption' will be overwritten with the value of the element in the array each iteration */
+            // toOption: string;
+        }>;
+        export type Index = Processor.Definition<'index', {
+            /** dot-notation of the property to use as the index */
+            property: string;
+        }>;
+        export namespace Index {
+            export type State = {[property: string]: PropertyIndex};
+            export interface PropertyIndex {
+                index: {[value: string]: {[uri: string]: true}};
+                /** neeeded to quickly remove all instances of Uri from index */
+                reverseIndex: {[uri: string]: {[value: string]: true}};
+            }
+        }
+        export type GetIndex = Processor.Definition<'getindex', {
+            /** property of index */
+            property: string;
+            /** if provided, only return matching values */
+            filter?: string;
+            to: string | string[];
+        }>;
+    }
 }
 
-// Map<property, {
-//    index: Map<value, Set<Hal.Uri>;
-//    /* 
-//    reverseIndex: Map<Hal.Uri, value>;
-// }
-export interface PropertyIndex {
-    index: {[value: string]: {[uri: string]: true}};
-    /** neeeded to quickly remove all instances of Uri from index */
-    reverseIndex: {[uri: string]: {[value: string]: true}};
-}
-export type IndexState = {[property: string]: PropertyIndex};
+export const processorDefinitions: Core.Processors[] = [{
+    name: 'self',
+    onProcess: (rs, options) => {
+        HalUtil.setProperty(rs.resource, '_links.self.href', rs.uri);
+        return rs.resource;
+    }
+}, {
+    name: 'insert',
+    onProcess: (rs, options) => {
+        if(!Array.isArray(options.values)) {
+            options.values = [options.values];
+        }
 
-// {
-//    index: {
-//      _links.profile.href: {
-//          index: {
-//              post: [/a, /b, /c, /d]
-//              tutorial: [/d]
-//          },
-//          reverseIndex: {
-//              '/a': ['post']
-//              '/b': ['post']
-//              '/c': ['post']
-//              '/d': ['post', 'tutorial']
-//          }
-//      },
-//      tags: {
-//      }
-//    }
-// }
-//
-// NOTE: uris are NOT REMOVED FROM INDEX if the resource is deleted
-// many proessors probably need to do some cleanup on delete. should there be an optional onDelete hook?
+        const value = HalUtil.getProperty(rs.resource, options.property);
+        if(value == undefined) {
+            HalUtil.setProperty(rs.resource, options.property, options.values)
+            return rs.resource;
+        }
+        else if(!Array.isArray(value)) {
+            rs.logger.warn(`overwriting '${options.property}': tried to insert into array but property has type ${typeof value}`);
+            HalUtil.setProperty(rs.resource, options, options.values);
+            return rs.resource;
+        }
 
-export const processorDefinitions: Processor.Definition[] = [{
+        value.splice(options.index == undefined? value.length: options.index, 0, ...options.values);
+        return rs.resource;
+    }
+}, {
+    /** extend each resource with the properties of an object. does not overwrite existing properties unless overwrite is true */
+    name: 'extend',
+    onProcess: (rs, options) => {
+        if(options.overwrite) {
+            Object.keys(options.obj).forEach((property) => {
+                HalUtil.setProperty(rs.resource, property, options.obj[property]);
+            });
+
+        }
+        else {
+            Object.keys(options.obj).forEach((property) => {
+                if(HalUtil.getProperty(rs.resource, property) === undefined) {
+                    HalUtil.setProperty(rs.resource, property, options.obj[property]);
+                }
+            });
+        }
+
+        return rs.resource;
+    }
+}, {
+    name: 'copy',
+    onProcess: (rs, options) => {
+        const resource = rs.getResource(options.uri);
+        if(!resource) {
+            return rs.resource;
+        }
+
+        const value = HalUtil.getProperty(resource, options.from);
+        HalUtil.setProperty(rs.resource, options.to, value);
+        return rs.resource;
+    }
+}, {
+    name: 'copyState',
+    onProcess: (rs, options) => {
+        const resource = rs.getResource(`/~hypermedium/state/${options.processor || rs.processor.name}`);
+        if(!resource) {
+            return rs.resource;
+        }
+
+        const value = HalUtil.getProperty(resource, options.from);
+        HalUtil.setProperty(rs.resource, options.to, value);
+        return rs.resource;
+    }
+}, {
+    name: 'objectKeys',
+    onProcess: (rs, options) => {
+        const value = HalUtil.getProperty(rs.resource, options.property);
+        HalUtil.setProperty(rs.resource, options.output || options.property, Object.keys(value));
+
+        return rs.resource;
+    }
+}, {
+    name: 'forEach',
+    /** run a processor for each element in an array, using the element as the resource */
+    onProcess: (rs, options) => {
+        const value = HalUtil.getProperty(rs.resource, options.property);
+        if(!Array.isArray(value)) {
+            rs.logger.error(`skipping: '${options.property}' must be an array but had type ${typeof value}`);
+            return rs.resource;
+        }
+
+        return value.reduce((p, v, i) => {
+            return p.then((resource) =>
+                this.executeProcessor({processor, options}, `${rs.uri}:${options.property}.${i}`, resource));
+        }, Promise.resolve(rs.resource));
+    }
+}, {
     name: 'index',
-    onInit: (rs: ResourceState, options: IndexOptions) => {
+    onInit: (rs: ResourceState, options) => {
         rs.setState(options.property, {
             index: {},
             reverseIndex: {}
         });
     },
-    onProcess: (rs: ResourceState, options: IndexOptions) => {
-        let values = HalUtil.getProperty(rs.resource, options.property);
+    onProcess: (rs: ResourceState, options) => {
+        if(!rs.getState([options.property])) {
+            rs.setState([options.property], {
+                index: {},
+                reverseIndex: {}
+            });
+        }
 
-        if(!values) {
+        let values = HalUtil.matchProperty(rs.resource, options.property);
+
+        if(values.length === 0) {
             return rs.resource;
         }
 
-        if(!Array.isArray(values)) {
-            values = [values];
-        }
-
-        const propertyIndex: PropertyIndex = rs.getState(options.property);
+        const propertyIndex: PropertyIndex = rs.getState([options.property]);
         values.forEach((value: any) => {
-            HalUtil.setProperty(propertyIndex.index, `${value}.${rs.uri}`, true);
-            HalUtil.setProperty(propertyIndex.reverseIndex, `${rs.uri}.${value}`, true);
+            HalUtil.setProperty(propertyIndex.index, ['' + value, rs.uri], true);
+            HalUtil.setProperty(propertyIndex.reverseIndex, [rs.uri, '' + value], true);
         });
 
         return rs.resource;
     },
-    onDelete: (rs: ResourceState, options: IndexOptions) => {
-        const propertyIndex: PropertyIndex = rs.getState(options.property);
+    onDelete: (rs: ResourceState, options) => {
+        const propertyIndex: PropertyIndex = rs.getState([options.property]);
         const values = propertyIndex.reverseIndex[rs.uri];;
         if(values) {
             Object.keys(values).forEach((value) => {
@@ -81,6 +201,99 @@ export const processorDefinitions: Processor.Definition[] = [{
             delete propertyIndex.reverseIndex[rs.uri];
         }
     },
+}, {
+    name: 'getIndex',
+    /*
+    onProcess: (rs: ResourceState, options) => {
+
+        const processors: Core.Processor [{
+            name: 'copyState',
+            options: {
+                from: [options.property, 'index'],
+                to: options.to
+            }
+        }, {
+            name: "forEach",
+        }];
+        // implementing this with only processors isn't particularly expressive and has weird scoping issues due to how toOption works
+        // should it be easier to work with only processors? (probably)
+        // TODO: add forEach object
+        return rs.executeProcessor({
+            name: 'copyState',
+            options: {
+                from: [options.property, 'index'],
+                to: options.to
+            }
+        }).then((resource) =>
+            if(!filter) {
+                const indexMap = HalUtil.getProperty(resource, options.to);
+                const results = Object.keys(indexMap).reduce((arr: any[], property) => {
+                    return arr.concat(Object.keys(indexMap[property]));
+                }, []);
+
+                HalUtil.setProperty(resource, options.to, results);
+                return resource;
+            }
+
+             Object.keys(HalUtil.getProperty(resource, options.to));
+            return Object.keys(HalUtil.getProperty(resource, options.to));
+
+            rs.executeProcessor({
+                name: 'forEach',
+                options: {
+                    property: options.to,
+                    toOption: 'values',
+                    processor: {
+                        name: 'insert',
+                        options: {
+                            property: options.to
+                            // values overwritten by toOption
+                        }
+                    }
+                }
+            })
+        );
+                }, {
+                    "name": "forEach",
+                    options: {
+                        property: options.to,
+                        processors: [{
+                            name: 'insert',
+                            options: {
+                                property: options.to,
+                                values: 
+                            }
+                        }]
+                    }
+                }
+                }, {
+                    "name": "objectKeys",
+                    "options": {
+                        "property": options.to
+                    }
+                }];
+
+        return [{
+            "name": "insert",
+            "options": {
+                "index": 0,
+                "property": '_processors',
+                "values": [{
+                    "name": "copyState",
+                    "options": {
+                        "processor": "index",
+                        "from": [options.property, "index", options.filter],
+                        "to":options.to
+                    }
+                }, {
+                    "name": "objectKeys",
+                    "options": {
+                        "property": options.to
+                    }
+                }];
+            }
+        }];
+        */
 }];
 
 // TODO: rewrite the core processors to all work with dot notation, and allow more customization in which properties and values are read and set

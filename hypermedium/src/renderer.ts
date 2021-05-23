@@ -16,7 +16,7 @@ import * as Handlebars from 'handlebars';
 
 import { HypermediaEngine, ExtendedResource } from './hypermedia-engine';
 import * as HAL from './hal';
-import { expandCuri, getProfiles, htmlUri } from './hal-util';
+import { expandCuri, getProfiles, htmlUri, normalizeUri } from './hal-util';
 import { File } from './util';
 
 export type Html = string;
@@ -197,6 +197,7 @@ export class HtmlRenderer {
         if(Path.extname(req.path) === suffix || req.headers.accept === "application/hal+json") {
             return next();
         }
+
         const resource = this.hypermedia.resourceGraph.getResource(req.path);
         if(!resource) {
             return next();

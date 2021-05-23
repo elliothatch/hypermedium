@@ -1,46 +1,21 @@
 {
-    "title": "posts",
-    "_links": {
-        "profile": {
-            "href": "/schema/index/schema/post"
-        }
-    },
-    "_index": {
-		"key": "date-created"
+	"title": "posts",
+	"_links": {
+		"profile": {
+			"href": "/schema/index/schema/post"
+		}
 	},
-
-    "_processors": [{
-        "processorFactory": "_embed",
-        "options": {
-			"fs:entries": {
-				"max": 2,
-				"properties": ["title", "author", "date-created", "excerpt"]
-			}
+	"_processors": [{
+		"name": "copyState",
+		"options": {
+			"processor": "index",
+			"from": ["_links.profile.href", "index", "/schema/post"],
+			"to": "articles"
 		}
 	}, {
-    	"processorFactory": "forEach",
-    	"options": {
-    		"processorFactory": "extend",
-    		"options": {
-				"property": "_embedded.fs:entries",
-				"key": "_links.self.href",
-				"options": {
-					"obj": {
-						"_markdown": {
-							"input": "excerpt",
-							"output": "excerptHtml"
-						}
-					}
-				}
-			}
-		}
-	}, {
-    	"processorFactory": "_sort",
-    	"options": {
-			"property": "_links.fs:entries",
-			"key": "date-created",
-			"ascending": false,
-			"compare": "date"
+		"name": "objectKeys",
+		"options": {
+			"property": "articles"
 		}
 	}]
 }

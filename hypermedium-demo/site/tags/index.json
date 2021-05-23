@@ -4,21 +4,5 @@
         "profile": {
             "href": "/schema/index/schema/index/tags"
         }
-    },
-    "_index": {
-		"key": "date-created"
-	},
-	"_processors": [{
-		"name": "embed",
-		"options": {
-			"properties": ["_links", "title", "_embedded"]
-		}
-	}, {
-		"name": "sort",
-		"options": {
-			"property": "_links.fs:entries",
-			"key": "title",
-			"ascending": true
-		}
-	}]
+    }
 }

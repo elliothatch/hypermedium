@@ -1,6 +1,7 @@
 import { Graph, Edge } from 'graphlib';
 
 import * as HAL from '../hal';
+import { normalizeUri } from '../hal-util';
 import { Processor } from './processor';
 
 export interface ExtendedResource extends HAL.Resource {
@@ -17,6 +18,17 @@ export class ResourceGraph {
 
     public getResource(uri: HAL.Uri): HAL.Resource | undefined {
         const suffix = '.json';
+        if(uri.slice(-1) === '/') {
+            const node = this.graph.node(normalizeUri(uri) || this.graph.node(uri));
+            return node && (node.resource || node.originalResource);
+        }
+        else if(uri.lastIndexOf('.') < uri.lastIndexOf('/')) {
+            // no file extension, try to find a file with the default suffix
+            // TODO: store a set of "suffixes", pick based on Accept header, or use default 'suffix' if missing
+            const node = this.graph.node(`${uri}${suffix}`) || this.graph.node(uri) || this.graph.node(normalizeUri(uri + '/'));
+            return node && (node.resource || node.originalResource);
+
+        }
         const node = this.graph.node(uri);
         return node && (node.resource || node.originalResource);
     }

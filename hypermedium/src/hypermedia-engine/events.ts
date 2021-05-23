@@ -1,8 +1,9 @@
 import * as HAL from '../hal';
 
 import { ResourceGraph } from './resource-graph';
+import { Processor } from './processor';
 
-export type Event = Event.ProcessResource | Event.ProcessResourceStart | Event.LoadResource  | Event.UnloadResource | Event.AddDependency | Event.ProcessorError | Event.Warning;
+export type Event = Event.ProcessResource | Event.ProcessResourceStart | Event.LoadResource  | Event.UnloadResource | Event.AddDependency | Event.ProcessorError | Event.Warning | Event.ProcessorLog;
 export namespace Event {
     export interface ProcessResource {
         eType: 'ProcessResource';
@@ -12,6 +13,7 @@ export namespace Event {
         uri: HAL.Uri;
         edges: ResourceGraph.Edge[];
         resource: HAL.Resource;
+        processors: Processor[];
     }
 
     export interface ProcessResourceStart {
@@ -54,5 +56,10 @@ export namespace Event {
         eType: 'Warning';
 
         message: string;
+    }
+
+    export interface ProcessorLog {
+        eType: 'ProcessorLog';
+        log: any;
     }
 }

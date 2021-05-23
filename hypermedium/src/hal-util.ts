@@ -97,33 +97,52 @@ export function profilesMatch(profile: Hal.Uri, targetProfile?: Hal.Uri, baseUri
  * @param obj - root object
  * @param propertyName - name of the property to retrieved. Nested properties are specified with dot notation ('a.b.c')
  */
-export function getProperty(obj: any, propertyName: string): any {
+export function getProperty(obj: any, propertyName: string | string[]): any {
     if(!obj) {
         return undefined;
     }
 
-    const properties = propertyName.split('.');
+    const properties = Array.isArray(propertyName)? propertyName: propertyName.split('.');
     const value = obj[properties[0]];
     if(properties.length === 1) {
         return value;
     }
 
-    return getProperty(value, properties.slice(1).join('.'));
+    return getProperty(value, properties.slice(1));
+}
+
+/**
+ * returns all instances of a property, searching all values in any arrays in the property chain
+ */
+export function matchProperty(obj: any, propertyName: string | string[]): any[] {
+    if(!obj) {
+        return [];
+    }
+
+    const properties = Array.isArray(propertyName)? propertyName: propertyName.split('.');
+    const value = obj[properties[0]];
+    const values = Array.isArray(value)? value: [value];
+
+    if(properties.length === 1) {
+        return values;
+    }
+
+    return values.reduce((arr, v) => arr.concat(matchProperty(v, properties.slice(1))), [] as any[]);
 }
 
 /**
  * sets a property on an object. Supports nested properties, creates nested objects when necessary
  * @param obj - root object
- * @param propertyName - name of the property to set. Nested properties are specified with dot notation ('a.b.c')
+ * @param propertyName - name of the property to set. Nested properties are specified with dot notation ('a.b.c') or as an array ['a', 'b', 'c']
  * @param value - the value to set. if undefined, do nothing and don't create nested objects
  * @returns obj
  */
-export function setProperty(obj: any, propertyName: string, value: any): any {
+export function setProperty(obj: any, propertyName: string | string[], value: any): any {
     if(!obj) {
         return undefined;
     }
 
-    const properties = propertyName.split('.');
+    const properties = Array.isArray(propertyName)? propertyName: propertyName.split('.');
     if(properties.length === 1) {
         obj[properties[0]] = value;
         return obj;
@@ -132,19 +151,19 @@ export function setProperty(obj: any, propertyName: string, value: any): any {
     if(!obj[properties[0]]) {
         obj[properties[0]] = {};
     }
-    setProperty(obj[properties[0]], properties.slice(1).join('.'), value);
+    setProperty(obj[properties[0]], properties.slice(1), value);
     return obj;
 }
 
 // TODO: make this work with different MIME types with sensible default beahvior
-export function normalizeUri(relativeUri: Hal.Uri): Hal.Uri {
+export function normalizeUri(uri: Hal.Uri): Hal.Uri {
     const suffix = '.json';
-    if(relativeUri.slice(-1) === '/') {
-        return `${relativeUri}index${suffix}`;
+    if(uri.slice(-1) === '/') {
+        return `${uri}index${suffix}`;
     }
-    else if(relativeUri.lastIndexOf('.') < relativeUri.lastIndexOf('/')) {
-        return relativeUri + suffix;
+    else if(uri.lastIndexOf('.') < uri.lastIndexOf('/')) {
+        return uri + suffix;
     }
-    return relativeUri;
+    return uri;
 }
 

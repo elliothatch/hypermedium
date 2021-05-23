@@ -10,10 +10,23 @@ const demoPlugin = {
 			hypermedia: {
 				sitePaths: ['site'],
 				processors: {
+					pre: [{
+						name: 'self'
+					}],
 					post: [{
 						name: 'index',
 						options: {
 							property: '_links.profile.href'
+						}
+					}, {
+						name: 'index',
+						options: {
+							property: '_links.tag.href'
+						}
+					}, {
+						name: 'index',
+						options: {
+							property: '_links.self.href'
 						}
 					}]
 				}

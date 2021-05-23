@@ -1,3 +1,5 @@
+import { Logger } from 'freshlog';
+
 import * as HAL from '../hal';
 
 import { HypermediaEngine } from './engine';
@@ -13,10 +15,14 @@ export interface ResourceState<R extends HAL.Resource = ExtendedResource> {
      */
     getResource: (uri: HAL.Uri) => ExtendedResource | undefined;
     /** each processor has a local state HAL resource where it can store volitile/working memory. resources are stored at the uri /~hypermdium/state/:processor */
-    getState: (property: string) => any;
-    setState: (property: string, value: any) => void;
+    getState: (property: string | string[]) => any;
+    setState: (property: string | string[], value: any) => void;
+    /** immediately execute the processor */
+    execProcessor: (processor: Processor) => Promise<ExtendedResource>;
     /** the hypermedia engine instance. only use when necessary */
     hypermedia: HypermediaEngine;
+    processor: Processor;
+    logger: Logger;
 }
 
 export interface Processor {
@@ -25,11 +31,11 @@ export interface Processor {
 }
 
 export namespace Processor {
-    export interface Definition {
-        name: string;
-        onInit?: (rs: ResourceState, options: any) => void;
-        onProcess: (rs: ResourceState, options: any) => ExtendedResource | Promise<ExtendedResource>;
-        onDelete?: (rs: ResourceState, options: any) => void;
+    export interface Definition<N extends string = string, P = any, I = any, D = any> {
+        name: N;
+        onProcess: (rs: ResourceState, options: I) => ExtendedResource | Promise<ExtendedResource>;
+        onInit?: (rs: ResourceState, options: P) => void;
+        onDelete?: (rs: ResourceState, options: D) => void;
     }
 }
 

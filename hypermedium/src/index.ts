@@ -153,16 +153,22 @@ function initializeHypermedium(staticMappings: StaticMapping[]) {
                     break;
                 default: {
                     const e: Partial<HypermediaEngine.Event> = Object.assign({}, event);
+                    if(e.eType === 'ProcessorLog') {
+                        Log.log(e.log.level, e.log.message, e.log);
+                    }
                     if(e.eType === 'ProcessResource') {
                         delete e.edges;
                         delete e.resource;
                     }
-                    if((e as any).relativeUri) {
+                    if((e as any).uri) {
                         if(event.eType === 'ProcessorError') {
-                            Log.error(`hypermedia-engine: ${event.eType} ${(e as any).relativeUri}`, e);
+                            Log.error(`hypermedia-engine: ${event.eType} ${(e as any).uri}`, e);
+                        }
+                        else if(event.eType === 'LoadResource') {
+                            Log.info(`hypermedia-engine: ${event.eType} ${(e as any).uri}`, e);
                         }
                         else {
-                            Log.trace(`hypermedia-engine: ${event.eType} ${(e as any).relativeUri}`, e);
+                            Log.trace(`hypermedia-engine: ${event.eType} ${(e as any).uri}`, e);
                         }
                     }
                     else {

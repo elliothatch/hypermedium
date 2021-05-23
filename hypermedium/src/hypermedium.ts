@@ -1,7 +1,7 @@
 import * as Process from 'process';
 import * as fs from 'fs-extra';
 import { concat, defer, EMPTY, from, of, Observable, Subject } from 'rxjs';
-import { concatMap, mergeAll, map, tap } from 'rxjs/operators';
+import { concatMap, mergeAll, map, mergeMap, tap } from 'rxjs/operators';
 
 import * as Build from './build';
 import { BuildManager } from './build-manager';
@@ -63,9 +63,9 @@ export class Hypermedium {
                                         case 'add':
                                         case'change':
                                             return from(fs.readFile(moduleEvent.path, 'utf-8')).pipe(
-                                                map((fileContents) => {
+                                                mergeMap((fileContents) => {
                                                     this.hypermedia.loadResource(moduleEvent.uri, JSON.parse(fileContents), 'fs');
-                                                    this.hypermedia.processResource(moduleEvent.uri);
+                                                    return this.hypermedia.processResource(moduleEvent.uri);
                                                 })
                                             );
                                         case 'unlink':
@@ -78,8 +78,7 @@ export class Hypermedium {
 
                                 case 'processor-changed':
                                     this.hypermedia.addGlobalProcessor(moduleEvent.processor, moduleEvent.stage);
-                                    this.hypermedia.processAllResources();
-                                    return EMPTY;
+                                    return this.hypermedia.processAllResources();
                             }
                         case 'renderer':
                             switch(moduleEvent.eType) {

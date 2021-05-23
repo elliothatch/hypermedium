@@ -111,7 +111,7 @@ export class HypermediaEngine {
     }
 
     protected middleware = (req: Request, res: Response, next: NextFunction) => {
-        const resource = this.resourceGraph.getResource(normalizeUri(req.path));
+        const resource = this.resourceGraph.getResource(req.path);
         if(!resource) {
             return next();
         }
@@ -121,6 +121,9 @@ export class HypermediaEngine {
 
     public addGlobalProcessor(processor: Processor, stage: string): void {
         (this.globalProcessors as any)[stage].push(processor);
+        // if(processor.onInit) {
+            // return processor.onInit(processor.options);
+        // }
     }
 
     public loadResource(uri: HAL.Uri, resource: HAL.Resource, origin: string): ResourceGraph.Node {
@@ -198,6 +201,9 @@ export class HypermediaEngine {
             this.resourceGraph.resetDependencies(normalizedUri);
             const resourceCopy = JSON.parse(JSON.stringify(node.originalResource));
 
+            // track processors used for debugging
+            const processorsExecuted: Processor[] = [];
+
             const executeLocalProcessors = (resource: ExtendedResource): Observable<ExtendedResource> => {
                 if(!resource._processors || resource._processors.length === 0) {
                     return of(resource);
@@ -211,6 +217,7 @@ export class HypermediaEngine {
                     delete resource._processors;
                 }
 
+                processorsExecuted.push(processor);
                 return this.executeProcessor(processor, normalizedUri, resource).pipe(
                     mergeMap(executeLocalProcessors)
                 );
@@ -220,12 +227,14 @@ export class HypermediaEngine {
                 if(processors.length === 0) {
                     return of(resource);
                 }
+
+                processorsExecuted.push(processors[0]);
                 return this.executeProcessor(processors[0], normalizedUri, resource).pipe(
                     mergeMap((r) => executeGlobalProcessors(r, processors.slice(1)))
                 );
             }
 
-            return executeGlobalProcessors(node.resource!, this.globalProcessors.pre).pipe(
+            return executeGlobalProcessors(resourceCopy, this.globalProcessors.pre).pipe(
                 mergeMap((resource) => executeLocalProcessors(resource)),
                 mergeMap((resource) => executeGlobalProcessors(resource, this.globalProcessors.post)),
                 mergeMap((resource) => {
@@ -239,6 +248,7 @@ export class HypermediaEngine {
                         edges: this.resourceGraph.graph.nodeEdges(normalizedUri) as unknown as ResourceGraph.Edge[],
                         uri: normalizedUri,
                         resource,
+                        processors: processorsExecuted
                     });
 
                     const dependentResourceObservables = (this.resourceGraph.graph.nodeEdges(normalizedUri) as unknown as Edge[])
@@ -272,9 +282,31 @@ export class HypermediaEngine {
         const stateUri = normalizeUri(`/~hypermedium/state/${processor.name}`);
         let stateNode: ResourceGraph.Node | undefined = this.resourceGraph.graph.node(stateUri);
 
+        const logger = new Logger({
+            middleware: [{ mw: (obj) => {
+                HalUtil.setProperty(obj, 'processor', processor);
+                HalUtil.setProperty(obj, 'uri', uri);
+                return obj;
+            }, levels: true }],
+            target: {
+                name: 'processor',
+                write: (serializedData) => {
+                    this.log({
+                        eType: 'ProcessorLog',
+                        log: serializedData
+                    });
+                }
+            }
+        });
+
         const resourceState: ResourceState = {
             resource,
             uri,
+            logger,
+            processor,
+            execProcessor: (processor) => {
+                return this.executeProcessor(processor, uri, resource).toPromise();
+            },
             getResource: (dependencyUri: HAL.Uri) => {
                 const normalizedDependencyUri = normalizeUri(dependencyUri);
 
@@ -295,14 +327,14 @@ export class HypermediaEngine {
 
                 return r;
             },
-            getState: (property: string) => {
+            getState: (property: string | string[]) => {
                 if(!stateNode) {
                     return undefined;
                 }
                 // TODO: original resource might not be what we want here
                 return HalUtil.getProperty(stateNode.originalResource, property);
             },
-            setState: (property: string, value: any) => {
+            setState: (property: string | string[], value: any) => {
                 if(!stateNode) {
                     stateNode = this.loadResource(stateUri, {
                         "_links": {
@@ -313,6 +345,7 @@ export class HypermediaEngine {
                     }, 'state');
                 }
                 HalUtil.setProperty(stateNode.originalResource, property, value);
+                // TODO: trigger processResource for dependents
             },
             hypermedia: this
         };
