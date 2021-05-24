@@ -4,5 +4,12 @@
         "profile": {
             "href": "/schema/index/schema/index/tags"
         }
-    }
+    },
+	"_processors": [{
+		"name": "getIndex",
+		"options": {
+			"property": "_links.tag.href",
+			"to": "fs:entries"
+		}
+	}]
 }

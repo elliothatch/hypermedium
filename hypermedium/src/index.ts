@@ -155,6 +155,7 @@ function initializeHypermedium(staticMappings: StaticMapping[]) {
                     const e: Partial<HypermediaEngine.Event> = Object.assign({}, event);
                     if(e.eType === 'ProcessorLog') {
                         Log.log(e.log.level, e.log.message, e.log);
+                        return;
                     }
                     if(e.eType === 'ProcessResource') {
                         delete e.edges;

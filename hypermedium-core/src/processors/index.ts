@@ -1,4 +1,4 @@
-import { Processor, ResourceState, HypermediaEngine, Hal, HalUtil } from 'hypermedium';
+import { ExtendedResource, Processor, ResourceState, HypermediaEngine, Hal, HalUtil } from 'hypermedium';
 
 // import { embed } from './embed';
 // import { makeIndex } from './make-index';
@@ -7,40 +7,53 @@ import { Processor, ResourceState, HypermediaEngine, Hal, HalUtil } from 'hyperm
 export namespace Core {
     export type Processors =
         Processors.Self |
-        Processors.Insert |
+        Processors.Link |
         Processors.Extend |
         Processors.Copy |
         Processors.CopyState |
         Processors.ObjectKeys |
-        Processors.ForEach |
+        Processors.ObjectValues |
+        Processors.Insert |
+        Processors.Flatten |
+        Processors.Map |
         Processors.Index |
         Processors.GetIndex;
 
     export namespace Processors {
-        export type Self = Processor<'self'>;
-        export type Insert = Processor<'insert', {
-            property: string | string[];
-            values: any[];
-            index: number;
-        }>;
-        export type Extend = Processor<'extend', {obj: any}>;
-        export type Copy = Processor<'copy', {
+        export type Self = Processor.Definition<'self'>;
+        export type Link = Processor.Definition<'link', {
+            property?: string | string[]
+        } | undefined>;
+        export type Extend = Processor.Definition<'extend', {obj: any, overwrite: boolean}>;
+        export type Copy = Processor.Definition<'copy', {
             uri: Hal.Uri;
             from: string | string[];
             to: string | string[];
         }>;
-        export type CopyState = Processor<'copyState', {
+        export type CopyState = Processor.Definition<'copyState', {
             processor: string;
             from: string | string[];
             to: string | string[];
         }>;
-        export type ObjectKeys = Processor<'objectKeys', {
-            property: string | string[];
+        export type ObjectKeys = Processor.Definition<'objectKeys', {
+            property?: string | string[];
             to?: string | string[];
+        } | undefined>;
+        export type ObjectValues = Processor.Definition<'objectValues', {
+            property?: string | string[];
+            to?: string | string[];
+        } | undefined>;
+        export type Insert = Processor.Definition<'insert', {
+            property?: string | string[];
+            values: any[];
+            index: number;
         }>;
-        export type ForEach = Processor<'forEach', {
-            property: string | string[],
+        export type Flatten = Processor.Definition<'flatten', {
+            property?: string | string[];
+        } | undefined>;
+        export type Map = Processor.Definition<'map', {
             processor: Processor;
+            property?: string | string[],
             /** the property 'toOption' will be overwritten with the value of the element in the array each iteration */
             // toOption: string;
         }>;
@@ -56,7 +69,8 @@ export namespace Core {
                 reverseIndex: {[uri: string]: {[value: string]: true}};
             }
         }
-        export type GetIndex = Processor.Definition<'getindex', {
+
+        export type GetIndex = Processor.Definition<'getIndex', {
             /** property of index */
             property: string;
             /** if provided, only return matching values */
@@ -70,6 +84,61 @@ export const processorDefinitions: Core.Processors[] = [{
     name: 'self',
     onProcess: (rs, options) => {
         HalUtil.setProperty(rs.resource, '_links.self.href', rs.uri);
+        HalUtil.setProperty(rs.resource, '_links.self.title', rs.resource.title);
+
+        const profiles = HalUtil.getProfiles(rs.resource);
+        if(profiles.length > 0) {
+            HalUtil.setProperty(rs.resource, '_links.self.profile', profiles[0].href);
+        }
+
+        return rs.resource;
+    }
+}, {
+    name: 'link',
+    /** maps the uri to a HAL.Link by extracting data from the target resource
+     *  - uses "self" link if it exists
+     *  - otherwise, tries to scrape title, profile
+     *  */
+    onProcess: (rs, options) => {
+        const uri = HalUtil.getProperty(rs.resource, options?.property);
+        if(typeof uri !== 'string') {
+            rs.logger.warn(`skipping link: '${options?.property}' must be a string`);
+            return rs.resource;
+        }
+        const resource = rs.getResource(uri);
+        if(!resource) {
+            throw new Error(`Resource not found: ${uri}`);
+        }
+
+        const profiles = HalUtil.getProfiles(resource);
+
+        const link = {
+            title: resource.title,
+            profile: profiles.length > 0? profiles[0].href: undefined,
+            ...resource._links?.self,
+            href: uri
+        };
+        rs.resource = HalUtil.setProperty(rs.resource, options?.property, link);
+        return rs.resource;
+    }
+}, {
+    /** extend each resource with the properties of an object. does not overwrite existing properties unless overwrite is true */
+    name: 'extend',
+    onProcess: (rs, options) => {
+        if(options.overwrite) {
+            Object.keys(options.obj).forEach((property) => {
+                rs.resource = HalUtil.setProperty(rs.resource, property, options.obj[property]);
+            });
+
+        }
+        else {
+            Object.keys(options.obj).forEach((property) => {
+                if(HalUtil.getProperty(rs.resource, property) === undefined) {
+                    rs.resource = HalUtil.setProperty(rs.resource, property, options.obj[property]);
+                }
+            });
+        }
+
         return rs.resource;
     }
 }, {
@@ -81,12 +150,12 @@ export const processorDefinitions: Core.Processors[] = [{
 
         const value = HalUtil.getProperty(rs.resource, options.property);
         if(value == undefined) {
-            HalUtil.setProperty(rs.resource, options.property, options.values)
+            rs.resource = HalUtil.setProperty(rs.resource, options.property, options.values)
             return rs.resource;
         }
         else if(!Array.isArray(value)) {
             rs.logger.warn(`overwriting '${options.property}': tried to insert into array but property has type ${typeof value}`);
-            HalUtil.setProperty(rs.resource, options, options.values);
+            rs.resource = HalUtil.setProperty(rs.resource, options.property, options.values);
             return rs.resource;
         }
 
@@ -94,23 +163,17 @@ export const processorDefinitions: Core.Processors[] = [{
         return rs.resource;
     }
 }, {
-    /** extend each resource with the properties of an object. does not overwrite existing properties unless overwrite is true */
-    name: 'extend',
+    name: 'flatten',
     onProcess: (rs, options) => {
-        if(options.overwrite) {
-            Object.keys(options.obj).forEach((property) => {
-                HalUtil.setProperty(rs.resource, property, options.obj[property]);
-            });
-
-        }
-        else {
-            Object.keys(options.obj).forEach((property) => {
-                if(HalUtil.getProperty(rs.resource, property) === undefined) {
-                    HalUtil.setProperty(rs.resource, property, options.obj[property]);
-                }
-            });
+        const value = HalUtil.getProperty(rs.resource, options?.property);
+        if(!Array.isArray(value)) {
+            rs.logger.warn(`skipping flatten: '${options?.property || 'resource'}': must be an array, but has type ${typeof value}`);
+            return rs.resource;
         }
 
+        const flatArray = value.reduce((array, subArray) => array.concat(subArray), []);
+
+        rs.resource = HalUtil.setProperty(rs.resource, options?.property, flatArray);
         return rs.resource;
     }
 }, {
@@ -122,43 +185,71 @@ export const processorDefinitions: Core.Processors[] = [{
         }
 
         const value = HalUtil.getProperty(resource, options.from);
-        HalUtil.setProperty(rs.resource, options.to, value);
+        rs.resource = HalUtil.setProperty(rs.resource, options.to, value);
         return rs.resource;
     }
 }, {
     name: 'copyState',
     onProcess: (rs, options) => {
-        const resource = rs.getResource(`/~hypermedium/state/${options.processor || rs.processor.name}`);
+        const uri = `/~hypermedium/state/${options.processor || rs.processor.name}`;
+        const resource = rs.getResource(uri);
         if(!resource) {
+            rs.logger.error(`skipping copyState: '${uri}' not found`);
             return rs.resource;
         }
 
         const value = HalUtil.getProperty(resource, options.from);
-        HalUtil.setProperty(rs.resource, options.to, value);
+        rs.resource = HalUtil.setProperty(rs.resource, options.to, value);
         return rs.resource;
     }
 }, {
     name: 'objectKeys',
     onProcess: (rs, options) => {
+        if(!options || !options.property) {
+            return Object.keys(rs.resource);
+        }
+
         const value = HalUtil.getProperty(rs.resource, options.property);
-        HalUtil.setProperty(rs.resource, options.output || options.property, Object.keys(value));
+        rs.resource = HalUtil.setProperty(rs.resource, options.to || options.property, Object.keys(value));
 
         return rs.resource;
     }
 }, {
-    name: 'forEach',
+    name: 'objectValues',
+    onProcess: (rs, options) => {
+        if(!options || !options.property) {
+            return Object.values(rs.resource);
+        }
+
+        const value = HalUtil.getProperty(rs.resource, options.property);
+        rs.resource = HalUtil.setProperty(rs.resource, options.to || options.property, Object.values(value));
+
+        return rs.resource;
+    }
+}, {
+    name: 'map',
     /** run a processor for each element in an array, using the element as the resource */
     onProcess: (rs, options) => {
-        const value = HalUtil.getProperty(rs.resource, options.property);
-        if(!Array.isArray(value)) {
-            rs.logger.error(`skipping: '${options.property}' must be an array but had type ${typeof value}`);
+        const values = HalUtil.getProperty(rs.resource, options.property);
+        if(!Array.isArray(values) && typeof values !== 'object') {
+            rs.logger.error(`skipping map: '${options.property}' must be an array or object, but had type ${typeof values}`);
             return rs.resource;
         }
 
-        return value.reduce((p, v, i) => {
-            return p.then((resource) =>
-                this.executeProcessor({processor, options}, `${rs.uri}:${options.property}.${i}`, resource));
-        }, Promise.resolve(rs.resource));
+        const valuesArray: {value: any, index: string | number}[] = Array.isArray(values)?
+            values.map((value, index) => ({value, index})):
+            Object.keys(values).map((index) => ({value: values[index], index}));
+
+        return valuesArray.reduce((execPromise, {value, index}) => {
+            return execPromise.then((_) => {
+                return rs.execProcessor(options.processor, value).then((result) => {
+                    values[index] = result;
+                    return result;
+                });
+            });
+        }, Promise.resolve(rs.resource)).then(() => {
+            return rs.resource;
+        });
     }
 }, {
     name: 'index',
@@ -182,7 +273,7 @@ export const processorDefinitions: Core.Processors[] = [{
             return rs.resource;
         }
 
-        const propertyIndex: PropertyIndex = rs.getState([options.property]);
+        const propertyIndex: Core.Processors.Index.PropertyIndex = rs.getState([options.property]);
         values.forEach((value: any) => {
             HalUtil.setProperty(propertyIndex.index, ['' + value, rs.uri], true);
             HalUtil.setProperty(propertyIndex.reverseIndex, [rs.uri, '' + value], true);
@@ -191,7 +282,7 @@ export const processorDefinitions: Core.Processors[] = [{
         return rs.resource;
     },
     onDelete: (rs: ResourceState, options) => {
-        const propertyIndex: PropertyIndex = rs.getState([options.property]);
+        const propertyIndex: Core.Processors.Index.PropertyIndex = rs.getState([options.property]);
         const values = propertyIndex.reverseIndex[rs.uri];;
         if(values) {
             Object.keys(values).forEach((value) => {
@@ -203,18 +294,64 @@ export const processorDefinitions: Core.Processors[] = [{
     },
 }, {
     name: 'getIndex',
+    onProcess: (rs, options) => {
+        if(options.filter) {
+            return rs.execProcessor([{
+                name: 'copyState',
+                options: {
+                    processor: 'index',
+                    from: [options.property, 'index', options.filter],
+                    to: options.to
+                }
+            }, {
+                name: 'objectKeys',
+                options: {
+                    property: options.to,
+                }
+            }, {
+                name: 'map',
+                options: {
+                    property: options.to,
+                    processor: {
+                        name: 'link',
+                    }
+                }
+            }]);
+        }
+        else {
+            return rs.execProcessor([{
+                name: 'copyState',
+                options: {
+                    processor: 'index',
+                    from: [options.property, 'index'],
+                    to: options.to
+                }
+            }, {
+                name: 'map',
+                options: {
+                    property: options.to,
+                    processor: {
+                        name: 'objectKeys',
+                    }
+                }
+            }, {
+                name: 'map',
+                options: {
+                    property: options.to,
+                    processor: {
+                        name: 'map',
+                        options: {
+                            processor: {
+                                name: 'link',
+                            }
+                        }
+                    }
+                }
+            }]);
+        }
+    }
+}];
     /*
-    onProcess: (rs: ResourceState, options) => {
-
-        const processors: Core.Processor [{
-            name: 'copyState',
-            options: {
-                from: [options.property, 'index'],
-                to: options.to
-            }
-        }, {
-            name: "forEach",
-        }];
         // implementing this with only processors isn't particularly expressive and has weird scoping issues due to how toOption works
         // should it be easier to work with only processors? (probably)
         // TODO: add forEach object
@@ -294,7 +431,6 @@ export const processorDefinitions: Core.Processors[] = [{
             }
         }];
         */
-}];
 
 // TODO: rewrite the core processors to all work with dot notation, and allow more customization in which properties and values are read and set
 

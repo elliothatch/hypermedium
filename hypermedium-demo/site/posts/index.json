@@ -6,16 +6,11 @@
 		}
 	},
 	"_processors": [{
-		"name": "copyState",
+		"name": "getIndex",
 		"options": {
-			"processor": "index",
-			"from": ["_links.profile.href", "index", "/schema/post"],
-			"to": "articles"
-		}
-	}, {
-		"name": "objectKeys",
-		"options": {
-			"property": "articles"
+			"property": "_links.profile.href",
+			"to": "_links.fs:entries",
+			"filter": "/schema/post"
 		}
 	}]
 }

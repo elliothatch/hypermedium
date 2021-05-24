@@ -120,6 +120,14 @@ yarn
 
 ## Build
 ```
+# use repo local versions of packages
+cd hypermedium
+yarn link
+cd ..
+yarn link hypermedium
+cd ..
+# etc
+
 yarn build
 ```
 

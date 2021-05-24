@@ -23,11 +23,6 @@ const demoPlugin = {
 						options: {
 							property: '_links.tag.href'
 						}
-					}, {
-						name: 'index',
-						options: {
-							property: '_links.self.href'
-						}
 					}]
 				}
 			},

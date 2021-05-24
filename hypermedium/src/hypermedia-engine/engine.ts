@@ -19,7 +19,7 @@ import { ExtendedResource, ResourceGraph } from './resource-graph'
 import { Processor, ResourceState } from './processor';
 import { Event } from './events';
 
-import { Logger } from 'freshlog';
+import { Logger, Serializer} from 'freshlog';
 /**
  * currently:
  * processors are dumb stateless functions. every processor is executed on every resource (inefficient), and can be disabled conditionally through the use of higher-order processors.
@@ -288,6 +288,7 @@ export class HypermediaEngine {
                 HalUtil.setProperty(obj, 'uri', uri);
                 return obj;
             }, levels: true }],
+            serializer: Serializer.identity,
             target: {
                 name: 'processor',
                 write: (serializedData) => {
@@ -299,13 +300,24 @@ export class HypermediaEngine {
             }
         });
 
+        logger.handlers.forEach((handler) => handler.enabled = true);
+
         const resourceState: ResourceState = {
             resource,
             uri,
             logger,
             processor,
-            execProcessor: (processor) => {
-                return this.executeProcessor(processor, uri, resource).toPromise();
+            execProcessor: (p, r?: ExtendedResource) => {
+                const processors = Array.isArray(p)? p: [p];
+                return processors.reduce<Promise<ExtendedResource>>((execPromise, processor) => {
+                    if(!processor || !processor.name) {
+                        throw new Error(`invalid processor: ${processor}`);
+                    }
+                    return execPromise.then((newR) => {
+                        return this.executeProcessor(processor, uri, newR).toPromise();
+                    });
+                }, Promise.resolve(r || resource));
+
             },
             getResource: (dependencyUri: HAL.Uri) => {
                 const normalizedDependencyUri = normalizeUri(dependencyUri);
@@ -350,6 +362,7 @@ export class HypermediaEngine {
             hypermedia: this
         };
 
+        logger.trace(`exec processor ${uri}: ${processor.name}`);
         try {
             const result = processorDefinition.onProcess(resourceState, processor.options);
             if(result instanceof Promise) {

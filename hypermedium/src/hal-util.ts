@@ -93,22 +93,27 @@ export function profilesMatch(profile: Hal.Uri, targetProfile?: Hal.Uri, baseUri
 }
 
 /**
- * Gets a property from an object if it exists. Supports nested properties with dot notation
+ * Gets a property from an object if it exists. Supports nested properties with dot notation.
  * @param obj - root object
  * @param propertyName - name of the property to retrieved. Nested properties are specified with dot notation ('a.b.c')
  */
-export function getProperty(obj: any, propertyName: string | string[]): any {
+export function getProperty(obj: any, propertyName?: string | string[]): any {
     if(!obj) {
-        return undefined;
+        return obj;
     }
 
+    if(!propertyName) {
+        return obj;
+    }
+
+    // empty property is identity function
     const properties = Array.isArray(propertyName)? propertyName: propertyName.split('.');
-    const value = obj[properties[0]];
+
     if(properties.length === 1) {
-        return value;
+        return obj[properties[0]];
     }
 
-    return getProperty(value, properties.slice(1));
+    return getProperty(obj[properties[0]], properties.slice(1));
 }
 
 /**
@@ -137,12 +142,17 @@ export function matchProperty(obj: any, propertyName: string | string[]): any[] 
  * @param value - the value to set. if undefined, do nothing and don't create nested objects
  * @returns obj
  */
-export function setProperty(obj: any, propertyName: string | string[], value: any): any {
+export function setProperty(obj: any, propertyName: string | string[] | undefined, value: any): any {
     if(!obj) {
-        return undefined;
+        return obj;
+    }
+
+    if(!propertyName) {
+        return value;
     }
 
     const properties = Array.isArray(propertyName)? propertyName: propertyName.split('.');
+
     if(properties.length === 1) {
         obj[properties[0]] = value;
         return obj;
