@@ -1,16 +1,24 @@
 {
 	"title": "posts",
-	"_links": {
-		"profile": {
-			"href": "/schema/index/schema/post"
-		}
-	},
 	"_processors": [{
 		"name": "getIndex",
 		"options": {
 			"property": "_links.profile.href",
-			"to": "_links.fs:entries",
-			"filter": "/schema/post"
+			"filter": "/schema/post",
+			"to": "_links.item"
+		}
+	}, {
+		"name": "embed",
+		"options": {
+			"property": "_links.item",
+			"properties": ["date-created", "excerpt"]
+		}
+	}, {
+		"name": "sort",
+		"options": {
+			"property": "_links.item",
+			"key": "date-created",
+			"compare": "date"
 		}
 	}]
 }

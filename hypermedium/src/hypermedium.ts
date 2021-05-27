@@ -1,7 +1,7 @@
 import * as Process from 'process';
 import * as fs from 'fs-extra';
 import { concat, defer, EMPTY, from, of, Observable, Subject } from 'rxjs';
-import { concatMap, mergeAll, map, mergeMap, tap } from 'rxjs/operators';
+import { concatMap, mergeAll, map, mergeMap, tap, last } from 'rxjs/operators';
 
 import * as Build from './build';
 import { BuildManager } from './build-manager';
@@ -53,8 +53,8 @@ export class Hypermedium {
         }
 
         return moduleInstance.moduleEvents.pipe(
-            tap((moduleEvent) => {
-                defer(() => {
+            mergeMap((moduleEvent) => {
+                return defer(() => {
                     switch(moduleEvent.eCategory) {
                         case 'hypermedia':
                             switch(moduleEvent.eType) {
@@ -132,7 +132,11 @@ export class Hypermedium {
                                     return EMPTY;
                             }
                     }
-                }).subscribe();
+                    return EMPTY;
+                }).pipe(
+                    last(null, null),
+                    map((_) => moduleEvent)
+                );
             }),
             concatMap((moduleEvent) => {
                 if(moduleEvent.eCategory === 'module'

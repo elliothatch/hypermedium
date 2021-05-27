@@ -163,7 +163,7 @@ function initializeHypermedium(staticMappings: StaticMapping[]) {
                     }
                     if((e as any).uri) {
                         if(event.eType === 'ProcessorError') {
-                            Log.error(`hypermedia-engine: ${event.eType} ${(e as any).uri}`, e);
+                            Log.error(`hypermedia-engine: ${event.eType} ${(e as any).uri}: ${event.error.message}`, e);
                         }
                         else if(event.eType === 'LoadResource') {
                             Log.info(`hypermedia-engine: ${event.eType} ${(e as any).uri}`, e);

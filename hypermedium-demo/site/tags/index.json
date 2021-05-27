@@ -1,15 +1,17 @@
 {
     "title": "tags",
-    "_links": {
-        "profile": {
-            "href": "/schema/index/schema/index/tags"
-        }
-    },
 	"_processors": [{
 		"name": "getIndex",
 		"options": {
-			"property": "_links.tag.href",
-			"to": "fs:entries"
+			"property": "_links.profile.href",
+			"filter": "/schema/index/tag",
+			"to": "_links.item"
+		}
+	}, {
+		"name": "embed",
+		"options": {
+			"property": "_links.item",
+			"pick": ["_links.self", "_links.item"]
 		}
 	}]
 }

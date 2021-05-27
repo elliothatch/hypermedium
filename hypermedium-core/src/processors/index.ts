@@ -1,5 +1,7 @@
 import { ExtendedResource, Processor, ResourceState, HypermediaEngine, Hal, HalUtil } from 'hypermedium';
 
+type PropertyPath = HalUtil.PropertyPath;
+
 // import { embed } from './embed';
 // import { makeIndex } from './make-index';
 // import { tags } from './tags';
@@ -11,55 +13,92 @@ export namespace Core {
         Processors.Extend |
         Processors.Copy |
         Processors.CopyState |
+        Processors.Embed |
+        Processors.ObjectEntries |
         Processors.ObjectKeys |
         Processors.ObjectValues |
         Processors.Insert |
         Processors.Flatten |
+        Processors.FlattenObject |
         Processors.Map |
+        Processors.Sort |
         Processors.Index |
         Processors.GetIndex;
 
     export namespace Processors {
         export type Self = Processor.Definition<'self'>;
         export type Link = Processor.Definition<'link', {
-            property?: string | string[]
+            property?: PropertyPath;
+            name?: Hal.Uri;
         } | undefined>;
         export type Extend = Processor.Definition<'extend', {obj: any, overwrite: boolean}>;
         export type Copy = Processor.Definition<'copy', {
             uri: Hal.Uri;
-            from: string | string[];
-            to: string | string[];
+            from: PropertyPath;
+            to: PropertyPath;
         }>;
         export type CopyState = Processor.Definition<'copyState', {
             processor: string;
-            from: string | string[];
-            to: string | string[];
+            resourcePath: Hal.Uri;
+            from: PropertyPath;
+            to: PropertyPath;
         }>;
+        export type Embed = Processor.Definition<'embed', {
+            property: PropertyPath;
+            // property: PropertyPath;
+            /** rel of the embedded resource.
+             * if undefined, uses last part of property path */
+            rel?: Hal.Uri;
+            pick?: PropertyPath[];
+        }>;
+        export type ObjectEntries = Processor.Definition<'objectEntries', {
+            property?: PropertyPath;
+            to?: PropertyPath;
+        } | undefined>;
         export type ObjectKeys = Processor.Definition<'objectKeys', {
-            property?: string | string[];
-            to?: string | string[];
+            property?: PropertyPath;
+            to?: PropertyPath;
         } | undefined>;
         export type ObjectValues = Processor.Definition<'objectValues', {
-            property?: string | string[];
-            to?: string | string[];
+            property?: PropertyPath;
+            to?: PropertyPath;
         } | undefined>;
         export type Insert = Processor.Definition<'insert', {
-            property?: string | string[];
+            property?: PropertyPath;
             values: any[];
             index: number;
         }>;
         export type Flatten = Processor.Definition<'flatten', {
-            property?: string | string[];
+            property?: PropertyPath;
         } | undefined>;
+        export type FlattenObject = Processor.Definition<'flattenObject', {
+            property?: PropertyPath;
+            key?: PropertyPath;
+        } | undefined>;
+        export type Sort = Processor.Definition<'sort', {
+            property?: PropertyPath;
+            key?: PropertyPath;
+            compare?: string;
+            ascending?: boolean;
+        } | undefined>;
+        export namespace Sort {
+            export type CompareFn = (a: any, b: any) => number;
+            export const CompareFns: Record<string, CompareFn> = {
+                'number': (a: number, b: number) => a - b,
+                'date': (a: string, b: string) => new Date(a).valueOf() - new Date(b).valueOf(),
+                'string': (a: string, b: string) => a < b? -1: a > b? 1: 0,
+            };
+        }
         export type Map = Processor.Definition<'map', {
             processor: Processor;
-            property?: string | string[],
+            property?: PropertyPath,
             /** the property 'toOption' will be overwritten with the value of the element in the array each iteration */
             // toOption: string;
         }>;
         export type Index = Processor.Definition<'index', {
             /** dot-notation of the property to use as the index */
             property: string;
+            // filter: string;
         }>;
         export namespace Index {
             export type State = {[property: string]: PropertyIndex};
@@ -74,8 +113,8 @@ export namespace Core {
             /** property of index */
             property: string;
             /** if provided, only return matching values */
-            filter?: string;
-            to: string | string[];
+            filter: string;
+            to: PropertyPath;
         }>;
     }
 }
@@ -110,15 +149,7 @@ export const processorDefinitions: Core.Processors[] = [{
             throw new Error(`Resource not found: ${uri}`);
         }
 
-        const profiles = HalUtil.getProfiles(resource);
-
-        const link = {
-            title: resource.title,
-            profile: profiles.length > 0? profiles[0].href: undefined,
-            ...resource._links?.self,
-            href: uri
-        };
-        rs.resource = HalUtil.setProperty(rs.resource, options?.property, link);
+        rs.resource = HalUtil.setProperty(rs.resource, options?.property, HalUtil.makeLink(resource, uri, options?.name));
         return rs.resource;
     }
 }, {
@@ -177,6 +208,32 @@ export const processorDefinitions: Core.Processors[] = [{
         return rs.resource;
     }
 }, {
+    name: 'flattenObject',
+    onProcess: (rs, options) => {
+        const obj = HalUtil.getProperty(rs.resource, options?.property);
+        if(typeof obj !== 'object') {
+            rs.logger.warn(`skipping flatten: '${options?.property || 'resource'}': must be an object, but has type ${typeof obj}`);
+            return rs.resource;
+        }
+
+        const flatArray = Object.keys(obj).reduce((array, property) => {
+            const elements = Array.isArray(obj[property])?
+                    obj[property]:
+                    [obj[property]];
+
+            if(options?.key) {
+                elements.forEach((e: any) => {
+                    HalUtil.setProperty(e, options.key, property);
+                });
+            }
+
+            return array.concat(elements)
+        }, []);
+
+        rs.resource = HalUtil.setProperty(rs.resource, options?.property, flatArray);
+        return rs.resource;
+    }
+}, {
     name: 'copy',
     onProcess: (rs, options) => {
         const resource = rs.getResource(options.uri);
@@ -191,15 +248,66 @@ export const processorDefinitions: Core.Processors[] = [{
 }, {
     name: 'copyState',
     onProcess: (rs, options) => {
-        const uri = `/~hypermedium/state/${options.processor || rs.processor.name}`;
+        const uri = `/~hypermedium/state/${options.processor || rs.processor.name}/${options.resourcePath || ''}`;
         const resource = rs.getResource(uri);
         if(!resource) {
             rs.logger.error(`skipping copyState: '${uri}' not found`);
             return rs.resource;
         }
 
-        const value = HalUtil.getProperty(resource, options.from);
+        const value = JSON.parse(JSON.stringify(HalUtil.getProperty(resource, options.from)));
         rs.resource = HalUtil.setProperty(rs.resource, options.to, value);
+        return rs.resource;
+    }
+}, {
+    name: 'embed',
+    onProcess: (rs, options) => {
+        let links = HalUtil.getProperty(rs.resource, options.property);
+        links = Array.isArray(links)? links: [links];
+
+        links.forEach((link: any) => {
+            if(!link?.href) {
+                rs.logger.warn(`embed: link '${options.property}' must have an href property to embed`, {link});
+            }
+
+            let resource = rs.getResource(link.href);
+            if(!resource) {
+                rs.logger.warn(`embed: resource not found '${link.href}'`, {link});
+            }
+
+            if(options.pick) {
+                resource = options.pick.reduce((obj, property) => {
+                    return HalUtil.setProperty(obj, property, HalUtil.getProperty(resource, property));
+                }, {});
+            }
+
+            const rel = options.rel ||
+                Array.isArray(options.property)?
+                    options.property.slice(-1)[0]:
+                    options.property.split('.').slice(-1)[0];
+            let embeddedArray = HalUtil.getProperty(rs.resource, ['_embedded', rel]);
+            if(!embeddedArray) {
+                embeddedArray = [];
+            }
+            else if(!Array.isArray(embeddedArray)) {
+                embeddedArray = [embeddedArray];
+            }
+
+            rs.resource = HalUtil.setProperty(rs.resource, ['_embedded', rel], [...embeddedArray, resource]);
+        });
+        return rs.resource;
+    }
+}, {
+    name: 'objectEntries',
+    onProcess: (rs, options) => {
+
+        if(!options || !options.property) {
+            return Object.entries(rs.resource);
+        }
+
+        const obj = HalUtil.getProperty(rs.resource, options.property);
+        rs.resource = HalUtil.setProperty(rs.resource, options.to || options.property, Object.entries(obj));
+
         return rs.resource;
     }
 }, {
@@ -209,8 +317,8 @@ export const processorDefinitions: Core.Processors[] = [{
             return Object.keys(rs.resource);
         }
 
-        const value = HalUtil.getProperty(rs.resource, options.property);
-        rs.resource = HalUtil.setProperty(rs.resource, options.to || options.property, Object.keys(value));
+        const obj = HalUtil.getProperty(rs.resource, options.property);
+        rs.resource = HalUtil.setProperty(rs.resource, options.to || options.property, Object.keys(obj));
 
         return rs.resource;
     }
@@ -221,8 +329,8 @@ export const processorDefinitions: Core.Processors[] = [{
             return Object.values(rs.resource);
         }
 
-        const value = HalUtil.getProperty(rs.resource, options.property);
-        rs.resource = HalUtil.setProperty(rs.resource, options.to || options.property, Object.values(value));
+        const obj = HalUtil.getProperty(rs.resource, options.property);
+        rs.resource = HalUtil.setProperty(rs.resource, options.to || options.property, Object.values(obj));
 
         return rs.resource;
     }
@@ -252,103 +360,122 @@ export const processorDefinitions: Core.Processors[] = [{
         });
     }
 }, {
-    name: 'index',
-    onInit: (rs: ResourceState, options) => {
-        rs.setState(options.property, {
-            index: {},
-            reverseIndex: {}
-        });
-    },
-    onProcess: (rs: ResourceState, options) => {
-        if(!rs.getState([options.property])) {
-            rs.setState([options.property], {
-                index: {},
-                reverseIndex: {}
-            });
+    name: 'sort',
+    /** sort array or */
+    onProcess: (rs, options) => {
+        const compareFns = {
+            ...Core.Processors.Sort.CompareFns
+            // ...rs.internalState.sort.compareFns
+        };
+
+        let baseCompareFn =  compareFns[options?.compare || 'string'] || compareFns['string'];
+        const compareFn = options?.ascending? baseCompareFn:
+            (a: any, b: any) => baseCompareFn(b, a);
+
+        const array = HalUtil.getProperty(rs.resource, options?.property);
+
+        if(!Array.isArray(array)) {
+            rs.logger.warn(`skipping sort: '${options?.property}' must be an array`);
         }
 
+        array.sort((a: any, b: any) => compareFn(
+            HalUtil.getProperty(a, options?.key),
+            HalUtil.getProperty(b, options?.key)
+        ));
+
+        rs.resource = HalUtil.setProperty(rs.resource, options?.property, array);
+
+        return rs.resource;
+    }
+}, {
+    name: 'index',
+    // onInit: (rs: ResourceState, options) => {
+    //     rs.setState(options.property, {
+    //         index: {},
+    //         reverseIndex: {}
+    //     });
+    // },
+    onProcess: (rs: ResourceState, options) => {
         let values = HalUtil.matchProperty(rs.resource, options.property);
 
         if(values.length === 0) {
             return rs.resource;
         }
 
-        const propertyIndex: Core.Processors.Index.PropertyIndex = rs.getState([options.property]);
         values.forEach((value: any) => {
-            HalUtil.setProperty(propertyIndex.index, ['' + value, rs.uri], true);
-            HalUtil.setProperty(propertyIndex.reverseIndex, [rs.uri, '' + value], true);
+            const valueStr = '' + value;
+            const resourcePath = options.property +  '/' + valueStr;
+
+            rs.setState('_processors', [{
+                "name": "objectKeys",
+                "options": {
+                    "property": "index",
+                    "to": "_links.item"
+                }
+            }, {
+                "name": "map",
+                "options": {
+                    "property": "_links.item",
+                    "processor": {
+                        "name": "link",
+                        "options": {
+                            "name": valueStr
+                        }
+                    }
+                }
+            }], resourcePath);
+
+            rs.setState(['index', rs.uri], true, resourcePath);
+            // rs.setState(['reverseIndex', rs.uri, valueStr], true, resourcePath);
+
+            // const items = rs.getState('_links.item', resourcePath) || [];
+
+            // rs.setState('_links.item', [...items, HalUtil.makeLink(rs.resource, rs.uri, valueStr)], resourcePath);
+            // }
+
+            // limit index depth arbitrarily to prevent infinite loop
+            // const maxDepth = 2;
+            // const indexMatches = Array.from(resourcePath.matchAll(/\/schema\/index/g));
+            // console.log(indexMatches);
+            // if(indexMatches.length < maxDepth) {
+                const indexProfile = `/schema/index/${options.property}`;
+                const state = rs.getState('', resourcePath);
+                if(!HalUtil.matchesProfile(state, indexProfile)) {
+                    const profiles = HalUtil.getProfiles(state);
+                    rs.setState('_links.profile', [{href: indexProfile}, ...profiles], resourcePath);
+                }
+            // }
         });
 
         return rs.resource;
     },
-    onDelete: (rs: ResourceState, options) => {
-        const propertyIndex: Core.Processors.Index.PropertyIndex = rs.getState([options.property]);
-        const values = propertyIndex.reverseIndex[rs.uri];;
-        if(values) {
-            Object.keys(values).forEach((value) => {
-                delete propertyIndex.index[value][rs.uri];
-            });
+    // onDelete: (rs: ResourceState, options) => {
+    //     const propertyIndex: Core.Processors.Index.PropertyIndex = rs.getState([options.property]);
+    //     const values = propertyIndex.reverseIndex[rs.uri];;
+    //     if(values) {
+    //         Object.keys(values).forEach((value) => {
+    //             delete propertyIndex.index[value][rs.uri];
+    //         });
 
-            delete propertyIndex.reverseIndex[rs.uri];
-        }
-    },
+    //         delete propertyIndex.reverseIndex[rs.uri];
+    //     }
+    // },
 }, {
+    // TODO: fix cycle issues
+    // if a page is included in an index (e.g. _links.profile.href) this procsesor triggers an infinite processor cycle,
+    // even if the 'filter' option is used to only get a section of the index this page isn't included in (e.g. /schema/post)
     name: 'getIndex',
     onProcess: (rs, options) => {
-        if(options.filter) {
-            return rs.execProcessor([{
-                name: 'copyState',
-                options: {
-                    processor: 'index',
-                    from: [options.property, 'index', options.filter],
-                    to: options.to
-                }
-            }, {
-                name: 'objectKeys',
-                options: {
-                    property: options.to,
-                }
-            }, {
-                name: 'map',
-                options: {
-                    property: options.to,
-                    processor: {
-                        name: 'link',
-                    }
-                }
-            }]);
-        }
-        else {
-            return rs.execProcessor([{
-                name: 'copyState',
-                options: {
-                    processor: 'index',
-                    from: [options.property, 'index'],
-                    to: options.to
-                }
-            }, {
-                name: 'map',
-                options: {
-                    property: options.to,
-                    processor: {
-                        name: 'objectKeys',
-                    }
-                }
-            }, {
-                name: 'map',
-                options: {
-                    property: options.to,
-                    processor: {
-                        name: 'map',
-                        options: {
-                            processor: {
-                                name: 'link',
-                            }
-                        }
-                    }
-                }
-            }]);
-        }
+        const resourcePath = options.property +  '/' + options.filter;
+        return rs.execProcessor([{
+            name: 'copyState',
+            options: {
+                processor: 'index',
+                resourcePath,
+                from: '_links.item',
+                to: options.to
+            }
+        }]);
     }
 }];
     /*

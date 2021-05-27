@@ -5,6 +5,21 @@ import * as Url from 'url';
 
 import * as Hal from './hal';
 
+/** either a 'dot.separated.path' or array of property names */
+export type PropertyPath = string | string[];;
+
+
+export function makeLink(resource: any, uri?: Hal.Uri, name?: string): Hal.Link {
+    const profiles = getProfiles(resource);
+    return {
+        title: resource.title,
+        profile: profiles.length > 0? profiles[0].href: undefined,
+        ...resource._links?.self,
+        href: uri,
+        name,
+    };
+}
+
 /**
  * @returns a copy of the uri pointing to the html version of the resource
  */
@@ -60,7 +75,7 @@ export function expandCuri(resource: Hal.Resource, rel: string): Hal.Uri {
  * @param profile - uri of the profile to match
  * @param baseUri - if the URI doesn't match exactly, tries again with this used as a prefix
  */
-export function resourceMatchesProfile(resource: Hal.Resource, profile: Hal.Uri, baseUri?: Hal.Uri): boolean {
+export function matchesProfile(resource: Hal.Resource, profile: Hal.Uri, baseUri?: Hal.Uri): boolean {
     const resourceProfile = resource._links && resource._links.profile;
 
     if(!resourceProfile) {
@@ -97,7 +112,7 @@ export function profilesMatch(profile: Hal.Uri, targetProfile?: Hal.Uri, baseUri
  * @param obj - root object
  * @param propertyName - name of the property to retrieved. Nested properties are specified with dot notation ('a.b.c')
  */
-export function getProperty(obj: any, propertyName?: string | string[]): any {
+export function getProperty(obj: any, propertyName?: PropertyPath): any {
     if(!obj) {
         return obj;
     }
@@ -119,13 +134,17 @@ export function getProperty(obj: any, propertyName?: string | string[]): any {
 /**
  * returns all instances of a property, searching all values in any arrays in the property chain
  */
-export function matchProperty(obj: any, propertyName: string | string[]): any[] {
+export function matchProperty(obj: any, propertyName: PropertyPath): any[] {
     if(!obj) {
         return [];
     }
 
     const properties = Array.isArray(propertyName)? propertyName: propertyName.split('.');
     const value = obj[properties[0]];
+    if(!value) {
+        return [];
+    }
+
     const values = Array.isArray(value)? value: [value];
 
     if(properties.length === 1) {
@@ -142,7 +161,7 @@ export function matchProperty(obj: any, propertyName: string | string[]): any[] 
  * @param value - the value to set. if undefined, do nothing and don't create nested objects
  * @returns obj
  */
-export function setProperty(obj: any, propertyName: string | string[] | undefined, value: any): any {
+export function setProperty(obj: any, propertyName: PropertyPath | undefined, value: any): any {
     if(!obj) {
         return obj;
     }

@@ -3,15 +3,9 @@
     "_links": {
         "profile": {
             "href": "/schema/post"
-        },
-        "tag": [{
-            "title": "blog",
-            "href": "/tags/blog"
-        }, {
-            "title": "hello",
-            "href": "/tags/hello"
-        }]
+        }
     },
     "date-created": "2020-07-01T09:09:19.344Z",
-    "body": "starting out the blog with a quick hello. hello!"
+    "body": "starting out the blog with a quick hello. hello!",
+	"tag": ["hello", "blog"]
 }

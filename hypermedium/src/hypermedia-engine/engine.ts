@@ -12,7 +12,7 @@ import { Edge } from 'graphlib';
 
 import * as HAL from '../hal';
 import * as HalUtil from '../hal-util';
-import { filterCuries, profilesMatch, resourceMatchesProfile, getProfiles, normalizeUri } from '../hal-util';
+import { filterCuries, profilesMatch, matchesProfile, getProfiles, normalizeUri } from '../hal-util';
 import { createSchema, NotFoundError, objectDifference } from '../util';
 
 import { ExtendedResource, ResourceGraph } from './resource-graph'
@@ -175,11 +175,16 @@ export class HypermediaEngine {
 
             const normalizedUri = normalizeUri(uri);
 
-            if(prevUris.length > 0 && prevUris[0] === normalizedUri) {
+            if(prevUris.includes(normalizedUri)) {
                 const cycle = prevUris.concat(uri);
                 const error = new Error(`Process Resource: cycle detected ${cycle}`);
                 (error as any).cycle = cycle;
-                throw error;
+                // throw error;
+                this.log({
+                    eType: 'Warning',
+                    message: error.message
+                });
+                return of({uri: normalizedUri, resource: {}});
             }
 
             this.log({
@@ -253,7 +258,7 @@ export class HypermediaEngine {
 
                     const dependentResourceObservables = (this.resourceGraph.graph.nodeEdges(normalizedUri) as unknown as Edge[])
                         .filter(({v, w}) => v !== normalizedUri)
-                        .map(({v, w}) => this.processResource(v, [...prevUris!, normalizedUri]));
+                        .map(({v, w}) => this.processResource(v, prevUris!.concat(normalizedUri)));
 
                     return concat(
                         of({uri: normalizedUri, resource}),
@@ -279,8 +284,7 @@ export class HypermediaEngine {
             return of(resource);
         }
 
-        const stateUri = normalizeUri(`/~hypermedium/state/${processor.name}`);
-        let stateNode: ResourceGraph.Node | undefined = this.resourceGraph.graph.node(stateUri);
+        const stateUri = `/~hypermedium/state/${processor.name}/`;
 
         const logger = new Logger({
             middleware: [{ mw: (obj) => {
@@ -302,11 +306,41 @@ export class HypermediaEngine {
 
         logger.handlers.forEach((handler) => handler.enabled = true);
 
+        const markDirty: ResourceState['markDirty'] = (markUri, template) => {
+            let loadedResource = false;
+            if(template && !this.resourceGraph.getResource(markUri)) {
+                let newResource: ExtendedResource | undefined = {};
+
+                if(typeof template === 'string') {
+                    // TODO: originalResource isn't updated when the resource providing the template changes
+                    // adding a dependency doesn't work since it doesn't deal with reloading/modifying original resource
+                    newResource = this.resourceGraph.getResource(template);
+                    if(!newResource) {
+                        logger.warn(`markDirty: template resource not found: ${template}`, {template});
+                        newResource = {};
+                    }
+                }
+                else if(typeof template === 'object') {
+                    newResource = template;
+                }
+                else {
+                    throw new Error(`markDirty: template must be string or object, but had type ${typeof template}`);
+                }
+
+                this.loadResource(normalizeUri(markUri), newResource!, processor.name);
+                loadedResource = true;
+            }
+
+            this.resourceGraph.addDependency(normalizeUri(markUri), uri, processor);
+            return loadedResource;
+        };
+
         const resourceState: ResourceState = {
             resource,
             uri,
             logger,
             processor,
+            markDirty,
             execProcessor: (p, r?: ExtendedResource) => {
                 const processors = Array.isArray(p)? p: [p];
                 return processors.reduce<Promise<ExtendedResource>>((execPromise, processor) => {
@@ -339,25 +373,27 @@ export class HypermediaEngine {
 
                 return r;
             },
-            getState: (property: string | string[]) => {
-                if(!stateNode) {
-                    return undefined;
-                }
-                // TODO: original resource might not be what we want here
-                return HalUtil.getProperty(stateNode.originalResource, property);
+            getState: (property, resourcePath) => {
+                const state = this.resourceGraph.getResource(stateUri + (resourcePath || ''));
+                return HalUtil.getProperty(state, property);
             },
-            setState: (property: string | string[], value: any) => {
-                if(!stateNode) {
-                    stateNode = this.loadResource(stateUri, {
-                        "_links": {
-                            "profile": {
-                                "href": `/schema/hypermedium/state/${processor.name}`
-                            }
-                        },
-                    }, 'state');
-                }
-                HalUtil.setProperty(stateNode.originalResource, property, value);
-                // TODO: trigger processResource for dependents
+            setState: (property, value, resourcePath) => {
+                const template = {
+                    "_links": {
+                        "profile": [
+                            {"href": `/schema/hypermedium/state/${processor.name}`},
+                            {"href": `/schema/hypermedium/state`},
+                        ]
+                    }
+                };
+
+                const normalizedStateUri = normalizeUri(stateUri + (resourcePath || ''));
+
+                markDirty(normalizedStateUri, template);
+                const stateNode = this.resourceGraph.graph.node(normalizedStateUri);
+                stateNode.originalResource = HalUtil.setProperty(stateNode.originalResource, property, value);
+
+                return stateNode.originalResource;
             },
             hypermedia: this
         };

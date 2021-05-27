@@ -10,7 +10,7 @@ import { NextFunction, Router, Request, Response } from 'express';
 import { Graph, Edge } from 'graphlib';
 
 import * as HAL from './hal';
-import { filterCuries, profilesMatch, resourceMatchesProfile, getProfiles } from './hal-util';
+import { filterCuries, profilesMatch, getProfiles } from './hal-util';
 import { createSchema, NotFoundError, objectDifference } from './util';
 
 /*

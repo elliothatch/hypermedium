@@ -8,7 +8,6 @@ export interface ExtendedResource extends HAL.Resource {
     [uri: string]: any;
 }
 
-
 export class ResourceGraph {
     public graph: Graph;
 

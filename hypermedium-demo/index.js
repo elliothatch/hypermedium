@@ -21,7 +21,7 @@ const demoPlugin = {
 					}, {
 						name: 'index',
 						options: {
-							property: '_links.tag.href'
+							property: 'tag'
 						}
 					}]
 				}
