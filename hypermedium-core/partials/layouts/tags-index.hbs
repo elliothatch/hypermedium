@@ -1,10 +1,10 @@
 <h1>{{title}}</h1>
 <ol class="tags">
-	{{#each _embedded.fs:entries}}
+	{{#each _links.item}}
 	<li>
-		<h2><a href="{{html-uri _links.self.href}}">{{title}}</a></h2>
+		<h2><a href="{{html-uri href}}">{{title}}</a></h2>
 		<ol class="articles">
-			{{#each _embedded.fs:entries}}
+			{{#each (find _embedded.item href "_links.self.href"}}
 			<li><a href="{{html-uri _links.self.href}}">{{title}}</a>{{#if date-created}} - {{datetime date-created 'MMMM D, YYYY'}}{{/if}}</li>
 			{{/each}}
 		</ol>

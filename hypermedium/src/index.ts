@@ -149,7 +149,7 @@ function initializeHypermedium(staticMappings: StaticMapping[]) {
         next: (event) => {
             switch(event.eType) {
                 case 'Warning':
-                    Log.warn(event.message);
+                    Log.warn(event.message, event.data);
                     break;
                 default: {
                     const e: Partial<HypermediaEngine.Event> = Object.assign({}, event);
@@ -176,6 +176,15 @@ function initializeHypermedium(staticMappings: StaticMapping[]) {
                         Log.trace(`hypermedia-engine: ${event.eType}`, e);
                     }
                 }
+            }
+        }
+    });
+
+    hypermedium.renderer.events.subscribe({
+        next: (event) => {
+            switch(event.eType) {
+                case 'render-resource':
+                    Log.info(`html-renderer ${event.eType}: ${event.uri}`, {...event});
             }
         }
     });
@@ -239,6 +248,25 @@ function initializeHypermedium(staticMappings: StaticMapping[]) {
 
     app.use(hypermedium.renderer.router);
     app.use(hypermedium.hypermedia.router);
+
+    app.use((error: any, req: Express.Request, res: Express.Response, next: Express.NextFunction) => {
+        const errorOut = {
+            code: error.httpCode || 500,
+            data: Object.keys(error).reduce((o: any, p: string) => {
+                o[p] = error[p];
+                return o;
+            }, {}),
+            message: error.message,
+        };
+
+        if(errorOut.code >= 500) {
+            Log.error(`MiddlewareError ${req.url}: ${error.constructor.name}: ${error.message}`, {
+                uri: req.url,
+                error,
+            });
+        }
+        res.status(errorOut.code).json(errorOut);
+    });
 
     server(app).subscribe({
         next: (server) => {

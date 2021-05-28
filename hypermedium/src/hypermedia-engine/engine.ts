@@ -182,7 +182,8 @@ export class HypermediaEngine {
                 // throw error;
                 this.log({
                     eType: 'Warning',
-                    message: error.message
+                    message: error.message,
+                    data: {cycle},
                 });
                 return of({uri: normalizedUri, resource: {}});
             }
@@ -378,16 +379,20 @@ export class HypermediaEngine {
                 return HalUtil.getProperty(state, property);
             },
             setState: (property, value, resourcePath) => {
+                const normalizedStateUri = normalizeUri(stateUri + (resourcePath || ''));
+
                 const template = {
                     "_links": {
+                        "self": {
+                            "href": normalizedStateUri,
+                            "title": `${processor.name} state`
+                        },
                         "profile": [
                             {"href": `/schema/hypermedium/state/${processor.name}`},
                             {"href": `/schema/hypermedium/state`},
                         ]
                     }
                 };
-
-                const normalizedStateUri = normalizeUri(stateUri + (resourcePath || ''));
 
                 markDirty(normalizedStateUri, template);
                 const stateNode = this.resourceGraph.graph.node(normalizedStateUri);

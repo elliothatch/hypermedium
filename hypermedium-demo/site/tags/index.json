@@ -3,15 +3,26 @@
 	"_processors": [{
 		"name": "getIndex",
 		"options": {
-			"property": "_links.profile.href",
-			"filter": "/schema/index/tag",
+			"property": "tag",
 			"to": "_links.item"
 		}
 	}, {
 		"name": "embed",
 		"options": {
 			"property": "_links.item",
-			"pick": ["_links.self", "_links.item"]
+			"pick": ["_links.item"]
+		}
+	}, {
+		"name": "map",
+		"options": {
+			"property": "_embedded.item",
+			"processor": {
+				"name": "embed",
+				"options": {
+					"property": "_links.item",
+					"pick": ["date-created"]
+				}
+			}
 		}
 	}]
 }

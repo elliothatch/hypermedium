@@ -9,7 +9,8 @@ import * as Path from 'path';
 import { promises as fs } from 'fs';
 import * as Url from 'url';
 
-import { Observable, Observer } from 'rxjs';
+import { Observable, Observer, Subject } from 'rxjs';
+import { publish, refCount } from 'rxjs/operators';
 
 import { NextFunction, Router, Request, Response } from 'express';
 import * as Handlebars from 'handlebars';
@@ -59,6 +60,9 @@ export class HtmlRenderer {
     public defaultTemplate: HAL.Uri;
     public siteContext: object;
 
+    public events: Observable<HtmlRenderer.Event>;
+    protected eventsSubject: Subject<HtmlRenderer.Event>;
+
     constructor(options: HtmlRenderer.Options) {
         this.handlebarsEnvironment = Handlebars.create();
 
@@ -71,6 +75,12 @@ export class HtmlRenderer {
 
         this.partials = {};
         this.templates = {};
+
+        this.eventsSubject = new Subject();
+        this.events = this.eventsSubject.pipe(
+            publish(),
+            refCount(),
+        );
 
         this.router = Router();
         this.templateRouter = Router();
@@ -164,7 +174,10 @@ export class HtmlRenderer {
         return true;
     }
 
-    public render(resource: ExtendedResource, templateUri: string): Html {
+    /**
+     * @param uri - used only for logging
+     */
+    public render(resource: ExtendedResource, templateUri: string, uri?: HAL.Uri): Html {
         // let links: Html.Link[] = [];
         // if(resource._links) {
         //     links = Object.keys(resource._links).reduce((l: Html.Link[], rel) => {
@@ -184,7 +197,21 @@ export class HtmlRenderer {
         },
             resource
         );
-        return this.templates[templateUri](context);
+
+        try {
+            const html = this.templates[templateUri](context);
+            this.eventsSubject.next({
+                eType: 'render-resource',
+                uri,
+                context,
+                html
+            });
+            return html;
+        }
+        catch(error) {
+            error.layout = layout || 'layouts/default.hbs';
+            throw error;
+        }
     }
 
     public renderLink(rel: HAL.Uri, link: HAL.Link): Html.Link {
@@ -194,7 +221,7 @@ export class HtmlRenderer {
     /** if templateUri is empty or undefined, use the default template */
     protected middleware = (templateUri?: string) => (req: Request, res: Response, next: NextFunction) => {
         const suffix = '.json';
-        if(Path.extname(req.path) === suffix || req.headers.accept === "application/hal+json") {
+        if(Path.extname(req.url) === suffix || req.headers.accept === "application/hal+json") {
             return next();
         }
 
@@ -203,14 +230,8 @@ export class HtmlRenderer {
             return next();
         }
 
-        try {
-            const html = this.render(resource, templateUri || this.defaultTemplate);
-            return res.status(200).send(html);
-        }
-        catch(err) {
-            return next(err);
-        }
-
+        const html = this.render(resource, templateUri || this.defaultTemplate, req.path);
+        return res.status(200).send(html);
     }
 }
 
@@ -226,5 +247,16 @@ export namespace HtmlRenderer {
         siteContext?: object;
         profileLayouts?: ProfileLayoutMap;
         templatePaths?: TemplatePath[];
+    }
+
+    export type Event = Event.RenderResource;
+    export namespace Event {
+        export interface RenderResource {
+            eType: 'render-resource';
+            uri?: HAL.Uri;
+
+            context: ExtendedResource;
+            html: Html;
+        }
     }
 }

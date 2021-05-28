@@ -24,8 +24,8 @@ const corePlugin: Plugin<CoreOptions> = {
                 handlebarsHelpers,
                 profileLayouts: {
                     '/schema/post': 'layouts/post.hbs',
-                    '/schema/index/schema/post': 'layouts/article-index.hbs',
-                    '/schema/index/tags': 'layouts/index.hbs',
+                    '/schema/index/_links.profile.href/schema/post': 'layouts/article-index.hbs',
+                    '/schema/index': 'layouts/index.hbs',
                     '/schema/index/schema/index/tags': 'layouts/tags-index.hbs',
                 }
             },

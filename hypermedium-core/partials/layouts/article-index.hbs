@@ -1,11 +1,12 @@
 <h1>{{title}}</h1>
-<ol class="articles">
-	{{#each _embedded.fs:entries}}
-	<li>
-		{{> includes/article-summary.hbs (extend this (expandCuri @root "fs:entries"))}}
-	</li>
-	{{/each}}
-	{{#each _links.fs:entries}}
-	<li>{{hal-link "fs:entries" this}}{{#if date-created}} - {{datetime date-created 'MMMM D, YYYY'}}{{/if}}</li>
+<ol class="items articles">
+	{{#each _links.item}}
+		{{#embedded ../this this "item"}}
+			<li>
+				{{> includes/article-summary.hbs}}
+			</li>
+		{{else}}
+			<li>{{hal-link "item" this}}</li>
+		{{/embedded}}
 	{{/each}}
 </ol>

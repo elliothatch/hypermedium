@@ -11,6 +11,9 @@ const handlebarsHelpers: {[name: string]: HelperDelegate} = {
     'isArray': (val) => Array.isArray(val),
     'typeof': (val) => typeof val,
     'json': (val) => JSON.parse(val),
+    'matchesProfile': function(profile) {
+        return HalUtil.matchesProfile(this, profile)
+    },
 
     /** creates a shallow copy of the object and sets/overwrites top-level properties with the provided values */
 	'extend': (target, context) => {
@@ -48,9 +51,36 @@ const handlebarsHelpers: {[name: string]: HelperDelegate} = {
         // const relHtml = typeof rel === 'string'? `rel=${HalUtil.expandCuri(resource, rel)}`: '';
         const relHtml = typeof rel === 'string'? `rel=${rel}`: '';
 
-        return new SafeString(`<a ${relHtml} href=${HalUtil.htmlUri(link.href)}>${link.title || link.href}</a>`)
+        return new SafeString(`<a ${relHtml} href=${HalUtil.htmlUri(link.href)}>${link.title || link.name || link.href}</a>`)
     },
     'replace': (str: string, regex: string, newValue: string) => new SafeString(str.replace(new RegExp(regex), newValue)),
+    'find': (array, value, key) => {
+        array = (Array.isArray(array)? array: [array])
+        return array.find( (v: any) =>
+            key? HalUtil.getProperty(v, key) === value: v === value);
+    },
+    'embedded': function(resource, link, rel, options) {
+        if(!resource._embedded) {
+            return options.inverse(link);
+        }
+        const embeddedRel = resource._embedded[rel];
+        const embeddedResources =
+            Array.isArray(embeddedRel)?
+            embeddedRel:
+            resource._embedded[rel]?
+                [resource._embedded[rel]]:
+                [];
+
+        const embeddedResource = embeddedResources.find(
+            (r: any) => r?._links?.self?.href === link.href
+        );
+
+        if(!embeddedResource) {
+            return options.inverse(link);
+        }
+
+        return options.fn(embeddedResource);
+    }
 };
 
 export { handlebarsHelpers };

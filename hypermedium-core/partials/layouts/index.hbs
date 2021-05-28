@@ -1,9 +1,31 @@
 <h1>{{title}}</h1>
-<ol class="articles">
-	{{#each _embedded.fs:entries}}
-	<li><a rel="(expandCuri @root "fs:entries")" href="{{html-uri _links.self.href}}">{{title}}</a>{{#if date-created}} - {{datetime date-created 'MMMM D, YYYY'}}{{/if}}</li>
-	{{/each}}
-	{{#each _links.fs:entries}}
-	<li>{{hal-link "fs:entries" this}}{{#if date-created}} - {{datetime date-created 'MMMM D, YYYY'}}{{/if}}</li>
+<ol class="items">
+	{{#each _links.item}}
+		<li>
+		{{#embedded ../this this "item"}}
+			{{#if (matchesProfile "/schema/index")}}
+				<h2>{{hal-link "item" _links.self}}</h2>
+				<ol>
+					{{#each _links.item}}
+					{{#embedded ../this this "item"}}
+						<li>{{hal-link "item" _links.self}}{{#if date-created}} - {{datetime date-created 'MMMM D, YYYY'}}{{/if}}</li>
+					{{else}}
+						<li>{{hal-link "item" this}}</li>
+					{{/embedded}}
+					{{/each}}
+					{{!-- {{#embedded @root this "item"}} --}}
+					{{!-- <li>{{hal-link "item" _links.self}}{{#if date-created}} - {{datetime date-created 'MMMM D, YYYY'}}{{/if}}</li> --}}
+				</ol>
+			{{else}}
+				{{hal-link "item" _links.self}}{{#if date-created}} - {{datetime date-created 'MMMM D, YYYY'}}{{/if}}
+			{{/if}}
+
+			{{!-- <li><a rel="item" href="{{html-uri _links.self.href}}">{{_links.self.title}}</a>{{#if date-created}} - {{datetime date-created 'MMMM D, YYYY'}}{{/if}}</li> --}}
+
+
+		{{else}}
+			{{hal-link "item" this}}
+		{{/embedded}}
+		</li>
 	{{/each}}
 </ol>

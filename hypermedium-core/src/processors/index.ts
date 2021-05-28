@@ -33,7 +33,7 @@ export namespace Core {
         } | undefined>;
         export type Extend = Processor.Definition<'extend', {obj: any, overwrite: boolean}>;
         export type Copy = Processor.Definition<'copy', {
-            uri: Hal.Uri;
+            uri?: Hal.Uri;
             from: PropertyPath;
             to: PropertyPath;
         }>;
@@ -50,6 +50,7 @@ export namespace Core {
              * if undefined, uses last part of property path */
             rel?: Hal.Uri;
             pick?: PropertyPath[];
+            max?: number;
         }>;
         export type ObjectEntries = Processor.Definition<'objectEntries', {
             property?: PropertyPath;
@@ -123,7 +124,9 @@ export const processorDefinitions: Core.Processors[] = [{
     name: 'self',
     onProcess: (rs, options) => {
         HalUtil.setProperty(rs.resource, '_links.self.href', rs.uri);
-        HalUtil.setProperty(rs.resource, '_links.self.title', rs.resource.title);
+        if(!HalUtil.getProperty(rs.resource, '_links.self.title')) {
+            HalUtil.setProperty(rs.resource, '_links.self.title', rs.resource.title);
+        }
 
         const profiles = HalUtil.getProfiles(rs.resource);
         if(profiles.length > 0) {
@@ -236,7 +239,10 @@ export const processorDefinitions: Core.Processors[] = [{
 }, {
     name: 'copy',
     onProcess: (rs, options) => {
-        const resource = rs.getResource(options.uri);
+        const resource = options.uri?
+            rs.getResource(options.uri):
+            rs.resource;
+
         if(!resource) {
             return rs.resource;
         }
@@ -264,6 +270,9 @@ export const processorDefinitions: Core.Processors[] = [{
     onProcess: (rs, options) => {
         let links = HalUtil.getProperty(rs.resource, options.property);
         links = Array.isArray(links)? links: [links];
+        if(options.max) {
+            links = links.slice(0, options.max);
+        }
 
         links.forEach((link: any) => {
             if(!link?.href) {
@@ -276,7 +285,11 @@ export const processorDefinitions: Core.Processors[] = [{
             }
 
             if(options.pick) {
-                resource = options.pick.reduce((obj, property) => {
+                const defaultProperties = [
+                    '_links.self', 
+                    '_links.profile', 
+                ];
+                resource = [...defaultProperties, ...options.pick].reduce((obj, property) => {
                     return HalUtil.setProperty(obj, property, HalUtil.getProperty(resource, property));
                 }, {});
             }
@@ -360,6 +373,7 @@ export const processorDefinitions: Core.Processors[] = [{
         });
     }
 }, {
+    // TODO: thoughts: shoulds sort auto-embed missing properties? YES!
     name: 'sort',
     /** sort array or */
     onProcess: (rs, options) => {
@@ -378,6 +392,8 @@ export const processorDefinitions: Core.Processors[] = [{
             rs.logger.warn(`skipping sort: '${options?.property}' must be an array`);
         }
 
+
+        // TODO: if key doesn't exist, also lookup on _embedded
         array.sort((a: any, b: any) => compareFn(
             HalUtil.getProperty(a, options?.key),
             HalUtil.getProperty(b, options?.key)
@@ -389,13 +405,16 @@ export const processorDefinitions: Core.Processors[] = [{
     }
 }, {
     name: 'index',
-    // onInit: (rs: ResourceState, options) => {
-    //     rs.setState(options.property, {
-    //         index: {},
-    //         reverseIndex: {}
-    //     });
-    // },
     onProcess: (rs: ResourceState, options) => {
+        // never index the indexes (we handle that ourselves to prevent cycles)
+        const stateUri = rs.getState('_links.self.href');
+        if(typeof stateUri === 'string') {
+            const baseStateUri = stateUri.substring(0, stateUri.lastIndexOf('/'));
+            if(rs.uri.startsWith(baseStateUri)) {
+                return rs.resource;
+            }
+        }
+
         let values = HalUtil.matchProperty(rs.resource, options.property);
 
         if(values.length === 0) {
@@ -404,9 +423,11 @@ export const processorDefinitions: Core.Processors[] = [{
 
         values.forEach((value: any) => {
             const valueStr = '' + value;
-            const resourcePath = options.property +  '/' + valueStr;
+            const resourcePath = valueStr.startsWith('/')?
+                options.property + valueStr:
+                options.property + '/' + valueStr;
 
-            rs.setState('_processors', [{
+            const indexProcessors = (name: string) => [{
                 "name": "objectKeys",
                 "options": {
                     "property": "index",
@@ -419,54 +440,63 @@ export const processorDefinitions: Core.Processors[] = [{
                     "processor": {
                         "name": "link",
                         "options": {
-                            "name": valueStr
+                            "name": name
                         }
                     }
                 }
-            }], resourcePath);
+            }];
+
+            const addProfile = (resourcePath: string, profile: Hal.Uri) => {
+                const state = rs.getState('', resourcePath);
+                if(!HalUtil.matchesProfile(state, profile)) {
+                    const profiles = HalUtil.getProfiles(state);
+                    rs.setState('_links.profile', [
+                        {href: profile},
+                        ...profiles
+                    ], resourcePath);
+                }
+            }
+
+            // setting state initializes the state object if it doesn't exist
+            rs.setState('_processors', indexProcessors(valueStr), resourcePath);
+            rs.setState('title', `Index of ${valueStr} in ${options.property}`, resourcePath);
+            rs.setState('_links.self.title', `${valueStr}`, resourcePath);
+            addProfile(resourcePath,  `/schema/index`);
+            addProfile(resourcePath,  `/schema/index/${resourcePath}`);
 
             rs.setState(['index', rs.uri], true, resourcePath);
-            // rs.setState(['reverseIndex', rs.uri, valueStr], true, resourcePath);
 
-            // const items = rs.getState('_links.item', resourcePath) || [];
 
-            // rs.setState('_links.item', [...items, HalUtil.makeLink(rs.resource, rs.uri, valueStr)], resourcePath);
-            // }
+            // add this index page to the index of indexes
+            const indexStateUri = rs.getState('_links.self.href', resourcePath);
+            rs.setState('_processors', indexProcessors(options.property), options.property);
+            rs.setState('title', `Index of ${options.property}`, options.property);
+            rs.setState('_links.self.title', `${options.property}`, options.property);
+            addProfile(resourcePath,  `/schema/index`);
+            addProfile(options.property, `/schema/index/${options.property}`);
 
-            // limit index depth arbitrarily to prevent infinite loop
-            // const maxDepth = 2;
-            // const indexMatches = Array.from(resourcePath.matchAll(/\/schema\/index/g));
-            // console.log(indexMatches);
-            // if(indexMatches.length < maxDepth) {
-                const indexProfile = `/schema/index/${options.property}`;
-                const state = rs.getState('', resourcePath);
-                if(!HalUtil.matchesProfile(state, indexProfile)) {
-                    const profiles = HalUtil.getProfiles(state);
-                    rs.setState('_links.profile', [{href: indexProfile}, ...profiles], resourcePath);
-                }
-            // }
+            rs.setState(['index', indexStateUri], true, options.property);
+
+
+            const propertyStateUri = rs.getState('_links.self.href', options.property);
+            rs.setState('_processors', indexProcessors);
+            addProfile(resourcePath,  `/schema/index`);
+            addProfile(options.property, `/schema/index`);
+
+            rs.setState(['index', propertyStateUri], true);
         });
 
         return rs.resource;
     },
-    // onDelete: (rs: ResourceState, options) => {
-    //     const propertyIndex: Core.Processors.Index.PropertyIndex = rs.getState([options.property]);
-    //     const values = propertyIndex.reverseIndex[rs.uri];;
-    //     if(values) {
-    //         Object.keys(values).forEach((value) => {
-    //             delete propertyIndex.index[value][rs.uri];
-    //         });
-
-    //         delete propertyIndex.reverseIndex[rs.uri];
-    //     }
-    // },
 }, {
-    // TODO: fix cycle issues
-    // if a page is included in an index (e.g. _links.profile.href) this procsesor triggers an infinite processor cycle,
-    // even if the 'filter' option is used to only get a section of the index this page isn't included in (e.g. /schema/post)
     name: 'getIndex',
     onProcess: (rs, options) => {
-        const resourcePath = options.property +  '/' + options.filter;
+        const resourcePath = !options.filter?
+            options.property:
+            options.filter.startsWith('/')? 
+            options.property +  options.filter:
+            options.property + '/' + options.filter;
+
         return rs.execProcessor([{
             name: 'copyState',
             options: {
@@ -474,6 +504,27 @@ export const processorDefinitions: Core.Processors[] = [{
                 resourcePath,
                 from: '_links.item',
                 to: options.to
+            }
+        // }, {
+        //     name: 'map',
+        //     options: {
+        //         property: '_links.item',
+        //         processor: {
+        //             name: 'copy',
+        //             options: {
+        //                 from: 'name',
+        //                 to: 'title',
+        //             }
+        //         }
+        //     }
+        }, {
+            name: 'insert',
+            options: {
+                property: '_links.profile',
+                values: [
+                    {href: `/schema/index/${resourcePath}`},
+                    {href: `/schema/index`},
+                ]
             }
         }]);
     }
