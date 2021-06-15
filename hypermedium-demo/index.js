@@ -14,6 +14,31 @@ const demoPlugin = {
 						name: 'self'
 					}],
 					post: [{
+						name: 'matchProfile',
+						options: {
+							profile: '/schema/post',
+							processors: [{
+								name: 'markdown',
+								options: {
+									from: 'body',
+									to: 'bodyHtml',
+								}
+							}, {
+								name: 'excerpt',
+								options: {
+									from: 'body',
+									to: 'excerpt',
+									max: 50
+								}
+							}, {
+								name: 'markdown',
+								options: {
+									from: 'excerpt',
+									to: 'excerptHtml',
+								}
+							}]
+						}
+					}, {
 						name: 'index',
 						options: {
 							property: '_links.profile.href'

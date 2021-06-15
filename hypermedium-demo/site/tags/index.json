@@ -7,6 +7,12 @@
 			"to": "_links.item"
 		}
 	}, {
+		"name": "sort",
+		"options": {
+			"property": "_links.item",
+			"key": "title"
+		}
+	}, {
 		"name": "embed",
 		"options": {
 			"property": "_links.item",
@@ -21,6 +27,20 @@
 				"options": {
 					"property": "_links.item",
 					"pick": ["date-created"]
+				}
+			}
+		}
+	}, {
+		"name": "map",
+		"options": {
+			"property": "_embedded.item",
+			"processor": {
+				"name": "sort",
+				"options": {
+					"property": "_links.item",
+					"key": "date-created",
+					"compare": "date",
+					"descending": true
 				}
 			}
 		}

@@ -17,8 +17,11 @@
 		<div>
 			<h3>Tags</h3>
 			<ul>
-				{{#each _links.tag}}
-				<li>{{hal-link @key this}}</li>
+				{{!-- {{#each _links.tag}} --}}
+				{{!-- <li>{{hal-link @key this}}</li> --}}
+				{{!-- {{/each}} --}}
+				{{#each tag}}
+				<li>{{this}}</li>
 				{{/each}}
 			</ul>
 		</div>

@@ -196,3 +196,36 @@ export function normalizeUri(uri: Hal.Uri): Hal.Uri {
     return uri;
 }
 
+// TODO: what is the purpose of this
+// sometimes we have a link and we ant to get extra data about it to manipulate it in some way (e.g. sorting a list of _links)
+// it would be nice to be able to easily get the resource a link refers to if it is already embedded
+// considerations:
+// a rel hint can be provided to reduce search time, but is it worth the complication?
+// otherwise we have to blindly search through all embedded resources for the correct _links.self.href
+// we probably don't care about getting a specific property
+// that was meant as a fallback to return a property on the link, but the link and resource are completely different things
+// that being said, in sort, you might actually want to sort by link name, etc, since you don't necessarily know that you're sorting a link?
+// idk
+// export function getEmbedded(resource: Hal.Resource, link: Hal.Link, property: PropertyPath): any {
+//     let result = getProperty(link, property);
+//     if(!resource._embedded) {
+//         return result;
+//     }
+
+//     const embeddedRel = resource._embedded[rel];
+//     const embeddedResources =
+//         Array.isArray(embeddedRel)?
+//         embeddedRel:
+//         resource._embedded[rel]?
+//         [resource._embedded[rel]]:
+//         [];
+
+//     const embeddedResource = embeddedResources.find(
+//         (r: any) => r?._links?.self?.href === link.href
+//     );
+
+//     if(!embeddedResource) {
+//         return options.inverse(link);
+//     }
+// }
+

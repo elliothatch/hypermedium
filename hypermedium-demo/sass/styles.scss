@@ -133,6 +133,11 @@ h1 {
 	border-bottom: solid 3px $fg-primary;
 }
 
+h2 {
+	margin-top: 1.5em;
+	margin-bottom: 0.5em;
+}
+
 ul {
 	list-style-type: none;
 }
@@ -143,7 +148,7 @@ article {
 	header {
 		display: flex;
 		justify-content: space-between;
-		flex-wrap: wrap;
+		flex-wrap: nowrap;
 
 		margin-bottom: 2em;
 
@@ -158,12 +163,13 @@ article {
 		}
 
 		.byline {
-			margin-top: 1em;
+			margin-top: 0.5em;
 			display: flex;
-			align-items: end;
+			// align-items: start;
+			flex-shrink: 0;
 			flex-wrap: wrap;
 
-			margin-left: 3em;
+			margin-left: 2em;
 		}
 
 		.byline > * {
@@ -187,12 +193,12 @@ article {
 	}
 }
 
-ol.tags {
+ol.items {
 	margin-left: 0;
 	padding-left: 0;
 
 	ol {
-		margin-left: 2em;
+		padding-left: 1em;
 	}
 }
 
@@ -238,8 +244,11 @@ ol.articles {
 		}
 	}
 }
-ol.tags {
+ol.items {
 	list-style-type: none;
+	ol {
+		list-style-type: none;
+	}
 }
 
 

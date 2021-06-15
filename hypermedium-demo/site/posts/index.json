@@ -11,14 +11,15 @@
 		"name": "embed",
 		"options": {
 			"property": "_links.item",
-			"properties": ["date-created", "excerpt"]
+			"properties": ["date-created", "excerpt", "excerptHtml"]
 		}
 	}, {
 		"name": "sort",
 		"options": {
 			"property": "_links.item",
 			"key": "date-created",
-			"compare": "date"
+			"compare": "date",
+			"descending": true
 		}
 	}]
 }

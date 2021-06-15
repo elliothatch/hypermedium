@@ -3,7 +3,7 @@ import { promisify } from 'util';
 import { Plugin, Processor, HalUtil } from 'hypermedium';
 import * as Marked from 'marked';
 
-const MarkedAsync = promisify<string, Marked.MarkedOptions, string>(Marked);
+const MarkedAsync = promisify<string, Marked.MarkedOptions | undefined, string>(Marked);
 
 const markdownPlugin: Plugin = {
     name: 'markdown',
@@ -14,66 +14,27 @@ const markdownPlugin: Plugin = {
     moduleFactory: (options) => {
         return {
             hypermedia: {
-                processorFactories: {
-                    'markdown': markdown,
-                }
+                processorDefinitions: [
+                    markdown,
+                ]
             }
         };
     },
 };
 
-export const markdown: Processor.Factory = (defaultOptions?: MarkdownOptions) => {
-    return {
-        name: 'markdown',
-        fn: (rs) => {
-            // TODO: add default options like baseUrl, highlighting, etc
-            const _markdown: MarkdownOptions = {
-                ...rs.resource._markdown,
-                options: {
-                    ...defaultOptions,
-                    ...(rs.resource._markdown && rs.resource._markdown.options),
-                }
-            };
-
-            if(!_markdown.input || !_markdown.output) {
-                return rs;
-            }
-
-            const input = HalUtil.getProperty(rs.resource, _markdown.input);
-
-            if(!input) {
-                return rs;
-            }
-
-            if(rs.execAsyncResult && rs.execAsyncResult.status === 'resolved') {
-                    delete rs.resource._markdown;
-                    const resource = {
-                        ...rs.resource,
-                    };
-
-                    HalUtil.setProperty(resource, _markdown.output, rs.execAsyncResult.result);
-
-                    return {
-                        ...rs,
-                        resource
-                    };
-            }
-            else if(rs.execAsyncResult && rs.execAsyncResult.status === 'rejected') {
-                console.error('compile markdown failed', rs.execAsyncResult.result);
-                return rs;
-            }
-            // if pending, just cancel and reexec
-
-            rs.execAsync(() => MarkedAsync(input, _markdown.options!));
-            return rs;
-        }
-    };
+export const markdown: Processor.Definition = {
+    name: 'markdown',
+    onProcess: (rs, options: MarkdownOptions) => {
+        return MarkedAsync(HalUtil.getProperty(rs.resource, options.from), options.markedOptions).then((html) => {
+            return HalUtil.setProperty(rs.resource, options.to || options.from, html);
+        });
+    }
 }
 
 export interface MarkdownOptions {
-    input?: string;
-    output: string;
-    options?: Marked.MarkedOptions;
+    from?: string;
+    to: string;
+    markedOptions?: Marked.MarkedOptions;
 }
 
 export default markdownPlugin;

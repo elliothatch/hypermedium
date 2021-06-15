@@ -20,10 +20,12 @@ export namespace Core {
         Processors.Insert |
         Processors.Flatten |
         Processors.FlattenObject |
+        Processors.MatchProfile |
         Processors.Map |
         Processors.Sort |
         Processors.Index |
-        Processors.GetIndex;
+        Processors.GetIndex |
+        Processors.Excerpt;
 
     export namespace Processors {
         export type Self = Processor.Definition<'self'>;
@@ -80,7 +82,7 @@ export namespace Core {
             property?: PropertyPath;
             key?: PropertyPath;
             compare?: string;
-            ascending?: boolean;
+            descending?: boolean;
         } | undefined>;
         export namespace Sort {
             export type CompareFn = (a: any, b: any) => number;
@@ -96,9 +98,15 @@ export namespace Core {
             /** the property 'toOption' will be overwritten with the value of the element in the array each iteration */
             // toOption: string;
         }>;
+        export type MatchProfile = Processor.Definition<'matchProfile', {
+            profile: Hal.Uri;
+            processors: Processor;
+        }>;
         export type Index = Processor.Definition<'index', {
             /** dot-notation of the property to use as the index */
             property: string;
+            /** list of properties to embed on index pages */
+            embed?: PropertyPath[];
             // filter: string;
         }>;
         export namespace Index {
@@ -116,6 +124,13 @@ export namespace Core {
             /** if provided, only return matching values */
             filter: string;
             to: PropertyPath;
+        }>;
+
+        export type Excerpt = Processor.Definition<'excerpt', {
+            from?: PropertyPath;
+            to?: PropertyPath;
+            max?: number;
+            breakpoint?: 'word';
         }>;
     }
 }
@@ -348,6 +363,16 @@ export const processorDefinitions: Core.Processors[] = [{
         return rs.resource;
     }
 }, {
+//     /* higher-order processor that only runs the provided processor if the resource matches the designated profile */
+    name: 'matchProfile',
+    onProcess: (rs, options) => {
+        if(!HalUtil.matchesProfile(rs.resource, options.profile)) {
+            return rs.resource;
+        }
+
+        return rs.execProcessor(options.processors, rs.resource);
+    }
+}, {
     name: 'map',
     /** run a processor for each element in an array, using the element as the resource */
     onProcess: (rs, options) => {
@@ -383,8 +408,9 @@ export const processorDefinitions: Core.Processors[] = [{
         };
 
         let baseCompareFn =  compareFns[options?.compare || 'string'] || compareFns['string'];
-        const compareFn = options?.ascending? baseCompareFn:
-            (a: any, b: any) => baseCompareFn(b, a);
+        const compareFn = options?.descending?
+                (a: any, b: any) => baseCompareFn(b, a):
+                baseCompareFn;
 
         const array = HalUtil.getProperty(rs.resource, options?.property);
 
@@ -392,12 +418,22 @@ export const processorDefinitions: Core.Processors[] = [{
             rs.logger.warn(`skipping sort: '${options?.property}' must be an array`);
         }
 
+        array.sort((a: any, b: any) => {
+            let aVal = HalUtil.getProperty(a, options?.key);
+            let bVal = HalUtil.getProperty(b, options?.key);
 
-        // TODO: if key doesn't exist, also lookup on _embedded
-        array.sort((a: any, b: any) => compareFn(
-            HalUtil.getProperty(a, options?.key),
-            HalUtil.getProperty(b, options?.key)
-        ));
+            if(aVal === undefined && a?.href && options?.key) {
+                const aResource = rs.getResource(a.href);
+                aVal = HalUtil.getProperty(aResource, options.key);
+            }
+
+            if(bVal === undefined && b?.href && options?.key) {
+                const bResource = rs.getResource(b.href);
+                bVal = HalUtil.getProperty(bResource, options.key);
+            }
+
+            return compareFn(aVal, bVal);
+        });
 
         rs.resource = HalUtil.setProperty(rs.resource, options?.property, array);
 
@@ -427,6 +463,7 @@ export const processorDefinitions: Core.Processors[] = [{
                 options.property + valueStr:
                 options.property + '/' + valueStr;
 
+            // TODO: embed _links.item on top level indexes, embed options.embed on main indexes and on embedded links.items
             const indexProcessors = (name: string) => [{
                 "name": "objectKeys",
                 "options": {
@@ -527,6 +564,34 @@ export const processorDefinitions: Core.Processors[] = [{
                 ]
             }
         }]);
+    }
+}, {
+    /** create an excerpt summary from the first N words or paragraphs of a property.
+     * reads options from _excerpt and add the result as the "excerpt" property, then delete _excerpt */
+    name: 'excerpt',
+    onProcess: (rs, options) => {
+        const text = HalUtil.getProperty(rs.resource, options.from);
+        if(!text || typeof text !== 'string') {
+            rs.logger.warn(`skipping excerpt: '${options.from}' must be a string`);
+            return rs.resource;
+        }
+
+        // TODO: this regex cuts off traililng punctuation, hyphenated text, etc
+        const wordRegex = /\S+/g;
+        let matches: RegExpExecArray | null;
+        let lastIndex = 0;
+        let matchCount = 0;
+        while((matches = wordRegex.exec(text)) && matchCount < (options.max || 50)) {
+            lastIndex = wordRegex.lastIndex;
+            matchCount++;
+        }
+
+        let excerpt = text.substring(0, lastIndex);
+        if(lastIndex < text.length) {
+            excerpt += '...';
+        }
+
+        return HalUtil.setProperty(rs.resource, options.to, excerpt);
     }
 }];
     /*
