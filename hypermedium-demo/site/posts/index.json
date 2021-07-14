@@ -8,18 +8,18 @@
 			"to": "_links.item"
 		}
 	}, {
-		"name": "embed",
-		"options": {
-			"property": "_links.item",
-			"properties": ["date-created", "excerpt", "excerptHtml"]
-		}
-	}, {
 		"name": "sort",
 		"options": {
 			"property": "_links.item",
 			"key": "date-created",
 			"compare": "date",
 			"descending": true
+		}
+	}, {
+		"name": "embed",
+		"options": {
+			"property": "_links.item",
+			"pick": ["date-created", "excerpt", "excerptHtml"]
 		}
 	}]
 }

@@ -100,6 +100,7 @@ export namespace Core {
         }>;
         export type MatchProfile = Processor.Definition<'matchProfile', {
             profile: Hal.Uri;
+            baseUri?: Hal.Uri;
             processors: Processor;
         }>;
         export type Index = Processor.Definition<'index', {
@@ -320,8 +321,20 @@ export const processorDefinitions: Core.Processors[] = [{
             else if(!Array.isArray(embeddedArray)) {
                 embeddedArray = [embeddedArray];
             }
-
-            rs.resource = HalUtil.setProperty(rs.resource, ['_embedded', rel], [...embeddedArray, resource]);
+            // const embeddedResource = embeddedArray.find((r) => r?._links?.self === link.href);
+            // TODO: copy all copy all properties onto embedded obj
+            // if(embeddedResource) {
+                // HalUtil.setProperty(embeddedResource, 
+                // embeddedResource.
+            // Object.keys(options.obj).forEach((property) => {
+                // if(HalUtil.getProperty(rs.resource, property) === undefined) {
+                //     rs.resource = HalUtil.setProperty(rs.resource, property, options.obj[property]);
+                // }
+            // });
+            // }
+            // else {
+                rs.resource = HalUtil.setProperty(rs.resource, ['_embedded', rel], [...embeddedArray, resource]);
+            // }
         });
         return rs.resource;
     }
@@ -366,7 +379,7 @@ export const processorDefinitions: Core.Processors[] = [{
 //     /* higher-order processor that only runs the provided processor if the resource matches the designated profile */
     name: 'matchProfile',
     onProcess: (rs, options) => {
-        if(!HalUtil.matchesProfile(rs.resource, options.profile)) {
+        if(!HalUtil.matchesProfile(rs.resource, options.profile, options.baseUri)) {
             return rs.resource;
         }
 

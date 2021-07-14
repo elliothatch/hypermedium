@@ -44,6 +44,7 @@
 		"graphlib": "^2.1.8",
 		"handlebars": "^4.7.6",
 		"minimist": "^1.2.5",
+		"path-to-regexp": "^6.2.0",
 		"rxjs": "^6.6.2",
 		"uri-template": "^1.0.1"
 	},

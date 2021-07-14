@@ -3,6 +3,8 @@ import * as Path from 'path';
 import * as UriTemplate from 'uri-template';
 import * as Url from 'url';
 
+import { match } from 'path-to-regexp';
+
 import * as Hal from './hal';
 
 /** either a 'dot.separated.path' or array of property names */
@@ -97,14 +99,27 @@ export function getProfiles(resource: Hal.Resource): Hal.Link[] {
 
 /**
  * check if the profile Uris match
- * @param profile
- * @param targetProfile
+ * @param profile - express path to match
+ * @param targetProfile - profile we are checking
  * @param baseUri - if the URI doesn't match exactly, tries again with this used as a prefix
  */
-export function profilesMatch(profile: Hal.Uri, targetProfile?: Hal.Uri, baseUri?: Hal.Uri): boolean {
-    return baseUri?
-        profile === targetProfile || Url.resolve(baseUri, profile) === targetProfile:
-        profile === targetProfile;
+export function profilesMatch(profile: Hal.Uri, targetProfile: Hal.Uri, baseUri?: Hal.Uri): boolean {
+    let matchFn: ReturnType<typeof match>;
+    try {
+        matchFn = match(profile);
+    }
+    catch(e: any) {
+        e.pathMatch = profile;
+        console.error('bad match', profile, targetProfile);
+        return false;
+        // throw e;
+    }
+    const matchResult = baseUri?
+        matchFn(targetProfile) || matchFn(Url.resolve(baseUri, targetProfile)):
+        matchFn(targetProfile);
+
+    // console.log('hi', targetProfile, profile, matchResult);
+    return !!matchResult;
 }
 
 /**

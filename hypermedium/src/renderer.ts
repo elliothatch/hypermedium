@@ -102,7 +102,7 @@ export class HtmlRenderer {
     }
 
     /** recursively load partials
-     * @deprecated
+     * deprecated
      * */
     // public loadPartials(partialsPath: string, uriPrefix?: HAL.Uri): Promise<PartialMap> {
     //     return walkDirectory(
@@ -189,6 +189,7 @@ export class HtmlRenderer {
         // }
 
         // use the first layout found
+        // TODO: match layout with path-to-regexp
         const layout: HAL.Uri | undefined = getProfiles(resource).reduce((layout, profile) => {
             return layout || this.profileLayouts[profile.href];
         }, undefined as HAL.Uri | undefined);

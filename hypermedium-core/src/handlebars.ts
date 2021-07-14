@@ -7,6 +7,8 @@ const handlebarsHelpers: {[name: string]: HelperDelegate} = {
     'eq': (lhs, rhs) => lhs == rhs,
     'or': (lhs, rhs) => lhs || rhs,
     'and': (lhs, rhs) => lhs && rhs,
+    /** return first truthy argument */
+    'coalesce': (...args) => args.slice(0, -1).find(i => !!i),
     'startsWith': (str, seq) => str.startsWith(seq),
     'isArray': (val) => Array.isArray(val),
     'typeof': (val) => typeof val,

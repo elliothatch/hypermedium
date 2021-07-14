@@ -39,6 +39,26 @@ const demoPlugin = {
 							}]
 						}
 					}, {
+						name: 'matchProfile',
+						options: {
+							profile: '/schema/index/tag/:tag',
+							processors: [{
+								name: 'embed',
+								options: {
+									property: '_links.item',
+									pick: ['date-created', 'excerpt', 'excerptHtml']
+								}
+							}, {
+								name: 'sort',
+								options: {
+									property: '_links.item',
+									key: 'date-created',
+									compare: 'date',
+									descending: true
+								}
+							}]
+						}
+					}, {
 						name: 'index',
 						options: {
 							property: '_links.profile.href'

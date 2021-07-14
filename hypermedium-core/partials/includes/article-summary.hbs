@@ -1,6 +1,6 @@
 <article>
 	<header>
-		<h2><a rel="{{rel}}" href="{{html-uri _links.self.href}}">{{title}}</a></h2>
+		<h2><a rel="{{rel}}" href="{{html-uri _links.self.href}}">{{coalesce title _links.self.title _links.self.href}}</a></h2>
 		<div class="byline">
 			{{#if author}}<div>by <span class="author">{{author}}</span></div>{{/if}}
 			{{#if date-created}}{{datetime date-created}}{{/if}}

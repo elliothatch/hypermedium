@@ -1,14 +1,14 @@
 import * as Process from 'process';
 import * as fs from 'fs-extra';
-import { concat, defer, EMPTY, from, of, Observable, Subject } from 'rxjs';
-import { concatMap, mergeAll, map, mergeMap, tap, last } from 'rxjs/operators';
+import { defer, EMPTY, from, of, Observable, Subject } from 'rxjs';
+import { concatMap, map, mergeMap, last } from 'rxjs/operators';
 
 import * as Build from './build';
 import { BuildManager } from './build-manager';
 import { HtmlRenderer } from './renderer';
-import { HypermediaEngine, Processor } from './hypermedia-engine';
+import { HypermediaEngine } from './hypermedia-engine';
 import { WatchEvent } from './util';
-import { Plugin, Module } from './plugin';
+import { Module } from './plugin';
 import { PluginManager } from './plugin-manager';
 
 /** sets up the hypermedia engine, html renderer, and build system
