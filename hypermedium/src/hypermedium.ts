@@ -1,12 +1,14 @@
 import * as Process from 'process';
 import * as fs from 'fs-extra';
-import { defer, EMPTY, from, of, Observable, Subject } from 'rxjs';
+import * as fsPromises from 'fs/promises';
+import * as Path from 'path';
+import { defer, EMPTY, from, merge, of, Observable, Subject } from 'rxjs';
 import { concatMap, map, mergeMap, last } from 'rxjs/operators';
 
 import * as Build from './build';
 import { BuildManager } from './build-manager';
 import { HtmlRenderer } from './renderer';
-import { HypermediaEngine } from './hypermedia-engine';
+import { HypermediaEngine, ResourceGraph } from './hypermedia-engine';
 import { WatchEvent } from './util';
 import { Module } from './plugin';
 import { PluginManager } from './plugin-manager';
@@ -158,6 +160,41 @@ export class Hypermedium {
             }),
         );
     }
+
+    /** output the entire site as static files in a directory
+    */
+    public exportSite(targetDir: string): Observable<Hypermedium.Event.Export> {
+        return from(fsPromises.mkdir(targetDir, {recursive: true})).pipe(
+            mergeMap((createdDirPath) => {
+                if(!createdDirPath) {
+                    throw new Error('hypermedium.exportSite: Target directory already exists. Not exporting to protect from accidental overwrites. Delete the directory and try again.');
+                }
+                // NOTE: there probably is a more efficient way to traverse the nodes, but there doesn't seem to be a public api for it
+                const resources = this.hypermedia.resourceGraph.graph.nodes();
+                const writeResourceObservables = resources.map((uri) => {
+                    return defer(() => {
+                        // TODO: this assumes all resources are .json files
+                        const filename = uri.split('.').slice(0, -1).join('.') + '.html';
+                        const filePath = Path.join(targetDir, filename);
+                        const node: ResourceGraph.Node = this.hypermedia.resourceGraph.graph.node(uri);
+                        if(!node.resource) {
+                            // TODO: emit warning
+                            return EMPTY;
+                        }
+
+                        const html = this.renderer.render(node.resource, this.renderer.defaultTemplate, uri);
+                        return from(fs.outputFile(filePath, html)).pipe(
+                            map(() => ({eType: 'Export' as const, path: filePath}))
+                        );
+                    });
+                });
+
+                return merge(...writeResourceObservables);
+                // TODO: also output all static assets (dist directory)
+            })
+        );
+    }
+
 }
 
 export namespace Hypermedium {
@@ -165,5 +202,14 @@ export namespace Hypermedium {
         hypermedia: Partial<HypermediaEngine.Options>;
         renderer: Partial<HtmlRenderer.Options>;
         // websocketServer?: Server;
+    }
+
+    export type Event = Event.Export;
+    export namespace Event {
+        /** emitted when a resource or asset is exported to the filesystem */
+        export interface Export {
+            eType: 'Export';
+            path: string;
+        }
     }
 }

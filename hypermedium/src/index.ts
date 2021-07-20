@@ -13,9 +13,9 @@ export * as HalUtil from './hal-util';
 export * as Util from './util';
 
 import * as Path from 'path';
-import { from } from 'rxjs';
 import { Log } from 'freshlog';
-import { mergeMap, map } from 'rxjs/operators';
+import { concat, ConnectableObservable, defer, EMPTY, from, merge } from 'rxjs';
+import { mergeMap, map, publish, timeoutWith, tap, catchError } from 'rxjs/operators';
 import * as Express from 'express';
 
 import { Hypermedium } from './hypermedium';
@@ -202,7 +202,7 @@ function initializeHypermedium(staticMappings: StaticMapping[]) {
     const markdownPlugin = hypermedium.pluginManager.loadPlugin(markdownPath);
 
     // TODO: wait until 'initialized' event before loading next plugin
-    from([corePlugin, sassPlugin, markdownPlugin, demoPlugin]).pipe(
+    const moduleEvents = from([corePlugin, sassPlugin, markdownPlugin, demoPlugin]).pipe(
         mergeMap((plugin) => {
             return hypermedium.pluginManager.createModule(plugin.plugin.name, plugin.plugin.name, {}).pipe(
                 mergeMap((moduleInstance) => {
@@ -221,23 +221,61 @@ function initializeHypermedium(staticMappings: StaticMapping[]) {
                     );
                 }),
             );
-        })
-    ).subscribe({
+        }),
+        publish(),
+    );
+
+    moduleEvents.subscribe({
         next: ({moduleInstance, event}) => {
             if(event.eType === 'resource-changed') {
                 Log.info(`${moduleInstance.name}: ${event.fileEvent} HAL resource: ${event.uri}`, {event, moduleInstance: {name: moduleInstance.name, modulePath: moduleInstance.modulePath}});
+            }
+            else if(event.eType === 'initialized') {
+                Log.trace(`${moduleInstance.name}: ${event.eType}: ${moduleInstance.modulePath}`, {event, moduleInstance: {name: moduleInstance.name, modulePath: moduleInstance.modulePath}});
             }
             else if(event.eCategory === 'build-event') {
                 logBuildEvent(event, moduleInstance);
             }
             else {
-                Log.trace(`${moduleInstance.name}: ${event.eType}: ${(event as any).name || (event as any).uri || (event as any).profile || ''}`, {event, moduleInstance: {name: moduleInstance.name, modulePath: moduleInstance.modulePath}});
+                const message = (event as any).name
+                    || (event as any).processorDefinition?.name
+                    || (event as any).processor?.name
+                    || (event as any).taskDefinition?.name
+                    || (event as any).uri
+                    || (event as any).profile
+                    || '';
+                Log.trace(`${moduleInstance.name}: ${event.eType}: ${message}`, {event, moduleInstance: {name: moduleInstance.name, modulePath: moduleInstance.modulePath}});
             }
         },
         error: (error) => {
             Log.error(error.message, {error});
         }
     });
+
+    // output files after all events have stablized
+    const outputFiles = true;
+    if(outputFiles) {
+        // TODO: do this by detecting when all processing is done, rather than timeout
+        merge(
+            hypermedium.hypermedia.events,
+            hypermedium.renderer.events,
+            hypermedium.build.watchEvents,
+            moduleEvents)
+        .pipe(
+            timeoutWith(1000, concat(
+                defer(() => Log.info('exporting site')),
+                hypermedium.exportSite(Path.join(demoPath, 'export')).pipe(
+                tap((event: Hypermedium.Event.Export) => Log.trace(`export ${event.path}`, event)),
+                catchError((error: Error) => {
+                    Log.error(`Export site failed: ${error.message}`, error);
+                    return EMPTY;
+                }),
+                )
+            ))
+        ).subscribe();
+    }
+
+    (moduleEvents as ConnectableObservable<any>).connect();
 
     // set up the http server
     const app = Express();

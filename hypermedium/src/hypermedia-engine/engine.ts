@@ -1,10 +1,7 @@
-import * as Path from 'path';
-import { promises as fs } from 'fs';
-import * as Url from 'url';
 import { hrtime } from 'process';
 
 import { concat, merge, defer, from, of, Observable, Subject } from 'rxjs';
-import { mergeMap, reduce, publish, refCount } from 'rxjs/operators';
+import { mergeMap, publish, refCount } from 'rxjs/operators';
 
 import { NextFunction, Router, Request, Response } from 'express';
 
@@ -12,8 +9,7 @@ import { Edge } from 'graphlib';
 
 import * as HAL from '../hal';
 import * as HalUtil from '../hal-util';
-import { filterCuries, profilesMatch, matchesProfile, getProfiles, normalizeUri } from '../hal-util';
-import { createSchema, NotFoundError, objectDifference } from '../util';
+import { normalizeUri } from '../hal-util';
 
 import { ExtendedResource, ResourceGraph } from './resource-graph'
 import { Processor, ResourceState } from './processor';
@@ -258,8 +254,8 @@ export class HypermediaEngine {
                     });
 
                     const dependentResourceObservables = (this.resourceGraph.graph.nodeEdges(normalizedUri) as unknown as Edge[])
-                        .filter(({v, w}) => v !== normalizedUri)
-                        .map(({v, w}) => this.processResource(v, prevUris!.concat(normalizedUri)));
+                        .filter(({v}) => v !== normalizedUri)
+                        .map(({v}) => this.processResource(v, prevUris!.concat(normalizedUri)));
 
                     return concat(
                         of({uri: normalizedUri, resource}),
