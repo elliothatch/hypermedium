@@ -80,14 +80,14 @@ export function HypermediumCmd(argv: string[]) {
                 const parts = mapping.split(':');
                 if(parts.length === 1) {
                     return {
-                        path: parts[0],
-                        uri: '/',
+                        from: parts[0],
+                        to: '/',
                     };
                 }
                 else if(parts.length === 2) {
                     return {
-                        path: parts[0],
-                        uri: parts[1],
+                        from: parts[0],
+                        to: parts[1],
                     };
                 }
 
@@ -202,24 +202,88 @@ function initializeHypermedium(staticMappings: StaticMapping[]) {
     const markdownPlugin = hypermedium.pluginManager.loadPlugin(markdownPath);
 
     // TODO: wait until 'initialized' event before loading next plugin
-    const moduleEvents = from([corePlugin, sassPlugin, markdownPlugin, demoPlugin]).pipe(
+    const moduleInitializations = from([corePlugin, sassPlugin, markdownPlugin, demoPlugin]).pipe(
         mergeMap((plugin) => {
-            return hypermedium.pluginManager.createModule(plugin.plugin.name, plugin.plugin.name, {}).pipe(
-                mergeMap((moduleInstance) => {
-                    Log.info(`Create module: ${moduleInstance.name}`, moduleInstance);
-                    if(moduleInstance.name === demoPlugin.plugin.name || corePlugin.plugin.name) {
-                        // don't namespace the user plugin or core plugin
-                        // TODO: we should probably actually leave the core prefix?
-                        // TODO: look into overriding namespaces. it would be nice if you could use e.g. core/layout/default.hbs but override with your own includes/header.hbs, etc. right now the override probably doesn't work and if it does it probably shows the most recently edited file
-                        return hypermedium.registerModule(moduleInstance, '').pipe(
-                            map((event) => ({moduleInstance, event}))
-                        );
-                    }
+            return hypermedium.pluginManager.createModule(plugin.plugin.name, plugin.plugin.name, {});
+        }),
+        publish(),
+    );
 
-                    return hypermedium.registerModule(moduleInstance).pipe(
-                        map((event) => ({moduleInstance, event}))
-                    );
-                }),
+    moduleInitializations.subscribe({
+        next: ((moduleInstance) => {
+            // TODO: set primary module based on launch params (e.g. the current directory's module)
+            if(moduleInstance.name === 'hypermedium-demo') {
+                hypermedium.primaryModule = moduleInstance;
+            }
+            Log.info(`Create module: ${moduleInstance.name}`, moduleInstance);
+        }),
+        complete: () => {
+            Log.info('Modules initalized');
+            // set up the http server
+            const app = Express();
+
+            // TODO: specify which modules to map
+            if(hypermedium.primaryModule?.module.files) {
+                hypermedium.primaryModule.module.files.forEach((file) => {
+                    const mapping = typeof file === 'string'?
+                        {from: file, to: '/'}:
+                        file;
+
+                    const fromPath = Path.join(hypermedium.primaryModule!.modulePath, mapping.from);
+                    Log.trace(`Server: add static mapping '${fromPath}' -> '${mapping.to}'`, {from: fromPath, to: mapping.to});
+                    app.use(mapping.to, Express.static(fromPath));
+                });
+            }
+
+            staticMappings.forEach((mapping) => {
+                Log.trace(`Server: add static mapping '${mapping.from}' -> '${mapping.to}'`, mapping);
+                app.use(mapping.to, Express.static(mapping.from));
+            });
+
+            app.use(hypermedium.renderer.router);
+            app.use(hypermedium.hypermedia.router);
+
+            app.use((error: any, req: Express.Request, res: Express.Response, next: Express.NextFunction) => {
+                const errorOut = {
+                    code: error.httpCode || 500,
+                    data: Object.keys(error).reduce((o: any, p: string) => {
+                        o[p] = error[p];
+                        return o;
+                    }, {}),
+                    message: error.message,
+                };
+
+                if(errorOut.code >= 500) {
+                    Log.error(`MiddlewareError ${req.url}: ${error.constructor.name}: ${error.message}`, {
+                        uri: req.url,
+                        error,
+                    });
+                }
+                res.status(errorOut.code).json(errorOut);
+            });
+
+            server(app).subscribe({
+                next: (server) => {
+                    Log.info('server-listening', {port: server.port});
+                }, 
+                error: (error) => Log.error('server-start', {error}),
+            });
+        }
+    });
+
+    const moduleEvents = moduleInitializations.pipe(
+        mergeMap((moduleInstance) => {
+            if(moduleInstance.name === demoPlugin.plugin.name || corePlugin.plugin.name) {
+                // don't namespace the user plugin or core plugin
+                // TODO: we should probably actually leave the core prefix?
+                // TODO: look into overriding namespaces. it would be nice if you could use e.g. core/layout/default.hbs but override with your own includes/header.hbs, etc. right now the override probably doesn't work and if it does it probably shows the most recently edited file
+                return hypermedium.registerModule(moduleInstance, '').pipe(
+                    map((event) => ({moduleInstance, event}))
+                );
+            }
+
+            return hypermedium.registerModule(moduleInstance).pipe(
+                map((event) => ({moduleInstance, event}))
             );
         }),
         publish(),
@@ -265,7 +329,7 @@ function initializeHypermedium(staticMappings: StaticMapping[]) {
             timeoutWith(1000, concat(
                 defer(() => Log.info('exporting site')),
                 hypermedium.exportSite(Path.join(demoPath, 'export')).pipe(
-                tap((event: Hypermedium.Event.Export) => Log.trace(`export ${event.path}`, event)),
+                tap((event: Hypermedium.Event.Export) => Log.trace(`export ${event.from} -> ${event.path}`, event)),
                 catchError((error: Error) => {
                     Log.error(`Export site failed: ${error.message}`, error);
                     return EMPTY;
@@ -276,45 +340,7 @@ function initializeHypermedium(staticMappings: StaticMapping[]) {
     }
 
     (moduleEvents as ConnectableObservable<any>).connect();
-
-    // set up the http server
-    const app = Express();
-
-    staticMappings.forEach((mapping) => {
-        app.use(mapping.uri, Express.static(mapping.path));
-    });
-
-    app.use(hypermedium.renderer.router);
-    app.use(hypermedium.hypermedia.router);
-
-    app.use((error: any, req: Express.Request, res: Express.Response, next: Express.NextFunction) => {
-        const errorOut = {
-            code: error.httpCode || 500,
-            data: Object.keys(error).reduce((o: any, p: string) => {
-                o[p] = error[p];
-                return o;
-            }, {}),
-            message: error.message,
-        };
-
-        if(errorOut.code >= 500) {
-            Log.error(`MiddlewareError ${req.url}: ${error.constructor.name}: ${error.message}`, {
-                uri: req.url,
-                error,
-            });
-        }
-        res.status(errorOut.code).json(errorOut);
-    });
-
-    server(app).subscribe({
-        next: (server) => {
-            Log.info('server-listening', {port: server.port});
-        }, 
-        error: (error) => Log.error('server-start', {error}),
-    });
-
-
-    // generate a static site
+    (moduleInitializations as ConnectableObservable<any>).connect();
 }
 
 interface HypermediumCmdOptions {
@@ -327,8 +353,8 @@ interface HypermediumCmdOptions {
 }
 
 interface StaticMapping {
-    path: string;
-    uri: string;
+    from: string;
+    to: string;
 }
 
 function logBuildEvent(event: Build.Event & {eCategory: 'build-event'}, moduleInstance?: Module.Instance) {

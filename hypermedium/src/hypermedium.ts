@@ -22,6 +22,8 @@ export class Hypermedium {
     public renderer: HtmlRenderer;
     public build: BuildManager;
 
+    public primaryModule?: Module.Instance;
+
     protected pluginFileEvent$: Subject<Observable<WatchEvent>>;
     // public watchEvent$: Observable<WatchEvent>;
 
@@ -161,14 +163,10 @@ export class Hypermedium {
         );
     }
 
-    /** output the entire site as static files in a directory
-    */
-    public exportSite(targetDir: string): Observable<Hypermedium.Event.Export> {
+    /** output resources as rendered HTML */
+    public exportResources(targetDir: string): Observable<Hypermedium.Event.Export> {
         return from(fsPromises.mkdir(targetDir, {recursive: true})).pipe(
-            mergeMap((createdDirPath) => {
-                if(!createdDirPath) {
-                    throw new Error('hypermedium.exportSite: Target directory already exists. Not exporting to protect from accidental overwrites. Delete the directory and try again.');
-                }
+            mergeMap(() => {
                 // NOTE: there probably is a more efficient way to traverse the nodes, but there doesn't seem to be a public api for it
                 const resources = this.hypermedia.resourceGraph.graph.nodes();
                 const writeResourceObservables = resources.map((uri) => {
@@ -184,13 +182,66 @@ export class Hypermedium {
 
                         const html = this.renderer.render(node.resource, this.renderer.defaultTemplate, uri);
                         return from(fs.outputFile(filePath, html)).pipe(
-                            map(() => ({eType: 'Export' as const, path: filePath}))
+                            map(() => ({eType: 'Export' as const, from: uri, path: filePath}))
                         );
                     });
                 });
 
                 return merge(...writeResourceObservables);
-                // TODO: also output all static assets (dist directory)
+            })
+        );
+    }
+
+    /** output files listed in the module's "files" configuration option */
+    public exportStaticFiles(moduleName: string, targetDir: string): Observable<Hypermedium.Event.Export> {
+        return from(fsPromises.mkdir(targetDir, {recursive: true})).pipe(
+            mergeMap(() => {
+                const module = this.pluginManager.modules.get(moduleName);
+                if(!module) {
+                    throw Error(`exportStaticFiles: Module '${moduleName}' not found.`);
+                }
+
+                return merge(...(module.module.files || []).map((file) => {
+                    const mapping = typeof file === 'string'?
+                        {from: file, to: ''}:
+                        file;
+
+                    const fromPath = Path.join(module.modulePath, mapping.from);
+                    const toPath = Path.join(targetDir, mapping.to);
+                    return from(fs.copy(fromPath, toPath)).pipe(
+                        map(() => ({eType: 'Export' as const, from: fromPath, path: toPath}))
+                    );
+                }));
+            })
+        );
+    }
+
+    /** output the entire site as static files in a directory.
+    * @param options.modules - by default, export site only exports static files (mappings listed in the plugin's "files" configuration option) from the primary module, to the root of targetDir.
+    * this option allows you to specify additional modules to export static files from. each module will be exported to a directory with the name of the module. the primary module is always exported
+    */
+    public exportSite(targetDir: string, options?: Partial<{modules: string[], overwrite: boolean}>): Observable<Hypermedium.Event.Export> {
+        return from(fsPromises.mkdir(targetDir, {recursive: true})).pipe(
+            mergeMap((createdDirPath) => {
+                if(!options?.overwrite && !createdDirPath) {
+                    throw new Error('hypermedium.exportSite: Target directory already exists. Not exporting because overwrite is disabled. Delete the directory or enable overwriting and try again.');
+                }
+
+                const moduleObservables = this.primaryModule?
+                    [this.exportStaticFiles(this.primaryModule.name, targetDir)]:
+                    [];
+
+                if(options?.modules) {
+                    options.modules.forEach((module) => {
+                        const obs = this.exportStaticFiles(module, Path.join(targetDir, module))
+                        moduleObservables.push(obs);
+                    });
+                }
+
+                return merge(
+                    this.exportResources(targetDir),
+                    ...moduleObservables,
+                );
             })
         );
     }
@@ -210,6 +261,7 @@ export namespace Hypermedium {
         export interface Export {
             eType: 'Export';
             path: string;
+            from: string;
         }
     }
 }

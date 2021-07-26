@@ -49,6 +49,11 @@ export namespace Plugin {
  * all paths are relative to Plugin.baseUrl
  */
 export type Module = Partial<{
+    /** list of static file mappings, used in the webserver and site export
+    * each entry maps "from" a file or directory relative to the module root, "to" an express-style route/pattern
+    * if the entry is a string, it is mapped "from" that path "to" the root-level output
+    */
+    files?: Array<string | {from: string; to: string;}>;
     // TODO: options that describe how resources will be served by the webserver
     // baseUrl: string;
     // templatePaths desribe which templates will be used to serve which URLs

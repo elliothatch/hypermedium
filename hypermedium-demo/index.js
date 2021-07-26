@@ -7,6 +7,7 @@ const demoPlugin = {
 	dependencies: ['core', 'sass', 'markdown'],
 	moduleFactory: (options) => {
 		return {
+			files: ['dist'],
 			hypermedia: {
 				sitePaths: ['site'],
 				processors: {
