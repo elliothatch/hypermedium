@@ -1,11 +1,11 @@
 import * as Path from 'path';
-import { validate, validateData } from 'fresh-validation';
+import { validateData } from 'fresh-validation';
 import * as fs from 'fs-extra';
-import { Graph, Edge } from 'graphlib';
-import { concat, defer, EMPTY, from, merge, of, Observable } from 'rxjs';
-import { filter, map, mergeMap } from 'rxjs/operators';
+import { Graph } from 'graphlib';
+import { concat, defer, from, merge, of, Observable } from 'rxjs';
+import { filter, map } from 'rxjs/operators';
 
-import { WatchEvent, watchFiles } from './util';
+import { watchFiles } from './util';
 import { Processor } from './hypermedia-engine';
 
 import { Plugin, Module } from './plugin';
@@ -18,9 +18,64 @@ export class PluginManager {
 
     constructor() {
         this.dependencyGraph = new Graph();
-        this.dependencyGraph.setDefaultNodeLabel((name: string) => ({}));
+        this.dependencyGraph.setDefaultNodeLabel((_name: string) => ({}));
 
         this.modules = new Map();
+    }
+
+    // TODO: handle discrepancies between plugin directory name and name defined in plugin file
+
+    /** recursively loads each plugin and its dependencies
+    * @returns list of newly loaded plugins (not including plugins/dependencies that were already loaded) */
+    public loadPluginsAndDependencies(pluginNames: string[], searchPaths: string[]) {
+        const loadedPlugins: Plugin.File[] = [];
+        pluginNames.forEach((pluginName) => {
+            const node = this.dependencyGraph.node(pluginName);
+            let pluginFile: Plugin.File | undefined = node?.pluginFile;
+            if(!pluginFile) {
+                pluginFile = this.findAndLoadPlugin(pluginName, searchPaths);
+                loadedPlugins.push(pluginFile);
+            }
+
+            const loadedDependencies = this.loadPluginsAndDependencies(pluginFile.plugin.dependencies, searchPaths);
+
+            loadedPlugins.push(...loadedDependencies);
+        });
+
+        return loadedPlugins;
+    }
+
+    public findAndLoadPlugin(pluginName: string, searchPaths: string[]): Plugin.File {
+        const loadErrors: LoadPluginError[] = [];
+        // TODO: in verbose mode log paths that are searched
+        for(const searchPath of searchPaths) {
+            // TODO: the npm module names won't match the plugin names (because they'll be prefixed by 'hypermedium-'), maybe we should add that to default search path?
+            const pluginPaths = [searchPath, Path.join(searchPath, pluginName)];
+            for(const pluginPath of pluginPaths) {
+                // console.log(`try load: ${pluginPath}`);
+                try {
+                    let jsModule: any;
+                    try {
+                        jsModule = require(pluginPath);
+                        jsModule = jsModule?.default || jsModule;
+                    }
+                    catch(err) {
+                        throw new LoadPluginError(err.message, pluginPath, err);
+                    }
+
+                    // try the load the plugin if the name matches our target
+                    if(jsModule?.name === pluginName) {
+                        const plugin = this.loadPlugin(pluginPath);
+                        return plugin;
+                    }
+                }
+                catch(error) {
+                    loadErrors.push(error);
+                }
+            }
+        }
+
+        throw new AggregateError(loadErrors, `PluginManager.findAndLoadPlugin: failed to find valid plugin '${pluginName}'`);
     }
 
     /** loads a plugin file from disk and adds it to the dependency tree */
@@ -64,7 +119,8 @@ export class PluginManager {
         this.dependencyGraph.setNode(plugin.name, pluginNode);
 
         plugin.dependencies.forEach((dependency) => {
-            this.dependencyGraph.setEdge(plugin.name, dependency);
+            // console.log(`adding dependency: ${dependency} -> ${plugin.name}`);
+            this.dependencyGraph.setEdge(dependency, plugin.name);
         });
 
         return pluginNode.pluginFile!;
@@ -291,8 +347,10 @@ export namespace PluginManager {
 
 export class LoadPluginError extends Error {
     public error?: Error;
-    constructor(message: string, modulePath: string, err?: Error) {
-        super(`Failed to load plugin ${modulePath}: ${err && err.name || 'Error'}: ${message}`);
+    public path: string;
+    constructor(message: string, pluginPath: string, err?: Error) {
+        super(`Failed to load plugin ${pluginPath}: ${err && err.name || 'Error'}: ${message}`);
         Object.setPrototypeOf(this, LoadPluginError.prototype);
+        this.path = pluginPath;
     }
 }

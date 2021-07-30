@@ -6,6 +6,8 @@ type PropertyPath = HalUtil.PropertyPath;
 // import { makeIndex } from './make-index';
 // import { tags } from './tags';
 
+// TODO: add matchUri using express router
+
 export namespace Core {
     export type Processors =
         Processors.Self |

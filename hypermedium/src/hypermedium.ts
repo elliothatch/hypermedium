@@ -2,8 +2,9 @@ import * as Process from 'process';
 import * as fs from 'fs-extra';
 import * as fsPromises from 'fs/promises';
 import * as Path from 'path';
-import { defer, EMPTY, from, merge, of, Observable, Subject } from 'rxjs';
-import { concatMap, map, mergeMap, last } from 'rxjs/operators';
+import * as GraphLib from 'graphlib';
+import { concat, defer, EMPTY, from, merge, of, Observable, Subject, ConnectableObservable } from 'rxjs';
+import { concatMap, combineLatest, map, mergeMap, last, publish, filter, take, mapTo, tap, refCount } from 'rxjs/operators';
 
 import * as Build from './build';
 import { BuildManager } from './build-manager';
@@ -22,7 +23,7 @@ export class Hypermedium {
     public renderer: HtmlRenderer;
     public build: BuildManager;
 
-    public primaryModule?: Module.Instance;
+    public mainModule?: Module.Instance;
 
     protected pluginFileEvent$: Subject<Observable<WatchEvent>>;
     // public watchEvent$: Observable<WatchEvent>;
@@ -47,10 +48,112 @@ export class Hypermedium {
         // );
     }
 
-    /** build the module if necessary, then subscribe to moduleEvents
+    // TODO: add simple initialization function that gets everything running
+    // 1. takes a list of plugin names
+    // 2. loads plugins
+    // 3. resolves and loads dependencies
+    // 4. initializes modules using topological sort of plugin dependency graph
+    //    a. create module
+    //    b. once 'module initialized' event is completed, build the plugin with the build system
+    // then the user/init script should use separate functions to:
+    // 5. start the webserver
+    // 6. export the site when it is built
+    //
+    //
+    // the caller cares about a few things
+    // 1. when the module is initialized (moduleinstance)
+    // 2. when the module's build has completed and it is ready to use
+    // 3. when all modules are initialized
+    // 4. all module events (stream of events)
+    // ex:
+    // core -> init -> build -> READY
+    // |         |       |-> build-events  -|
+    // |         |---------> module-events -|
+    // V                                    |
+    // sass -> init -> build -> READY       |
+    // |         |       |-> build-events  -|
+    // |         |---------> module-events -|
+    // V                                    |
+    // demo -> init -> build -> READY       |
+    // |         |       |-> build-events  -|
+    // |         |---------> module-events -|-----> all events
+    // V
+    // COMPLETE
+    //
+    // return Observable<[Module.Instance, Observable<Module.Event | BuildEvent>]>
+    // completes when all instances are initialized
+    //
+    // return [Observable<Module.Instance>, Observable<Module.Event | BuildEvent>[]]
+    //
+    // okay what I really want
+    // Observable<[ModuleInstance, Observable<ModuleEvent>]
+
+    public initializePlugins(pluginNames: string[], searchPaths: string[]): {modules: Observable<Module.Instance>, moduleEvents: Observable<[Module.Event | ({eCategory: 'build-event'} & Build.Event), Module.Instance]>} {
+
+        const moduleEventsSubject: Subject<[Observable<Module.Event | ({eCategory: 'build-event'} & Build.Event)>, Module.Instance]> = new Subject();
+
+        const pluginsLoaded = this.pluginManager.loadPluginsAndDependencies(pluginNames, searchPaths);
+        const pluginLoadOrder = GraphLib.alg.topsort(this.pluginManager.dependencyGraph).filter((plugin) => {
+            return !!pluginsLoaded.find((p) => p.plugin.name === plugin);
+        });
+
+        const modulesObservable = from(pluginLoadOrder).pipe(
+            mergeMap((pluginName) => this.pluginManager.createModule(pluginName, pluginName, {})),
+            concatMap((moduleInstance) => {
+                // TODO: handle namespacing
+                const moduleEvents = this.registerModule(moduleInstance, '').pipe(
+                    concatMap((moduleEvent) => {
+                        if(moduleEvent.eCategory === 'module'
+                            && moduleEvent.eType === 'initialized'
+                            && moduleInstance.module.build 
+                            && moduleInstance.module.build.buildSteps) {
+
+                            // TODO: deal with unwatching files on module unregister
+                            return concat(
+                                this.build.build(moduleInstance.module.build.buildSteps, moduleInstance.modulePath).pipe(
+                                    map((buildEvent) => ({
+                                        eCategory: 'build-event' as const,
+                                        ...buildEvent
+                                }))),
+                                of(moduleEvent)
+                            );
+                        }
+
+                        return of(moduleEvent);
+                    }),
+                    publish(),
+                );
+
+                moduleEventsSubject.next([moduleEvents, moduleInstance]);
+
+                return merge(
+                    moduleEvents.pipe(
+                        filter((e) => e.eCategory === 'module' && e.eType === 'initialized'),
+                        take(1),
+                        mapTo(moduleInstance)
+                    ),
+                    defer(() => {
+                        (moduleEvents as ConnectableObservable<any>).connect()
+                        return EMPTY;
+                    }),
+                );
+            })
+        );
+
+        return {
+            modules: modulesObservable,
+            moduleEvents: moduleEventsSubject.pipe(
+                mergeMap(([moduleEvents, moduleInstance]) =>
+                    moduleEvents.pipe(combineLatest(of(moduleInstance)))
+                )
+            )
+        }
+}
+
+    /** start handling module events
      * @param namespace - if provided, will override the default namespace (moduleInstance.name)
      * */
-    public registerModule(moduleInstance: Module.Instance, namespace?: string): Observable<Module.Event | ({eCategory: 'build-event'} & Build.Event)> {
+    public registerModule(moduleInstance: Module.Instance, namespace?: string): Observable<Module.Event> {
         let moduleNamespace = namespace != null? namespace: moduleInstance.name;
         if(moduleNamespace.length > 0) {
             moduleNamespace += '/';
@@ -73,7 +176,6 @@ export class Hypermedium {
                                                 })
                                             );
                                         case 'unlink':
-                                            this.hypermedia.unloadResource(moduleEvent.uri);
                                             return EMPTY;
                                     }
                                 case 'processor-definition-changed':
@@ -141,25 +243,7 @@ export class Hypermedium {
                     last(null, null),
                     map((_) => moduleEvent)
                 );
-            }),
-            concatMap((moduleEvent) => {
-                if(moduleEvent.eCategory === 'module'
-                    && moduleEvent.eType === 'initialized'
-                    && moduleInstance.module.build 
-                    && moduleInstance.module.build.buildSteps) {
-
-                    // TODO: deal with unwatching files on module unregister
-                    return this.build.build(moduleInstance.module.build.buildSteps, moduleInstance.modulePath).pipe(
-                        map((buildEvent) => ({
-                            eCategory: 'build-event' as const,
-                            ...buildEvent
-                        }))
-                    );
-                    // TODO: deal with build failure
-                }
-
-                return of(moduleEvent);
-            }),
+            })
         );
     }
 
@@ -217,8 +301,8 @@ export class Hypermedium {
     }
 
     /** output the entire site as static files in a directory.
-    * @param options.modules - by default, export site only exports static files (mappings listed in the plugin's "files" configuration option) from the primary module, to the root of targetDir.
-    * this option allows you to specify additional modules to export static files from. each module will be exported to a directory with the name of the module. the primary module is always exported
+    * @param options.modules - by default, export site only exports static files (mappings listed in the plugin's "files" configuration option) from the main module, to the root of targetDir.
+    * this option allows you to specify additional modules to export static files from. each module will be exported to a directory with the name of the module. the main module is always exported
     */
     public exportSite(targetDir: string, options?: Partial<{modules: string[], overwrite: boolean}>): Observable<Hypermedium.Event.Export> {
         return from(fsPromises.mkdir(targetDir, {recursive: true})).pipe(
@@ -227,8 +311,8 @@ export class Hypermedium {
                     throw new Error('hypermedium.exportSite: Target directory already exists. Not exporting because overwrite is disabled. Delete the directory or enable overwriting and try again.');
                 }
 
-                const moduleObservables = this.primaryModule?
-                    [this.exportStaticFiles(this.primaryModule.name, targetDir)]:
+                const moduleObservables = this.mainModule?
+                    [this.exportStaticFiles(this.mainModule.name, targetDir)]:
                     [];
 
                 if(options?.modules) {

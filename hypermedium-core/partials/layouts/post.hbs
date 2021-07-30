@@ -6,13 +6,13 @@
 			{{#if date-created}}{{datetime date-created}}{{/if}}
 		</div>
 	</header>
-	<main>
+	<div class="main">
 		{{#if bodyHtml}}
 		{{{bodyHtml}}}
 		{{else}}
 		<p>{{body}}</p>
 		{{/if}}
-	</main>
+	</div>
 	<footer>
 		<div>
 			<h3>Tags</h3>
@@ -26,3 +26,4 @@
 			</ul>
 		</div>
 	</footer>
+</article>
