@@ -14,17 +14,14 @@ export * as Util from './util';
 
 import * as Path from 'path';
 import { Log } from 'freshlog';
-import { concat, ConnectableObservable, defer, EMPTY, from, merge, Observable, of, Subject } from 'rxjs';
-import { mergeMap, map, publish, timeoutWith, tap, catchError, combineLatest } from 'rxjs/operators';
+import { concat, defer, EMPTY, merge } from 'rxjs';
+import { timeoutWith, tap, catchError } from 'rxjs/operators';
 import * as Express from 'express';
 
 import { Hypermedium } from './hypermedium';
 import * as HypermediaEngine from './hypermedia-engine';
 import * as Build from './build';
 import { Module } from './plugin';
-
-
-import { PluginManager } from './plugin-manager';
 
 import { server } from './server';
 
@@ -35,12 +32,29 @@ if(require.main === module) {
     HypermediumCmd(process.argv.slice(2));
 }
 
+export interface HypermediumCommand {
+    flags: string[];
+    argName?: string;
+    unamedArgs?: string;
+    options?: boolean;
+    fn: (args: Minimist.ParsedArgs) => number | void;
+}
+
 export function HypermediumCmd(argv: string[]) {
     Log.handlers.get('trace')!.enabled = true;
 
-    const args = Minimist(argv);
+    const args = Minimist(argv, {
+        alias: {output: 'O', server: 'S', force: 'f'},
+        // NOTE: using boolean default initializes all the flags to false, which isn't necessarily what we want?
+        boolean: ['O', 'output', 'S', 'server', 'f', 'force'],
+    });
 
-    const commands = [{
+    const defaultPluginSearchPaths = [
+        Path.join(process.cwd(), 'node_modules', '@hypermedium'),
+        process.cwd()
+    ];
+
+    const commands: HypermediumCommand[] = [{
         flags: ['h', 'help'],
         fn: (args: Minimist.ParsedArgs) => {
             const execName = 'hypermedium';
@@ -58,17 +72,35 @@ export function HypermediumCmd(argv: string[]) {
         }
     }, {
         flags: ['O', 'output'],
-        argName: 'OUTPUT_DIR',
+        // argName: 'OUTPUT_DIR',
         unamedArgs: '<plugin(s)>',
         options: true,
         fn: (args: Minimist.ParsedArgs) => {
-            return 0;
+            Log.info(`command line arguments: ${Object.keys(args).filter((arg) => args[arg] != false)}`, {args});
+            const hypermediumOptions: HypermediumInitOptions = {
+                // TODO: should we use the output argument as the export path?
+                plugins: args._,
+                pluginSearchPaths: defaultPluginSearchPaths,
+                export: {
+                    overwrite: args.force || args.f
+                },
+            };
+
+            try {
+                initializeHypermedium(hypermediumOptions, []);
+            }
+            catch(error) {
+                Log.error(error.message, error);
+                return 1;
+            }
+            // return 0;
         }
     }, {
         flags: ['S', 'server'],
         unamedArgs: '<plugin(s)>',
         options: true,
         fn: (args: Minimist.ParsedArgs) => {
+            Log.info(`command line arguments: ${Object.keys(args).filter((arg) => args[arg] != false)}`, {args});
             // TODO: get list of plugins, plugin-lookup dirs (e.g. node_modules)
             // const hypermedium = new Hypermedium();
             let staticMappingStrs: string | string[] = args['s'] || args['static'] || [];
@@ -94,11 +126,24 @@ export function HypermediumCmd(argv: string[]) {
                 throw new Error(`Invalid static mapping: ${mapping}`);
             });
 
-            initializeHypermedium(staticMappings);
+            //TODO: automatically get the first part of the plugins list (the flagged part) from the flags arg. maybe use minimist opts.boolean?
+            const hypermediumOptions: HypermediumInitOptions = {
+                plugins: args._,
+                pluginSearchPaths: defaultPluginSearchPaths,
+                };
+
+            try {
+                initializeHypermedium(hypermediumOptions, staticMappings);
+            }
+            catch(error) {
+                Log.error(error.message, error);
+                return 1;
+            }
             // return 0;
         }
     }];
 
+    /*
     const options = [{
         flags: ['p', 'pluginDir'],
         // commandsAllowed: [],
@@ -115,10 +160,11 @@ export function HypermediumCmd(argv: string[]) {
         flags: [''],
         description: ''
     }];
+*/
 
     const flags = Object.keys(args);
     for(let command of commands) {
-        if(command.flags.some((flag) => flags.includes(flag))) {
+        if(command.flags.some((flag) => flags.includes(flag) && args[flag] === true)) {
             const code = command.fn(args);
             if(code != null) {
                 process.exit(code);
@@ -134,8 +180,25 @@ export function HypermediumCmd(argv: string[]) {
     }
 }
 
+export interface HypermediumInitOptions {
+    /** names of modules to be initialized. the first module will be used as the main module */
+    plugins: string[];
+    /** paths to plugin directories */
+    pluginSearchPaths: string[];
+    /** if provided, hypermedium will export static files after initialization, then exit. */
+    export?: {
+        /**  the export path. if not provided, defaults to 'mainPluginDir/export' */
+        path?: string;
+        /** if true, overwrite existing files */
+        overwrite?: boolean;
+    }
+}
+
 // temp function
-function initializeHypermedium(staticMappings: StaticMapping[]) {
+function initializeHypermedium(options: HypermediumInitOptions, staticMappings: StaticMapping[]) {
+    if(options.plugins.length === 0) {
+        throw new Error('Hypermedium must be initialized with at least one plugin');
+    }
     // const commandLine = Minimist(process.argv.slice(2));
 
     // initialize hypermedium
@@ -191,16 +254,10 @@ function initializeHypermedium(staticMappings: StaticMapping[]) {
         },
     });
 
-    const mainModule = 'hypermedium-demo';
-    const demoPath = Path.join(__dirname, '..', '..', 'hypermedium-demo');
-    const pluginSearchPaths: string[] = [
-        Path.join(__dirname, '..', '..', 'hypermedium-core', 'build'),
-        Path.join(__dirname, '..', '..', 'hypermedium-markdown', 'build'),
-        Path.join(__dirname, '..', '..', 'hypermedium-sass', 'build'),
-        Path.join(__dirname, '..', '..', 'hypermedium-demo'),
-    ];
+    // TODO: specify the main module explicitly
+    const mainModule = options.plugins[0];
 
-    const {modules: modulesObservable, moduleEvents} = hypermedium.initializePlugins(['hypermedium-demo'], pluginSearchPaths)
+    const {modules: modulesObservable, moduleEvents} = hypermedium.initializePlugins(options.plugins, options.pluginSearchPaths)
 
     moduleEvents.subscribe({
         next: ([event, moduleInstance]) => {
@@ -218,8 +275,7 @@ function initializeHypermedium(staticMappings: StaticMapping[]) {
     });
 
     // output files after all events have stablized
-    const outputFiles = true;
-    if(outputFiles) {
+    if(options.export) {
         // TODO: do this by detecting when all processing is done, rather than timeout
         merge(
             hypermedium.hypermedia.events,
@@ -229,15 +285,22 @@ function initializeHypermedium(staticMappings: StaticMapping[]) {
         .pipe(
             timeoutWith(1000, concat(
                 defer(() => Log.info('exporting site')),
-                hypermedium.exportSite(Path.join(demoPath, 'export')).pipe(
+                defer(() => {
+                        const exportPath = options.export?.path || Path.join(hypermedium.mainModule?.modulePath || process.cwd(), 'export');
+                        return hypermedium.exportSite(exportPath, {overwrite: options.export!.overwrite});
+                }).pipe(
                 tap((event: Hypermedium.Event.Export) => Log.trace(`export ${event.from} -> ${event.path}`, event)),
                 catchError((error: Error) => {
                     Log.error(`Export site failed: ${error.message}`, error);
-                    return EMPTY;
+                    process.exit(1);
+                    // return EMPTY;
                 }),
                 )
             ))
-        ).subscribe();
+        ).subscribe({
+            // we only get here if there was no export error. exit gracefully
+            complete: () => process.exit(0)
+        });
     }
 
     modulesObservable.subscribe({

@@ -3,9 +3,9 @@
 	"workspaces": {
 		"packages": [
 			"hypermedium",
-			"hypermedium-core",
-			"hypermedium-sass",
-			"hypermedium-markdown",
+			"@hypermedium/core",
+			"@hypermedium/sass",
+			"@hypermedium/markdown",
 			"hypermedium-demo"
 		],
 		"nohoist": ["hypermedium-demo/sanitize.css"]
@@ -14,7 +14,8 @@
 		"build": "./node_modules/.bin/tsc -b .",
 		"start": "node ./hypermedium/build/index.js",
 		"dev": "sift node ./hypermedium/build/index.js",
-		"demo": "sift node ./hypermedium/build/index.js -S",
+		"demo": "sift node ./hypermedium/build/index.js -S hypermedium-demo",
+		"demo-export": "sift node ./hypermedium/build/index.js -O -f hypermedium-demo",
         "debug": "node --inspect-brk ./hypermedium/build/index.js -S"
 	}
 }

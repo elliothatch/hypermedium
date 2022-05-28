@@ -52,9 +52,22 @@ export class PluginManager {
             // TODO: the npm module names won't match the plugin names (because they'll be prefixed by 'hypermedium-'), maybe we should add that to default search path?
             const pluginPaths = [searchPath, Path.join(searchPath, pluginName)];
             for(const pluginPath of pluginPaths) {
-                // console.log(`try load: ${pluginPath}`);
+                // first, check if there is a package.json. if there is, try to load the 'main' file.
                 try {
                     let jsModule: any;
+                    try {
+                        const packageJson = fs.readJsonSync(Path.join(pluginPath, 'package.json'));
+                        if(packageJson.main) {
+                            jsModule = require(Path.join(pluginPath, packageJson.main));
+                            jsModule = jsModule?.default || jsModule;
+                        }
+                    }
+                    catch(err) {
+                        loadErrors.push(new LoadPluginError(err.message, Path.join(pluginPath, 'package.json'), err));
+                    }
+
+                    // didn't work, this time just try the plugin directory itself (index.js)
+                    // console.log(`try load: ${pluginPath}`);
                     try {
                         jsModule = require(pluginPath);
                         jsModule = jsModule?.default || jsModule;

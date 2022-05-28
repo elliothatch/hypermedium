@@ -1,5 +1,5 @@
 {
-    "name": "hypermedium-markdown",
+    "name": "@hypermedium/markdown",
     "version": "0.1.0",
     "description": "hypermedium markdown plugin",
     "main": "build/index.js",

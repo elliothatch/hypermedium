@@ -1,16 +1,16 @@
 {
-    "name": "hypermedium-sass",
+    "name": "@hypermedium/core",
     "version": "0.1.0",
-    "description": "hypermedium sass plugin",
+    "description": "hypermedium core plugin",
     "main": "build/index.js",
     "types": "declarations/index.d.ts",
     "dependencies": {
         "fs-extra": "^9.0.1",
+        "handlebars": "^4.7.6",
         "hypermedium": "^0.1.0",
-        "sass": "^1.26.10"
+        "moment": "^2.27.0"
     },
     "devDependencies": {
-        "@types/fs-extra": "^9.0.1",
-        "@types/sass": "^1.16.0"
+        "@types/fs-extra": "^9.0.1"
     }
 }
