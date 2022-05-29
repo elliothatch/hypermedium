@@ -4,7 +4,7 @@ import * as fsPromises from 'fs/promises';
 import * as Path from 'path';
 import * as GraphLib from 'graphlib';
 import { concat, defer, EMPTY, from, merge, of, Observable, Subject, ConnectableObservable } from 'rxjs';
-import { concatMap, combineLatest, map, mergeMap, last, publish, filter, take, mapTo, tap, refCount } from 'rxjs/operators';
+import { catchError, concatMap, combineLatest, map, mergeMap, last, publish, filter, take, mapTo, tap, refCount } from 'rxjs/operators';
 
 import * as Build from './build';
 import { BuildManager } from './build-manager';
@@ -219,7 +219,7 @@ export class Hypermedium {
                                     return EMPTY;
 
                                 case 'profile-layout-changed':
-                                    this.renderer.setProfileLayout(moduleEvent.profile, moduleEvent.layoutUri);
+                                    this.renderer.setProfileLayout(moduleEvent.profile, moduleEvent.uri);
                                     return EMPTY;
                                 case 'context-changed':
                                     if(moduleNamespace) {
@@ -241,7 +241,13 @@ export class Hypermedium {
                     return EMPTY;
                 }).pipe(
                     last(null, null),
-                    map((_) => moduleEvent)
+                    map((_) => moduleEvent),
+                    catchError((error: Error) => of({
+                        eCategory: 'module' as const,
+                        eType: 'error' as const,
+                        error,
+                        uri: (moduleEvent as any).uri
+                    }))
                 );
             })
         );

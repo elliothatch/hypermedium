@@ -9,6 +9,119 @@ Hypermedium is a NodeJs tool for creating static and dynamic websites.
  - Utilize 3rd party tools like [Sass](https://sass-lang.com/) to perform advanced asset preprocessing with the build manager.
 
 
+# Quick Start
+Hypermedium can be used from the command line, or as a NodeJs module. In either case, you should install Hypermedium and any plugins into a local project directory.
+
+```bash
+mkdir my-website
+yarn init
+yarn add hypermedium @hypermedium/core 
+```
+
+Although not strictly required, you should always use the `@hypermedium/core` plugin, as it provides many extremely useful features for building almost any website.
+
+Other useful plugins:
+ - `@hypermedium/markdown` - markdown to HTML rendering
+ - `@hypermedium/sass` - SASS to CSS compiler
+
+Your website is itself a Hypermedium plugin. Before you do anything, you need to make a plugin file. In the root of your project, create `index.js`:
+
+```javascript
+module.exports = {
+	name: 'my-website',
+	version: '1.0.0',
+	pluginApi: '1',
+	dependencies: ['core'],
+	moduleFactory: (options) => {
+		return {
+			files: ['dist'],
+			hypermedia: {
+				sitePaths: ['site'],
+				processors: {
+					pre: [{
+						name: 'self'
+					}],
+				}
+			},
+			renderer: {
+				templatePaths: ['templates'],
+				partialPaths: ['partials'],
+				context: {
+					title: 'My Website',
+				}
+			}
+		};
+	}
+};
+```
+
+Ensure the `main` property in your `package.json` is set to `index.js`.
+
+Now we need to make a HAL JSON file representing a web page. Hypermedium will turn this into HTML.  
+Create a directory in the project root called `site` (notice the plugin file specifies this as a value in `sitePaths`).
+
+Let's make a homepage `site/index.json`:
+
+```json
+{
+    "title": "My Website",
+    "body": "Welcome to my Hypermedium website!"
+}
+```
+
+Hypermedium can be used from the command line to generate a static website to be used with any HTTP server.
+```bash
+> yarn exec -- hypermedium -O my-website
+```
+
+This will create an `export/` directory in your project root, containing your website.
+
+You can also run Hypermedia as its own standalone HTTP server. When running in server mode, all source files are watched and your entire site will be automatically updated to include live edits.
+```bash
+> yarn exec -- hypermedium -S my-website
+```
+
+Hypermedium outputs its logs as line-separated JSON, which is difficult to read. It is highly recommended you use a log viewing tool, such as [sift](https://github.com/elliothatch/sift), while working with Hypermedium.
+
+```bash
+> yarn global add sift-cli
+```
+
+Then, add the following fields to your `package.json`:
+
+```javascript
+  "scripts": {
+  	"build": "sift hypermedium -O my-website",
+  	"dev": "sift hypermedium -S my-website",
+  	"start": "hypermedium -S my-website"
+  }
+```
+
+Now you can use `yarn dev` to start an interactive session with live-updating, or `yarn build` to build export a static site.
+
+## Plugin Options
+Every plugin is required to have the following fields:
+ - `name`: A unique name for your plugin.
+ - `version`: Semantic version number of your plugin. This is important for plugins designed to be used by other people.
+ - `pluginApi`: Used by Hypermedium to interpret your plugin format, for backwards compatibility in case the plugin API changes in the future.
+ - `dependencies`: a list of Hypermedium plugin `name`s that this plugin depends on.
+ - `moduleFactory`: Hypermedium calls this function to initialize your plugin and create a Module. You can run any code you need in the moduleFactory, but it must return a valid Module.
+
+There are also optional fields:
+ - `defaultOptions`: These are the default options provided to the `moduleFactory` function. They can be manually overrided by the user to configure the plugin.
+ - `basePath`: The path to the root directory of the plugin, relative to the plugin file. All file resolutions when accessing files in the module are relative to this path. For example, if a plugin has a file `$basePath/images/image.jpg`, other plugins can access this file with `$name/images/image.jpg`, where `$name` is the name of the plugin.
+
+## Module Factory
+A Hypermedium plugin is a collection of code and assets. To use a plugin, Hypermedium calls its `moduleFactory` function, which must return a module--an instance of the plugin. Modules are designed to be highly configurable, and can dynamically configure themselves in their `moduleFactory`.
+
+`moduleFactory` is called with an `options` object. This object can contain configuration data specific to the plugin. There is currently no way for the user to provide custom options to the module on initialization.
+
+`moduleFactory` must return a module object. All of the fields of a module are optional:
+ - `hypermedia`
+ - `renderer`
+ - `build`
+
+
 # Overview
 Features:
  - Simple templating: Create a template for the overall structure of your site, then further customize how specific types of posts are displayed with the layout system.

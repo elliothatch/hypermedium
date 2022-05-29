@@ -388,7 +388,10 @@ interface StaticMapping {
 }
 
 function logModuleEvent(event: Module.Event | ({eCategory: 'build-event'} & Build.Event), moduleInstance: Module.Instance) {
-    if(event.eType === 'resource-changed') {
+    if(event.eType === 'error') {
+        Log.error(`${moduleInstance.name}: ${(event as any).uri || ''} ${event.error.message}`, {event, moduleInstance: {name: moduleInstance.name, modulePath: moduleInstance.modulePath, error: event.error}});
+    }
+    else if(event.eType === 'resource-changed') {
         Log.info(`${moduleInstance.name}: ${event.fileEvent} HAL resource: ${event.uri}`, {event, moduleInstance: {name: moduleInstance.name, modulePath: moduleInstance.modulePath}});
     }
     else if(event.eType === 'initialized') {

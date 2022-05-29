@@ -276,7 +276,7 @@ export class PluginManager {
                             eCategory: 'renderer' as const,
                             eType: 'profile-layout-changed' as const,
                             profile,
-                            layoutUri: module.renderer!.profileLayouts![profile]
+                            uri: module.renderer!.profileLayouts![profile]
                         }));
                         moduleEventSources.push(from(profileEvents));
                     }

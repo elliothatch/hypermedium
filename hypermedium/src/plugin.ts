@@ -112,7 +112,7 @@ export namespace Module {
 
     export type Event = Event.Module | Event.Hypermedia | Event.Renderer | Event.Build;
     export namespace Event {
-        export type Module = Module.Initialized;
+        export type Module = Module.Initialized | Module.ModuleError;
         export namespace Module {
             export interface Base {
                 eCategory: 'module';
@@ -120,6 +120,12 @@ export namespace Module {
             /** emitted after all "install" events are complete */
             export interface Initialized extends Base {
                 eType: 'initialized';
+            }
+
+            export interface ModuleError extends Base {
+                eType: 'error',
+                error: Error
+                uri?: string;
             }
         }
         export type Hypermedia = Hypermedia.ResourceChanged | Hypermedia.ProcessorDefinitionChanged | Hypermedia.ProcessorChanged;
@@ -176,7 +182,7 @@ export namespace Module {
             export interface ProfileLayoutChanged extends Base {
                 eType: 'profile-layout-changed';
                 profile: string;
-                layoutUri: string;
+                uri: string;
             }
 
             export interface ContextChanged extends Base {
