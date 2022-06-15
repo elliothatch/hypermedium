@@ -110,8 +110,13 @@ export function profilesMatch(profile: Hal.Uri, targetProfile: Hal.Uri, baseUri?
     }
     catch(e: any) {
         e.pathMatch = profile;
-        console.error('bad match', profile, targetProfile);
-        return false;
+        // nested urls (/a/b/https://c.org) cause issues with path-to-regexp
+        // just compare directly
+        return  !!(baseUri?
+            targetProfile === profile || Url.resolve(baseUri, targetProfile) === profile:
+            targetProfile === profile);
+        // console.error('bad match', profile, targetProfile);
+        // return false;
         // throw e;
     }
     const matchResult = baseUri?

@@ -106,7 +106,7 @@ export class BuildManager {
                     options: Object.assign({}, task.options, options)
                 };
 
-                taskLogger.info('Process files', fileOptions);
+                taskLogger.info(`Build ${taskDefinition.name}: ${Object.values(fileOptions.inputs).flat().join(',')} -> ${Object.values(fileOptions.outputs).flat().join(',')}`, fileOptions);
                 return from(taskDefinition.func(
                     fileOptions.inputs,
                     fileOptions.outputs,

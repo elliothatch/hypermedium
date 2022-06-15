@@ -210,8 +210,12 @@ export class HtmlRenderer {
             return html;
         }
         catch(error) {
-            error.layout = layout || 'layouts/default.hbs';
-            throw error;
+            const layoutUsed = layout || 'layouts/default.hbs';
+            const e =  new Error(`Renderer (Handlebars): Error rendering ${uri} with layout ${layoutUsed}: ${error.message}`);
+            (e as any).cause = error;
+            (e as any).uri = uri;
+            (e as any).layout = layoutUsed;
+            throw e;
         }
     }
 

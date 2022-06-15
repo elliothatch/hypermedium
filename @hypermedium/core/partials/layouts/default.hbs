@@ -18,7 +18,8 @@
 	<h3>Links:</h3>
 	<ul>
 		{{#each _links}}
-		<li>{{@key}}<ul>
+			{{#unless (eq @key 'self')}}
+			<li><h4>{{@key}}</h4><ul>
 				{{#if (isArray this)}}
 				{{#each this}}
 				<li>{{hal-link @../key this}}</li>
@@ -27,6 +28,7 @@
 				<li>{{hal-link @key this}}</li>
 				{{/if}}
 		</li></ul>
+	{{/unless}}
 		{{/each}}
 	</ul>
 </div>

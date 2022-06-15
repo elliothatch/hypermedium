@@ -32,11 +32,11 @@ const sassTaskDefinition: Build.TaskDefinition = {
             outFile: outputs.css[0],
             sourceMap: true
         })).then((result) => {
-            return Promise.all([
-                outputFile(outputs.css[0], result.css),
-                outputFile(outputs.sourceMap[0], result.map)
-            ]);
-        });
+                return Promise.all([
+                    outputFile(outputs.css[0], result.css),
+                    outputFile(outputs.sourceMap[0], result.map)
+                ]).then(() => result.stats);
+            });
     },
     inputs: {
         target: {

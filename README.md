@@ -18,13 +18,14 @@ yarn init
 yarn add hypermedium @hypermedium/core 
 ```
 
-Although not strictly required, you should always use the `@hypermedium/core` plugin, as it provides many extremely useful features for building almost any website.
+Although not strictly required, you should always use the `@hypermedium/core` plugin, as it provides many useful features for building most websites.
 
 Other useful plugins:
  - `@hypermedium/markdown` - markdown to HTML rendering
  - `@hypermedium/sass` - SASS to CSS compiler
 
-Your website is itself a Hypermedium plugin. Before you do anything, you need to make a plugin file. In the root of your project, create `index.js`:
+## Plugin File
+Your website is a Hypermedium plugin. Before you do anything, you need to make a plugin file. In the root of your project directory, create `index.js`:
 
 ```javascript
 module.exports = {
@@ -46,29 +47,48 @@ module.exports = {
 			renderer: {
 				templatePaths: ['templates'],
 				partialPaths: ['partials'],
+				profileLayouts: {
+					'/schema/homepage': 'layouts/homepage.hbs',
+				},
 				context: {
 					title: 'My Website',
 				}
+			},
+			build: {
 			}
 		};
 	}
 };
 ```
 
-Ensure the `main` property in your `package.json` is set to `index.js`.
+If the `main` property in your `package.json` is set, Hypermedium will look there instead of `index.js`.
 
+## HAL Page
 Now we need to make a HAL JSON file representing a web page. Hypermedium will turn this into HTML.  
-Create a directory in the project root called `site` (notice the plugin file specifies this as a value in `sitePaths`).
+Create a directory in the project root called `site` (the plugin file specifies this in `sitePaths`).
 
 Let's make a homepage `site/index.json`:
 
 ```json
 {
     "title": "My Website",
-    "body": "Welcome to my Hypermedium website!"
+	"body": "Welcome to my Hypermedium website!",
+	"_links": {
+        "profile": {
+            "href": "/schema/homepage"
+        },
+		"socialMedia": [{
+			"title": "Github",
+			"href": "https://github.com/elliothatch/hypermedium/"
+		}, {
+			"title": "npm",
+			"href": "https://www.npmjs.com/package/hypermedium"
+		}]
+	}
 }
 ```
 
+## Run Hypermedium
 Hypermedium can be used from the command line to generate a static website to be used with any HTTP server.
 ```bash
 > yarn exec -- hypermedium -O my-website
@@ -81,13 +101,18 @@ You can also run Hypermedia as its own standalone HTTP server. When running in s
 > yarn exec -- hypermedium -S my-website
 ```
 
-Hypermedium outputs its logs as line-separated JSON, which is difficult to read. It is highly recommended you use a log viewing tool, such as [sift](https://github.com/elliothatch/sift), while working with Hypermedium.
+Now we can open our web browser and view our page at `localhost:8080`!
+
+## Debugging
+If the web page doesn't load, or it shows you an error, we can trace the issue to the source through Hypermedium's log output.
+
+Hypermedium outputs its logs as line-separated JSON, which is difficult to read by itself. It is highly recommended you use a log viewing tool, such as [sift](https://github.com/elliothatch/sift), while working with Hypermedium.
 
 ```bash
 > yarn global add sift-cli
 ```
 
-Then, add the following fields to your `package.json`:
+Then, add the following scripts to your `package.json`:
 
 ```javascript
   "scripts": {
@@ -97,7 +122,96 @@ Then, add the following fields to your `package.json`:
   }
 ```
 
-Now you can use `yarn dev` to start an interactive session with live-updating, or `yarn build` to build export a static site.
+Now you can use `yarn dev` to start an interactive session with live-editing, or `yarn build` to build export a static site. If you have errors in your site, sift will display them in bright red. Select a log with the `ARROW KEYS`, then press `ENTER` to expand the view and show the details of the error.
+
+## Layout
+The webpage you see is created using the default layout from `@hypermedium/core`. While functional, you probably want to customize the layout for your homepage. Let's make our own layout just for the homepage.
+
+In the root of your project, create a directory called `partials`, containing another directory called `layouts`. Then in the `layouts` folder create a file called `homepage.hbs`.
+
+```handlebars
+<h1>{{title}}</h1>
+<p>{{body}}</p>
+<h2>Social Media</h2>
+<ul>
+	{{#each _links.socialMedia}}
+		<li>{{hal-link "socialMedia" this}}</li>
+	{{/each}}
+</ul>
+```
+
+Hypermedium uses [handlebars.js](https://handlebarsjs.com/) to template and render HTML. When you navigate to a page, Hypermedium checks if the document has any `profile` values among its `_links`. It then uses the plugin file's `renderer.profileLayouts` to search for a layout file.
+The search locations for all Handlebars partials, including layouts, are configured with `renderer.partialPaths`.
+
+If a matching layout is found, it is used to render the page using the current template.
+A template is the top-level HTML file that layouts are inserted into. The default template places the layout contents in a `<main>` tag inside the body of the page. It also provides some boilerplate HTML and slots for a page header and footer.
+
+To create more layouts for different kinds of pages (posts, profile page, archive), create a new file in the `layouts` folder, then create a `profileLayouts` entry in plugin file. Be sure to restart the Hypermedium process whenever you change the plugin file.  
+Ensure you have a corresponding `profile` link to the pages you want to use the layout.
+
+You can use Handlebars expressions to retrieve any data from the current JSON document. The core plugin also provides several useful helpers and partials.
+
+### Includes
+You can fill the default template's header and footer slots by creating "include partials". In the `partials` directory, create an `includes` directory and inside it a file called `header.hbs`.
+
+```handlebars
+<header>
+		<h1><a href="/">{{_site.title}}</a></h1>
+	</div>
+</header>
+```
+
+Refresh the page and you will see your header at the top.
+
+To reuse bits of HTML across multiple layouts, create an include, then import it with Handlebars partial syntax:
+
+```handlebars
+{{> includes/myInclude }}
+```
+
+## Styling
+The homepage is looking a little bare, so let's add some color! First let's tell the page where to find a stylesheet, by filling the default template's `head` slot, which is placed in the `<head>` of the HTML document.
+
+Create `partials/includes/head.hbs`:
+```
+<link rel="stylesheet" href="/css/styles.css">
+```
+
+Now we just need to make the stylesheet. We could write it manually, or we can generate it with the `@hypermedium/sass` plugin.
+
+If you don't already have it installed, run:
+
+```bash
+> yarn add @hypermedium/sass
+```
+
+Add `sass` to the dependencies of the plugin file (`index.js`).
+We also need to to include a SASS build step in the plugin file. Add the following inside the `build` property.
+```javascript
+buildSteps: {
+	sType: 'task',
+	definition: 'sass',
+	options: {
+		// include node_modules so we can @use any installed package (e.g. sanitize.css)
+		includePaths: [require('path').join(__dirname, 'node_modules')]
+	},
+	watch: true,
+	files: [{
+		inputs: {target: ['sass/styles.scss']},
+		outputs: {
+			css: ['dist/css/styles.css'],
+			sourceMap: ['dist/css/styles.css.map'],
+		}
+	}]
+}
+```
+
+Now create the `sass` directory and inside it create the file `styles.scss`:
+```scss
+
+```
+
+Since we configured the build step with `watch: true`, Hypermedium will automatically regenerate `css/styles.css` whenever we change `scss/styles.scss`, while running in server mode.
 
 ## Plugin Options
 Every plugin is required to have the following fields:

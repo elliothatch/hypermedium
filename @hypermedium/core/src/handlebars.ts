@@ -44,6 +44,9 @@ const handlebarsHelpers: {[name: string]: HelperDelegate} = {
      * TODO: add option to not use html-link shortening
      */
     'hal-link': (rel, link, ...options) => {
+        if(!link?.href) {
+            throw new Error('handlebars helper hal-link (core): invalid link');
+        }
         // let resource = options[0];
         // if(options.length === 1) {
             // no resource provided, use the root resource

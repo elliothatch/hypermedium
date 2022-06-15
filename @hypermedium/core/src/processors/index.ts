@@ -206,8 +206,8 @@ export const processorDefinitions: Core.Processors[] = [{
             return rs.resource;
         }
         else if(!Array.isArray(value)) {
-            rs.logger.warn(`overwriting '${options.property}': tried to insert into array but property has type ${typeof value}`);
-            rs.resource = HalUtil.setProperty(rs.resource, options.property, options.values);
+            // make the existing value the first value in the array
+            rs.resource = HalUtil.setProperty(rs.resource, options.property, [value, ...options.values]);
             return rs.resource;
         }
 
@@ -480,19 +480,19 @@ export const processorDefinitions: Core.Processors[] = [{
 
             // TODO: embed _links.item on top level indexes, embed options.embed on main indexes and on embedded links.items
             const indexProcessors = (name: string) => [{
-                "name": "objectKeys",
-                "options": {
-                    "property": "index",
-                    "to": "_links.item"
+                name: 'objectKeys',
+                options: {
+                    property: 'index',
+                    to: '_links.item'
                 }
             }, {
-                "name": "map",
-                "options": {
-                    "property": "_links.item",
-                    "processor": {
-                        "name": "link",
-                        "options": {
-                            "name": name
+                name: 'map',
+                options: {
+                    property: '_links.item',
+                    processor: {
+                        name: 'link',
+                        options: {
+                            name: name
                         }
                     }
                 }
