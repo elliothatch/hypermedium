@@ -87,6 +87,7 @@ export class BuildManager {
             return of({
                 eType: 'error' as const,
                 error: new Error(`There is no task definition registered with the name '${task.definition}'`),
+                buildStep: task,
                 buildStepPath
             });
         }
@@ -135,6 +136,7 @@ export class BuildManager {
                                                 }),
                                                 catchError((error) => {
                                                     this.watchSubject.next({
+                                                        buildStep: task,
                                                         buildStepPath,
                                                         eType: 'error' as const,
                                                         error
@@ -172,7 +174,7 @@ export class BuildManager {
             )),
             taskObservable.pipe(finalize(() => taskLogSubject.complete()))
         ).pipe(
-            map((event) => Object.assign(event, {buildStepPath}))
+            map((event) => Object.assign(event, {buildStep: task, buildStepPath}))
         );
     }
 
@@ -192,6 +194,7 @@ export class BuildManager {
                 of({
                     eType: 'success' as const,
                     result: [],
+                    buildStep: multitask,
                     buildStepPath
                 })
             );
@@ -221,6 +224,7 @@ export class BuildManager {
             catchError((error) => of({
                 eType: 'error' as const,
                 error: error as Error,
+                buildStep: step,
                 buildStepPath: buildStepPath!
             }))
         );
@@ -228,12 +232,13 @@ export class BuildManager {
         return concat(
             of({
                 eType: 'start' as const,
+                buildStep: step,
                 buildStepPath: buildStepPath!,
-                buildStep: buildStepPath!.length === 0? step: undefined
             }),
             buildObservable,
             of({
                 eType: 'done' as const,
+                buildStep: step,
                 buildStepPath: buildStepPath!
             })
         );

@@ -225,7 +225,7 @@ function initializeHypermedium(options: HypermediumInitOptions, staticMappings: 
                             Log.error(`hypermedia-engine: ${event.eType} ${(e as any).uri}: ${event.error.message}`, e);
                         }
                         else if(event.eType === 'LoadResource') {
-                            Log.info(`hypermedia-engine: ${event.eType} ${(e as any).uri}`, e);
+                            Log.trace(`hypermedia-engine: ${event.eType} ${(e as any).uri}`, e);
                         }
                         else {
                             Log.trace(`hypermedia-engine: ${event.eType} ${(e as any).uri}`, e);
@@ -314,7 +314,7 @@ function initializeHypermedium(options: HypermediumInitOptions, staticMappings: 
             }
         },
         complete: () => {
-            Log.info('Modules initalized');
+            Log.info(`${hypermedium.pluginManager.modules.size} modules initalized: ${Array.from(hypermedium.pluginManager.modules.keys())}`);
             // set up the http server
             const app = Express();
 
@@ -360,7 +360,7 @@ function initializeHypermedium(options: HypermediumInitOptions, staticMappings: 
 
             server(app).subscribe({
                 next: (server) => {
-                    Log.info('server-listening', {port: server.port});
+                    Log.info(`server-listening at port ${server.port}`, {port: server.port});
                 }, 
                 error: (error) => Log.error('server-start', {error}),
             });
@@ -414,15 +414,43 @@ function logModuleEvent(event: Module.Event | ({eCategory: 'build-event'} & Buil
 
 function logBuildEvent(event: Build.Event & {eCategory: 'build-event'}, moduleInstance?: Module.Instance) {
     // TODO: print nicer, use correct log levels
+    // TODO: the build task logger automatically logs the input->output files for the step so is it redundant here? build manager should probably actually log once for each invocation instead of what it does now
     const message = event.eType === 'log'?
         ' ' + event.log.message:
         event.eType === 'error'?
         ' ' + event.error.message:
         '';
-    if(moduleInstance) {
-        Log.trace(`${moduleInstance.name}: ${event.eCategory} ${event.eType}${message}`, {event, moduleInstance: {name: moduleInstance.name, modulePath: moduleInstance.modulePath}});
+
+    let buildStepText = '';
+    switch(event.buildStep.sType) {
+        case 'task':
+            buildStepText = event.buildStep.files.map(({inputs, outputs}) =>
+                `${Object.values(inputs).flat().join(',')} -> ${Object.values(outputs).flat().join(',')}`
+            ).join('; ');
+
+            break;
+        case 'multitask':
+            const subStepNames = event.buildStep.steps.map((step) =>
+                step.sType === 'task'? step.definition: step.steps.length + ' subtasks'
+            ).join(',')
+
+            buildStepText = `${event.buildStep.steps} subtasks (${event.buildStep.sync === true? 'serial': 'parallel'}): ${subStepNames}`
+            break;
+    }
+
+
+    const moduleName = moduleInstance?.name || '';
+    const taskName = event.buildStep.sType === 'task'? event.buildStep.definition: '';
+
+    const text = `${moduleName} build ${taskName} ${event.eType}: ${message} (${buildStepText})`;
+
+    if(event.eType === 'success') {
+        Log.info(text, {event, moduleInstance: {name: moduleInstance?.name, modulePath: moduleInstance?.modulePath}});
+    }
+    else if(event.eType === 'error') {
+        Log.error(text, {event, moduleInstance: {name: moduleInstance?.name, modulePath: moduleInstance?.modulePath}});
     }
     else {
-        Log.trace(`${event.eCategory} watch: ${event.eType}${message}`, {event});
+        Log.trace(text, {event, moduleInstance: {name: moduleInstance?.name, modulePath: moduleInstance?.modulePath}});
     }
 }

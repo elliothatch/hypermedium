@@ -13,7 +13,10 @@
 	</head>
 	<body>
 		<script>
-			window.hypermediumResource = {{ json-stringify this }};
+			if(!window.hypermedium) {
+				window.hypermedium = {};
+			}
+			window.hypermedium.resource = {{ json-stringify this }};
 		</script>
 		{{#> includes/header.hbs }}
 			<!-- no header.hbs found -->

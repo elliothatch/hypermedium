@@ -4,8 +4,9 @@
 		"packages": [
 			"hypermedium",
 			"@hypermedium/core",
-			"@hypermedium/sass",
+			"@hypermedium/favicons",
 			"@hypermedium/markdown",
+			"@hypermedium/sass",
 			"hypermedium-demo"
 		],
 		"nohoist": ["hypermedium-demo/sanitize.css"]

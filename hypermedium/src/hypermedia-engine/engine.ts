@@ -122,7 +122,7 @@ export class HypermediaEngine {
         // }
     }
 
-    public loadResource(uri: HAL.Uri, resource: HAL.Resource, origin: string): ResourceGraph.Node {
+    public loadResource(uri: HAL.Uri, resource: ExtendedResource, origin: string): ResourceGraph.Node {
         const normalizedUri = normalizeUri(uri);
         if(this.resourceGraph.graph.hasNode(normalizedUri)) {
             this.log({
@@ -354,9 +354,11 @@ export class HypermediaEngine {
                 const normalizedDependencyUri = normalizeUri(dependencyUri);
 
                 const r = this.resourceGraph.getResource(normalizedDependencyUri);
+                // add the dependency, even if the target node doesn't exist yet
+                // this allows processors to trigger if the dependency is loaded later
+                // TODO: find a way to suppress processor errors that occur because of this?
+                const result = this.resourceGraph.addDependency(uri, normalizedDependencyUri, processor);
                 if(r) {
-                    const result = this.resourceGraph.addDependency(uri, normalizedDependencyUri, processor);
-
                     if(result) {
                         this.log({
                             eType: 'AddDependency',
@@ -391,6 +393,9 @@ export class HypermediaEngine {
                 };
 
                 markDirty(normalizedStateUri, template);
+                // the state shouldn't be processed
+                this.resourceGraph.resetDependencies(normalizedStateUri);
+
                 const stateNode = this.resourceGraph.graph.node(normalizedStateUri);
                 stateNode.originalResource = HalUtil.setProperty(stateNode.originalResource, property, value);
 

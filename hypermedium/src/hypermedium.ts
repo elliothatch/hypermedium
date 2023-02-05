@@ -171,8 +171,20 @@ export class Hypermedium {
                                         case'change':
                                             return from(fs.readFile(moduleEvent.path, 'utf-8')).pipe(
                                                 mergeMap((fileContents) => {
-                                                    this.hypermedia.loadResource(moduleEvent.uri, JSON.parse(fileContents), 'fs');
-                                                    return this.hypermedia.processResource(moduleEvent.uri);
+                                                    try {
+                                                        this.hypermedia.loadResource(moduleEvent.uri, JSON.parse(fileContents), 'fs');
+                                                        return this.hypermedia.processResource(moduleEvent.uri);
+                                                    }
+                                                    catch(error) {
+                                                        // if we failed to parse as json and the file is supposed to be json, it's probably a user error
+                                                        if(Path.extname(moduleEvent.path) === '.json') {
+                                                            throw error;
+                                                        }
+
+                                                        // TODO: does it make sense to "wrap" the files as resources? or should there be a different loadResource style function
+                                                        this.hypermedia.loadResource(moduleEvent.uri, {contents: fileContents, _links: {profile: {href:'/schema/file'}}}, 'fs-c');
+                                                        return this.hypermedia.processResource(moduleEvent.uri);
+                                                    }
                                                 })
                                             );
                                         case 'unlink':

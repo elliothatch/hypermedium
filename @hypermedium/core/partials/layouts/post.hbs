@@ -1,18 +1,17 @@
 <article>
 	<header>
-		<h1>{{title}}</h1>
-		<div class="byline">
-			{{#if author}}<div>by <span class="author">{{author}}</span></div>{{/if}}
-			{{#if date-created}}{{datetime date-created}}{{/if}}
+		<div class="headline">
+			<h1>{{title}}</h1>
+			<div class="byline">
+				{{#if author}}<div>by <span class="author">{{author}}</span></div>{{/if}}
+				{{#if date-created}}{{datetime date-created}}{{/if}}
+			</div>
 		</div>
+		<h2>{{description}}</h2>
 	</header>
-	<div class="main">
-		{{#if bodyHtml}}
-		{{{bodyHtml}}}
-		{{else}}
-		<p>{{body}}</p>
-		{{/if}}
-	</div>
+	<main>
+		{{{body}}}
+	</main>
 	<footer>
 		<div>
 			<h3>Tags</h3>

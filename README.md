@@ -1,15 +1,16 @@
 # Hypermedium
 Hypermedium is a NodeJs tool for creating static and dynamic websites.
 
-## Hypermedium is alpha software. It may have bugs, and APIs and functionality are subject to change over the course of development.
-### The Plugin API will remain as stable as possible, but until the release of Hypermedium v1.0.0, breaking changes may be introduced if deemed necessary.
-
  - Let hypermedia processors do the hard work by enhancing your pages with dynamic data--whether that's creating an index of all your posts or displaying your users' latest comments.
  - Maintain full creative control over the look and feel of your site with the fully customizable HTML renderer, built on the [Handlebars](https://handlebarsjs.com/) template engine.
  - Utilize 3rd party tools like [Sass](https://sass-lang.com/) to perform advanced asset preprocessing with the build manager.
 
+## Hypermedium is alpha software. It may have bugs, and APIs and functionality are subject to change over the course of development.
+### The Plugin API will remain as stable as possible, but until the release of Hypermedium v1.0.0, breaking changes may be introduced if deemed necessary.
+### Hypermedium resources use the HAL data format, but this may change to JSON-LD or another format before the release of v1.0.0.
 
 # Quick Start
+## The Hypermedium packages have not been published to NPM. To use Hypermedium you must build from source and use `yarn link` in your project. See [Development](#development).
 Hypermedium can be used from the command line, or as a NodeJs module. In either case, you should install Hypermedium and any plugins into a local project directory.
 
 ```bash
@@ -71,12 +72,12 @@ Let's make a homepage `site/index.json`:
 
 ```json
 {
-    "title": "My Website",
+	"title": "My Website",
 	"body": "Welcome to my Hypermedium website!",
 	"_links": {
-        "profile": {
-            "href": "/schema/homepage"
-        },
+		"profile": {
+			"href": "/schema/homepage"
+		},
 		"socialMedia": [{
 			"title": "Github",
 			"href": "https://github.com/elliothatch/hypermedium/"
@@ -122,7 +123,7 @@ Then, add the following scripts to your `package.json`:
   }
 ```
 
-Now you can use `yarn dev` to start an interactive session with live-editing, or `yarn build` to build export a static site. If you have errors in your site, sift will display them in bright red. Select a log with the `ARROW KEYS`, then press `ENTER` to expand the view and show the details of the error.
+Now you can use `yarn dev` to start an interactive session with live-editing, or `yarn build` to export a static site. If you have errors in your site, sift will display them in bright red. Select a log with the `ARROW KEYS`, then press `ENTER` to expand the view and show the details of the error.
 
 ## Layout
 The webpage you see is created using the default layout from `@hypermedium/core`. While functional, you probably want to customize the layout for your homepage. Let's make our own layout just for the homepage.
@@ -146,18 +147,17 @@ The search locations for all Handlebars partials, including layouts, are configu
 If a matching layout is found, it is used to render the page using the current template.
 A template is the top-level HTML file that layouts are inserted into. The default template places the layout contents in a `<main>` tag inside the body of the page. It also provides some boilerplate HTML and slots for a page header and footer.
 
-To create more layouts for different kinds of pages (posts, profile page, archive), create a new file in the `layouts` folder, then create a `profileLayouts` entry in plugin file. Be sure to restart the Hypermedium process whenever you change the plugin file.  
-Ensure you have a corresponding `profile` link to the pages you want to use the layout.
+To create more layouts for different kinds of pages (posts, profile page, archive), create a new file in the `layouts` folder, then create a `profileLayouts` entry in plugin file. Make sure to restart the Hypermedium server whenever you change the plugin file.  
+Ensure you have a corresponding `profile` link on the pages you want to use the layout.
 
 You can use Handlebars expressions to retrieve any data from the current JSON document. The core plugin also provides several useful helpers and partials.
 
 ### Includes
-You can fill the default template's header and footer slots by creating "include partials". In the `partials` directory, create an `includes` directory and inside it a file called `header.hbs`.
+You can fill the default template's header and footer slots by creating "include partials". In the `partials` directory, create an `includes` directory and inside it create a file called `header.hbs`.
 
 ```handlebars
 <header>
-		<h1><a href="/">{{_site.title}}</a></h1>
-	</div>
+	<h1><a href="/">{{_site.title}}</a></h1>
 </header>
 ```
 
@@ -222,7 +222,7 @@ Every plugin is required to have the following fields:
  - `moduleFactory`: Hypermedium calls this function to initialize your plugin and create a Module. You can run any code you need in the moduleFactory, but it must return a valid Module.
 
 There are also optional fields:
- - `defaultOptions`: These are the default options provided to the `moduleFactory` function. They can be manually overrided by the user to configure the plugin.
+ - `defaultOptions`: These are the default options provided to the `moduleFactory` function. They can be manually overridden by the user to configure the plugin.
  - `basePath`: The path to the root directory of the plugin, relative to the plugin file. All file resolutions when accessing files in the module are relative to this path. For example, if a plugin has a file `$basePath/images/image.jpg`, other plugins can access this file with `$name/images/image.jpg`, where `$name` is the name of the plugin.
 
 ## Module Factory
@@ -235,7 +235,7 @@ A Hypermedium plugin is a collection of code and assets. To use a plugin, Hyperm
  - `renderer`
  - `build`
 
-
+<!---
 # Overview
 Features:
  - Simple templating: Create a template for the overall structure of your site, then further customize how specific types of posts are displayed with the layout system.
@@ -259,30 +259,29 @@ The flexible plugin system allows you to extend any part of your website by enha
 
 ## Dashboard (WIP)
 The live dashboard gives you full control over your website. This is where you create, edit, and publish posts. You can also manage plugins, processors, templates, layouts, and build tasks.
+--->
 
 # Roadmap
 The ultimate goal for Hypermedium is to provide a friendly, WYSIWYG user experience that can be used by anyone to build fully featured, dynamic websites.
 This experience will be delivered through a live web dashboard (implemented as a Hypermedium plugin), similar to other popular CMSs.
 
 The primary use case is for blogs and focused websites whose main purpose is to deliver content or information to their audence.
-Hypermedium should also enable two-way communication between a creator and their community, through comments, a forum, storefront, etc.
+Hypermedium plugins should also enable two-way communication between a creator and their community, through comments, a forum, storefront, etc.
 
 From a technical standpoint, Hypermedium is focused two separate, but related tasks:
 1. Building a network of interconnected resources.
 2. Presenting those resources to people as a tailored, cohesive experience.
 
-Let's talk about how Hypermedium approaches each of these tasks.
-
-## Building a network of resources
-
-## Presentation
-
 There are already many excellent tools for building different types of websites, but these tools are almost exclusively focused on delivering HTML to be viewed through a web browser.
-Hypermedium aims to create a data-driven foundation for managing web content, assets, and interactions in a format easily understood by humans and interpreted by programs, to give users the most possible freedom in how they present that information.
-Whenever possible, it should leverage existing web standards ([HAL](http://stateless.co/hal_specification.html), [schema.org](https://schema.org/), etc.).
+Hypermedium aims to create a data-driven foundation for managing web content, assets, and interactions in a format easily understood by humans and interpreted by programs, to give users the most possible freedom in how they present that information. Whenever possible, it should leverage existing web standards ([HAL](http://stateless.co/hal_specification.html), [schema.org](https://schema.org/), etc.).
 
+By basing web pages on JSON files, rather than HTML, we make it much easier to work with data and enforce its structure and schema without needing to worry about presentation. Hypermedium plugins use processors to modify and extend this data, for example, to compile Markdown into HTML.
 
-## Planned Feature
+Most importantly, whenever Hypermedium detects a JSON resource representing a web page, it adds that resource to a directed graph. Processors working on a resource can access data from _any other resource_ in the graph. Hypermedium tracks these data dependencies to automatic reprocess resources whenever a dependency is updated. We use this functionality to automatically generate indexes, build complex pages from multiple simple resources, and more.
+
+We can present this data to users by building an API or HTML page from these JSON resources. Hypermedium matches resources to Handlebars templates based on the page's `profile` links, so it is easy to create reusable layouts or individual pages. A REST and Websocket API are planned to facilitate the creation of interactive elements like user comments and forums.
+
+## Planned Features
  - HAL API extension
  	- Plugins can add HTTP and Websocket APIs that are exposed through a standarized HAL extension.
  - Data sources
@@ -307,31 +306,6 @@ Whenever possible, it should leverage existing web standards ([HAL](http://state
  	- Forum
  	- Storefront
 
-## Technical Goals
-
-# Get Started
-Starter repo coming soon! In the meantime, you can follow these steps to get started:
-
-1. Copy the `hypermedium-demo` and navigate to it.
-2. Run `npm install` or `yarn`.
-
-To generate a static website:
-Run `npm run static` or `yarn static`. The website will be created in the `static/` directory.
-
-To run the Hypermedium dynamic web server:
-Run `npm start` or `yarn start`, and open a web browser to `localhost:8080`.  
-
-It is highly recommended to run the Hypermedium server with [sift-cli](https://www.npmjs.com/package/sift-cli) during development, which will display the log output in a friendly, interactive interface.
-1. Install with `npm install -g sift-cli` or `yarn global add sift-cli`.
-2. Run the web server with `npm run dev` or `yarn dev`.
-
-See the tutorial (coming soon) for a full overview of Hypermedium's functionality and plugin structure.
-
-## Other usage
-Hypermedium can also be used as a library. The commandline version of Hypermedium offers a limited, application focused set of configurablility provided by Hypermedium and the Plugin Manager. My goal is to eventually close the gap between the commandline and library interfaces, primarily through extensions to the Plugin API.
-
-After instantiating the `Hypermedium` class, you can use `hypermedia.router` and `renderer.router` in your Express app.
-
 
 # API Reference
 TODO: technical overview of the different systems involved, plugin structure, intended usage such as layout format, etc.  
@@ -343,10 +317,7 @@ This monorepo contains hypermedium and several crucial plugins, managed with yar
 ## Install
 ```
 yarn
-```
 
-## Build
-```
 # use repo local versions of packages
 cd hypermedium
 yarn link
@@ -354,22 +325,53 @@ cd ..
 yarn link hypermedium
 cd ..
 # etc
+```
 
+## Build
+```
 yarn build
 ```
 
-## Run demo
+## Run demo site
 ```
-yarn start
+yarn demo
+```
+
+## Export demo site to static HTML
+```
+yarn demo-export
+```
+
+## Run
+Create a directory for your plugin/site (see ./hypermedium-demo), then run the following command to start the Hypermedium server:
+```
+yarn start -S pathToPluginDir
 ```
 
 Or to launch with sift:
 
 ```
-yarn dev
+yarn dev -S pathToPluginDir
 ```
+
+## Export
+To output static HTML to the directory `pathToPlugin/export`:
+```
+yarn start -O pathToPluginDir
+```
+
+By default, Hypermedium won't overwrite any files on export. Use the `-f` flag to force overwriting:
+```
+yarn start -O -f pathToPluginDir
+```
+
+
 ## Notes
 We use nohoist for build assets in the demo workspace, so the sass includePath is the same as if you downloaded and modified the demo package directly.
+
+<!---
+Rework markdown processor. Extract title and other metadata directly from md file? Are we just reinventing jekyll frontmatter?
+--->
 
 ## Issues
  - processor ordering can be confusing

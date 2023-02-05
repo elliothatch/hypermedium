@@ -1,0 +1,17 @@
+{
+    "name": "@hypermedium/favicons",
+    "version": "0.1.0",
+    "description": "hypermedium favicon generator plugin",
+    "main": "build/index.js",
+    "types": "declarations/index.d.ts",
+    "dependencies": {
+        "@types/favicons": "^6.2.2",
+        "favicons": "^7.0.0-beta.4",
+        "fs-extra": "^9.0.1",
+        "hypermedium": "^0.1.0"
+    },
+    "devDependencies": {
+        "@types/fs-extra": "^9.0.1",
+        "@types/sharp": "^0.30.4"
+    }
+}

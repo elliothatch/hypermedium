@@ -1,3 +1,4 @@
+import * as graphlib from 'graphlib';
 import { ExtendedResource, Processor, ResourceState, HypermediaEngine, Hal, HalUtil } from 'hypermedium';
 
 type PropertyPath = HalUtil.PropertyPath;
@@ -27,7 +28,8 @@ export namespace Core {
         Processors.Sort |
         Processors.Index |
         Processors.GetIndex |
-        Processors.Excerpt;
+        Processors.Excerpt |
+        Processors.ResourceGraph;
 
     export namespace Processors {
         export type Self = Processor.Definition<'self'>;
@@ -134,6 +136,9 @@ export namespace Core {
             to?: PropertyPath;
             max?: number;
             breakpoint?: 'word';
+        }>;
+
+        export type ResourceGraph = Processor.Definition<'resourceGraph', {
         }>;
     }
 }
@@ -607,6 +612,77 @@ export const processorDefinitions: Core.Processors[] = [{
         }
 
         return HalUtil.setProperty(rs.resource, options.to, excerpt);
+    }
+}, {
+    name: 'resourceGraph',
+    onProcess: (rs, options) => {
+            // graphlib.alg.preorder(rs.hypermedia.resourceGraph, (node) => {
+            // });
+            // const cycles = graphlib.alg.findCycles(rs.hypermedia.resourceGraph.graph);
+            // rs.logger.warn(`cycles: ${cycles.length}`, {cycles});
+
+            // const list = rs.hypermedia.resourceGraph.graph.nodes();
+            // rs.setState('list', list);
+
+            // rs.logger.warn(`${rs.hypermedia.resourceGraph.graph.nodeCount()} nodes, ${rs.hypermedia.resourceGraph.graph.edgeCount()} edges`);
+            // rs.logger.warn(`${rs.hypermedia.resourceGraph.graph.children('/index.json')}`);
+
+            // rs.logger.warn('resource graph', rs.hypermedia.resourceGraph.graph);
+            // Object.keys(rs.hypermedia.resourceGraph.graph).forEach((key) => {
+                // rs.logger.warn(`${key} ${typeof (rs.hypermedia.resourceGraph.graph as any)[key]}`);
+            // });
+
+            // don't use graphlib json
+            // const graph = JSON.stringify(graphlib.json.write(rs.hypermedia.resourceGraph.graph));
+            // const graph = list.map((v) => {
+            //     return {
+            //         v,
+            //         edges: rs.hypermedia.resourceGraph.outEdges(v)
+            //     };
+            // });
+            // rs.setState('graph', graph);
+
+            const nodes = rs.hypermedia.resourceGraph.graph.nodes();
+            /*
+* /
+* /a
+* /a/b
+* /a/b/c
+* /b
+* /b/a
+* /b/a/c
+*
+*/
+            nodes.sort((a, b) => {
+                const normalize = (uri: string): string => {
+                    if(uri.endsWith('index.json')) {
+                        return uri.substring(0, uri.length - 'index.json'.length);
+                    }
+
+                    return uri;
+                };
+                return normalize(a).localeCompare(normalize(b));
+            });
+            // nodes.sort((a, b) => {
+            //     const aParts = a.split('/');
+            //     const bParts = b.split('/');
+
+            //     if(aParts.length < bParts.length) {
+            //         return -1;
+            //     }
+            //     else if(aParts.length > bParts.length) {
+            //         return 1;
+            //     }
+
+            //     // equal length, use alphabetical
+            //     return a.localeCompare(b);
+            // });
+            rs.setState('nodes', nodes);
+            rs.setState('edges', rs.hypermedia.resourceGraph.graph.edges());
+
+            return rs.resource;
+
+        // return HalUtil.setProperty(rs.resource, options.to, excerpt);
     }
 }];
     /*

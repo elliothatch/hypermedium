@@ -13,6 +13,20 @@ const handlebarsHelpers: {[name: string]: HelperDelegate} = {
     'isArray': (val) => Array.isArray(val),
     'typeof': (val) => typeof val,
     'json': (val) => JSON.parse(val),
+    'range': (start, stop, step) => {
+        if(typeof start !== 'number') {
+            start = 0;
+        }
+        if(typeof stop !== 'number') {
+            stop = start;
+            start = 0;
+        }
+        if(typeof step !== 'number') {
+            step = 1;
+        }
+
+        return Array.from({length: Math.floor(Math.abs(start-stop)/Math.abs(step))}, (x, i) => (i*step + start))
+    },
     'matchesProfile': function(profile) {
         return HalUtil.matchesProfile(this, profile)
     },
@@ -38,12 +52,13 @@ const handlebarsHelpers: {[name: string]: HelperDelegate} = {
         const date = Moment(dateStr);
 		return new SafeString('<time datetime="' + date.toISOString() + '">' + date.format(format) + '</time>');
     },
+    'get': (key, map) => map[key],
     /**
      * renders the link as an anchor tag. automatically expands curies based on the root resource. to use a different resource to resolve the curi, pass it as the third parameter
      * TODO: this doesn't work with link arrays.
      * TODO: add option to not use html-link shortening
      */
-    'hal-link': (rel, link, ...options) => {
+    'hal-link': (rel, link, target, ...options) => {
         if(!link?.href) {
             throw new Error('handlebars helper hal-link (core): invalid link');
         }
@@ -56,6 +71,10 @@ const handlebarsHelpers: {[name: string]: HelperDelegate} = {
         // const relHtml = typeof rel === 'string'? `rel=${HalUtil.expandCuri(resource, rel)}`: '';
         const relHtml = typeof rel === 'string'? `rel=${rel}`: '';
 
+        if(typeof target == 'string') {
+            return new SafeString(`<a ${relHtml} href=${HalUtil.htmlUri(link.href)} target=${target}>${link.title || link.name || link.href}</a>`)
+        }
+
         return new SafeString(`<a ${relHtml} href=${HalUtil.htmlUri(link.href)}>${link.title || link.name || link.href}</a>`)
     },
     'replace': (str: string, regex: string, newValue: string) => new SafeString(str.replace(new RegExp(regex), newValue)),
@@ -63,6 +82,9 @@ const handlebarsHelpers: {[name: string]: HelperDelegate} = {
         array = (Array.isArray(array)? array: [array])
         return array.find( (v: any) =>
             key? HalUtil.getProperty(v, key) === value: v === value);
+    },
+    'repeat': function(count, options) {
+        return options.fn(this).repeat(count);
     },
     'embedded': function(resource, link, rel, options) {
         if(!resource._embedded) {

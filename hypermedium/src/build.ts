@@ -124,12 +124,11 @@ export type Event = Event.BuildError | Event.Success | Event.Start | Event.Log |
 
 export namespace Event {
     export interface Base {
+        buildStep: Step;
         buildStepPath: number[];
     }
     export interface Start extends Base {
         eType: 'start';
-        /** only defined on the root buildStep, since it contains all other steps */
-        buildStep?: Step;
     }
 
     export interface Log extends Base {

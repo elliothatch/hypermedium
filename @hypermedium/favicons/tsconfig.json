@@ -1,0 +1,30 @@
+{
+	"compilerOptions": {
+		"module": "commonjs",
+		"target": "esnext",
+
+		"rootDir": "src/.",
+
+		"outDir": "build",
+		"sourceMap": true,
+
+		"declaration": true,
+		"declarationMap": true,
+		"declarationDir": "declarations",
+
+		"strict": true,
+
+		"experimentalDecorators": true,
+		"preserveConstEnums": true,
+		"esModuleInterop": true
+	},
+	"include": [
+		"src/**/*"
+	],
+	"baseUrl": ".",
+	"paths": {
+		"*": [
+			"../node_modules/*"
+		]
+	}
+}
