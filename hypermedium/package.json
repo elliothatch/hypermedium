@@ -37,7 +37,7 @@
 	},
 	"dependencies": {
 		"chokidar": "^3.4.2",
-		"express": "^4.17.1",
+		"express": "^4.17.3",
 		"fresh-validation": "^3.0.0",
 		"freshlog": "^0.2.4",
 		"fs-extra": "^9.0.1",
