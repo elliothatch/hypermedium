@@ -230,6 +230,21 @@ export class PluginManager {
                         }));
                         moduleEventSources.push(from(processorEvents));
                     }
+
+                    if(module.hypermedia.stateProcessors) {
+                        // TODO: is this a race condition with processorDefinitions?
+
+
+                        const processorEvents = Object.keys(module.hypermedia.stateProcessors).reduce((arr: {processor: Processor, stage: string}[], stage) => {
+                            return arr.concat(module.hypermedia!.stateProcessors![stage].map((processor) => ({processor, stage})));
+                        }, []).map(({processor, stage}) => ({
+                            eCategory: 'hypermedia' as const,
+                            eType: 'state-processor-changed' as const,
+                            processor,
+                            stage
+                        }));
+                        moduleEventSources.push(from(processorEvents));
+                    }
                 }
 
                 if(module.renderer) {

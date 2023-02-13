@@ -63,6 +63,8 @@ export type Module = Partial<{
         processorDefinitions: Processor.Definition[];
         /** processors that should be created and added to the hypermedia engine */
         processors: {[stage: string]: Processor[]};
+        /** processors (only run on state objects) that should be created and added to the hypermedia engine */
+        stateProcessors: {[stage: string]: Processor[]};
         /** if set, this url is prepended to the URI of every HAL resources served from this module */
         baseUri: string;
         // websocket middleware
@@ -128,7 +130,7 @@ export namespace Module {
                 uri?: string;
             }
         }
-        export type Hypermedia = Hypermedia.ResourceChanged | Hypermedia.ProcessorDefinitionChanged | Hypermedia.ProcessorChanged;
+        export type Hypermedia = Hypermedia.ResourceChanged | Hypermedia.ProcessorDefinitionChanged | Hypermedia.ProcessorChanged | Hypermedia.StateProcessorChanged;
         export namespace Hypermedia {
             export interface Base {
                 eCategory: 'hypermedia'
@@ -148,6 +150,12 @@ export namespace Module {
 
             export interface ProcessorChanged extends Base {
                 eType: 'processor-changed';
+                processor: Processor;
+                stage: string; //'pre' | 'post';
+            }
+
+            export interface StateProcessorChanged extends Base {
+                eType: 'state-processor-changed';
                 processor: Processor;
                 stage: string; //'pre' | 'post';
             }

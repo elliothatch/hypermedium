@@ -27,6 +27,7 @@ const corePlugin: Plugin<CoreOptions> = {
                     '/schema/index/_links.profile.href/schema/post': 'layouts/article-index.hbs',
                     '/schema/index': 'layouts/index.hbs',
                     '/schema/index/schema/index/tags': 'layouts/tags-index.hbs',
+                    '/schema/hypermedium/state/resourceGraph': 'layouts/resource-graph.hbs',
                 }
             },
             build: {

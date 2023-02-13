@@ -181,13 +181,15 @@ export class Hypermedium {
                                                             throw error;
                                                         }
 
-                                                        // TODO: does it make sense to "wrap" the files as resources? or should there be a different loadResource style function
+                                                        // TODO: it probably doesn't make a lot of sense to "wrap" files as resources. will cause issues with encodings (e.g. binary)
+                                                        // there should be a different loadResource style function and filetype info should be added to resource nodes
                                                         this.hypermedia.loadResource(moduleEvent.uri, {contents: fileContents, _links: {profile: {href:'/schema/file'}}}, 'fs-c');
                                                         return this.hypermedia.processResource(moduleEvent.uri);
                                                     }
                                                 })
                                             );
                                         case 'unlink':
+                                            this.hypermedia.unloadResource(moduleEvent.uri);
                                             return EMPTY;
                                     }
                                 case 'processor-definition-changed':

@@ -1,3 +1,14 @@
-<div id="resource-graph">
+<div class="resource-graph">
+	<h1>Nodes</h1>
+	<ul>
+	{{#each nodes}}
+		<li><a href="{{this}}">{{this}}</a></li>
+	{{/each}}
+	</ul>
+	<h1>Edges</h1>
+	<ul>
+	{{#each edges}}
+		<li><a href="{{v}}">{{v}}</a> -> <a href="{{w}}">{{w}}</a></li>
+	{{/each}}
+	</ul>
 </div>
-<script src="/js/resource-graph.js"></script>

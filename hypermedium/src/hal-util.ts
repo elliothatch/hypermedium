@@ -8,7 +8,7 @@ import { match } from 'path-to-regexp';
 import * as Hal from './hal';
 
 /** either a 'dot.separated.path' or array of property names */
-export type PropertyPath = string | string[];;
+export type PropertyPath = string | string[];
 
 
 export function makeLink(resource: any, uri?: Hal.Uri, name?: string): Hal.Link {

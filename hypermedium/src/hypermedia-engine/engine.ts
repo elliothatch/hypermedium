@@ -76,11 +76,18 @@ import { Logger, Serializer} from 'freshlog';
  * use middleware to extend resources that match a certain profile
  */
 
+// TODO: maybe it would make sense to mark certain resources as "deferred" so they only get processed after a moment of inactivity. prevents state resources (e.g. index) from being processed every time a new resource is loaded during the initial filesystem walk
+
 export class HypermediaEngine {
     public router: Router;
     public resourceGraph: ResourceGraph;
     public processorDefinitions: Map<string, Processor.Definition>;
     public globalProcessors: {
+        pre: Processor[],
+        post: Processor[],
+    };
+
+    public globalStateProcessors: {
         pre: Processor[],
         post: Processor[],
     };
@@ -92,6 +99,10 @@ export class HypermediaEngine {
         this.resourceGraph = new ResourceGraph();
         this.processorDefinitions = new Map();
         this.globalProcessors = {
+            pre: [],
+            post: [],
+        };
+        this.globalStateProcessors = {
             pre: [],
             post: [],
         };
@@ -122,13 +133,24 @@ export class HypermediaEngine {
         // }
     }
 
+    public addGlobalStateProcessor(processor: Processor, stage: string): void {
+        (this.globalStateProcessors as any)[stage].push(processor);
+        // if(processor.onInit) {
+            // return processor.onInit(processor.options);
+        // }
+    }
+
     public loadResource(uri: HAL.Uri, resource: ExtendedResource, origin: string): ResourceGraph.Node {
         const normalizedUri = normalizeUri(uri);
         if(this.resourceGraph.graph.hasNode(normalizedUri)) {
-            this.log({
-                eType: 'Warning',
-                message: `Resource ${normalizedUri} already loaded. Overwriting...`,
-            });
+            if(this.resourceGraph.graph.node(normalizedUri)) {
+                // if hasNode returns true but the node is undefined, it was only created as a placeholder for a dependency, so we don't need to show a warning
+                // also, this probably can just be a trace instead of a warning
+                this.log({
+                    eType: 'Warning',
+                    message: `Resource ${normalizedUri} already loaded. Overwriting...`,
+                });
+            }
         }
 
         const node: ResourceGraph.Node = {
@@ -236,9 +258,18 @@ export class HypermediaEngine {
                 );
             }
 
-            return executeGlobalProcessors(resourceCopy, this.globalProcessors.pre).pipe(
+            const executeAllProcessors = normalizedUri.startsWith('/~hypermedium/state')?
+            executeGlobalProcessors(resourceCopy, this.globalStateProcessors.pre).pipe(
                 mergeMap((resource) => executeLocalProcessors(resource)),
-                mergeMap((resource) => executeGlobalProcessors(resource, this.globalProcessors.post)),
+                mergeMap((resource) => executeGlobalProcessors(resource, this.globalStateProcessors.post))):
+            executeGlobalProcessors(resourceCopy, this.globalProcessors.pre).pipe(
+                mergeMap((resource) => executeLocalProcessors(resource)),
+                mergeMap((resource) => executeGlobalProcessors(resource, this.globalProcessors.post)));
+
+
+                        // don't execute global processors on state objects
+
+            return executeAllProcessors.pipe(
                 mergeMap((resource) => {
                     node.resource = resource;
 
@@ -256,6 +287,7 @@ export class HypermediaEngine {
                     const dependentResourceObservables = (this.resourceGraph.graph.nodeEdges(normalizedUri) as unknown as Edge[])
                         .filter(({v}) => v !== normalizedUri)
                         .map(({v}) => this.processResource(v, prevUris!.concat(normalizedUri)));
+
 
                     return concat(
                         of({uri: normalizedUri, resource}),
@@ -393,8 +425,15 @@ export class HypermediaEngine {
                 };
 
                 markDirty(normalizedStateUri, template);
-                // the state shouldn't be processed
-                this.resourceGraph.resetDependencies(normalizedStateUri);
+                // the state shouldn't be processed as a dependency
+                // this.resourceGraph.resetDependencies(normalizedStateUri);
+                //
+                // the state shouldn't be processed as a dependency of another state
+                const prevDependencies = this.resourceGraph.graph.nodeEdges(normalizedStateUri) as Edge[];
+                prevDependencies
+                    .filter(({v, w}) => v === normalizedStateUri && w.startsWith('/~hypermedium/state'))
+                    .forEach(({v, w}) => this.resourceGraph.graph.removeEdge(v, w));
+
 
                 const stateNode = this.resourceGraph.graph.node(normalizedStateUri);
                 stateNode.originalResource = HalUtil.setProperty(stateNode.originalResource, property, value);

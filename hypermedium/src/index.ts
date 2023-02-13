@@ -76,7 +76,7 @@ export function HypermediumCmd(argv: string[]) {
         unamedArgs: '<plugin(s)>',
         options: true,
         fn: (args: Minimist.ParsedArgs) => {
-            Log.info(`command line arguments: ${Object.keys(args).filter((arg) => args[arg] != false)}`, {args});
+            Log.info(`command line arguments: ${process.argv.slice(2).join(' ')}`, {args});
             const hypermediumOptions: HypermediumInitOptions = {
                 // TODO: should we use the output argument as the export path?
                 plugins: args._,
@@ -100,7 +100,7 @@ export function HypermediumCmd(argv: string[]) {
         unamedArgs: '<plugin(s)>',
         options: true,
         fn: (args: Minimist.ParsedArgs) => {
-            Log.info(`command line arguments: ${Object.keys(args).filter((arg) => args[arg] != false)}`, {args});
+            Log.info(`command line arguments: ${process.argv.slice(2).join(' ')}`, {args});
             // TODO: get list of plugins, plugin-lookup dirs (e.g. node_modules)
             // const hypermedium = new Hypermedium();
             let staticMappingStrs: string | string[] = args['s'] || args['static'] || [];
@@ -243,7 +243,7 @@ function initializeHypermedium(options: HypermediumInitOptions, staticMappings: 
         next: (event) => {
             switch(event.eType) {
                 case 'render-resource':
-                    Log.info(`html-renderer ${event.eType}: ${event.uri}`, {...event});
+                    Log.trace(`html-renderer ${event.eType}: ${event.uri}`, {...event});
             }
         }
     });

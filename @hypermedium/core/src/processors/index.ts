@@ -8,12 +8,17 @@ type PropertyPath = HalUtil.PropertyPath;
 // import { tags } from './tags';
 
 // TODO: add matchUri using express router
+// TODO: fundamental problem: _embedded is kind of hard to use. not sure how json-ld deals with embedded data.
+// We have two overlapping concepts of "embedding" right now, the generic HAL _embedded (see 'embed' processor), and index embedding (see 'index' processor option 'embed'). We need to settle on one kind. this is causing duplicate processor execution for one.
+// 'embed' processor links an object directly to resources it depends on. this is good
+// 'index' embed only links to the index, not the resources itself. is this good?
 
 export namespace Core {
     export type Processors =
         Processors.Self |
         Processors.Link |
         Processors.Extend |
+        Processors.Replace |
         Processors.Copy |
         Processors.CopyState |
         Processors.Embed |
@@ -37,7 +42,13 @@ export namespace Core {
             property?: PropertyPath;
             name?: Hal.Uri;
         } | undefined>;
-        export type Extend = Processor.Definition<'extend', {obj: any, overwrite: boolean}>;
+        export type Extend = Processor.Definition<'extend', {
+            obj: any,
+            overwrite: boolean
+        }>;
+        export type Replace = Processor.Definition<'replace', {
+            property: PropertyPath;
+        }>;
         export type Copy = Processor.Definition<'copy', {
             uri?: Hal.Uri;
             from: PropertyPath;
@@ -199,6 +210,13 @@ export const processorDefinitions: Core.Processors[] = [{
         return rs.resource;
     }
 }, {
+    /** replace an entire resource with one of its properties. usually only useful inside a 'map' processor */
+    name: 'replace',
+    onProcess: (rs, options) => {
+        rs.resource = HalUtil.getProperty(rs.resource, options.property);
+        return rs.resource;
+    }
+}, {
     name: 'insert',
     onProcess: (rs, options) => {
         if(!Array.isArray(options.values)) {
@@ -238,7 +256,7 @@ export const processorDefinitions: Core.Processors[] = [{
     onProcess: (rs, options) => {
         const obj = HalUtil.getProperty(rs.resource, options?.property);
         if(typeof obj !== 'object') {
-            rs.logger.warn(`skipping flatten: '${options?.property || 'resource'}': must be an object, but has type ${typeof obj}`);
+            rs.logger.warn(`skipping flattenObject: '${options?.property || 'resource'}': must be an object, but has type ${typeof obj}`);
             return rs.resource;
         }
 
@@ -394,7 +412,9 @@ export const processorDefinitions: Core.Processors[] = [{
     }
 }, {
     name: 'map',
-    /** run a processor for each element in an array, using the element as the resource */
+    /** run a processor for each element in an array, using the element as the resource. Works on objects, but cannot provide the object key.
+* TODO: accept array of processors
+* */
     onProcess: (rs, options) => {
         const values = HalUtil.getProperty(rs.resource, options.property);
         if(!Array.isArray(values) && typeof values !== 'object') {
@@ -463,19 +483,32 @@ export const processorDefinitions: Core.Processors[] = [{
     name: 'index',
     onProcess: (rs: ResourceState, options) => {
         // never index the indexes (we handle that ourselves to prevent cycles)
-        const stateUri = rs.getState('_links.self.href');
-        if(typeof stateUri === 'string') {
-            const baseStateUri = stateUri.substring(0, stateUri.lastIndexOf('/'));
-            if(rs.uri.startsWith(baseStateUri)) {
-                return rs.resource;
-            }
-        }
+        // const stateUri = rs.getState('_links.self.href');
+        // if(typeof stateUri === 'string') {
+            // const baseStateUri = stateUri.substring(0, stateUri.lastIndexOf('/'));
+            // if(rs.uri.startsWith(baseStateUri)) {
+                // return rs.resource;
+            // }
+        // }
+
+        // never index state resources to prevent cycles
+        // if(rs.uri.startsWith('/~hypermedium/state')) {
+                // return rs.resource;
+        // }
 
         let values = HalUtil.matchProperty(rs.resource, options.property);
 
         if(values.length === 0) {
             return rs.resource;
         }
+
+        const embeddedProperties = (options.embed || []).reduce((obj, propertyPath) => {
+                const embed = HalUtil.getProperty(rs.resource, propertyPath);
+                if(embed == undefined) {
+                    return obj;
+                }
+                return HalUtil.setProperty(obj, propertyPath, embed);
+        }, {});
 
         values.forEach((value: any) => {
             const valueStr = '' + value;
@@ -484,24 +517,26 @@ export const processorDefinitions: Core.Processors[] = [{
                 options.property + '/' + valueStr;
 
             // TODO: embed _links.item on top level indexes, embed options.embed on main indexes and on embedded links.items
-            const indexProcessors = (name: string) => [{
-                name: 'objectKeys',
-                options: {
-                    property: 'index',
-                    to: '_links.item'
-                }
-            }, {
-                name: 'map',
-                options: {
-                    property: '_links.item',
-                    processor: {
-                        name: 'link',
-                        options: {
-                            name: name
-                        }
-                    }
-                }
-            }];
+            // putting processors in the index does not work how we want
+            // instead, we populate each index value with embeded info (instead of true), and create the link list in getIndex
+            // const indexProcessors = (name: string) => [{
+            //     name: 'objectKeys',
+            //     options: {
+            //         property: 'index',
+            //         to: '_links.item'
+            //     }
+            // }, {
+            //     name: 'map',
+            //     options: {
+            //         property: '_links.item',
+            //         processor: {
+            //             name: 'link',
+            //             options: {
+            //                 name: name
+            //             }
+            //         }
+            //     }
+            // }];
 
             const addProfile = (resourcePath: string, profile: Hal.Uri) => {
                 const state = rs.getState('', resourcePath);
@@ -515,32 +550,31 @@ export const processorDefinitions: Core.Processors[] = [{
             }
 
             // setting state initializes the state object if it doesn't exist
-            rs.setState('_processors', indexProcessors(valueStr), resourcePath);
+            // rs.setState('_processors', indexProcessors(valueStr), resourcePath);
             rs.setState('title', `Index of ${valueStr} in ${options.property}`, resourcePath);
             rs.setState('_links.self.title', `${valueStr}`, resourcePath);
             addProfile(resourcePath,  `/schema/index`);
             addProfile(resourcePath,  `/schema/index/${resourcePath}`);
 
-            rs.setState(['index', rs.uri], true, resourcePath);
-
+            rs.setState(['index', rs.uri], embeddedProperties, resourcePath);
 
             // add this index page to the index of indexes
             const indexStateUri = rs.getState('_links.self.href', resourcePath);
-            rs.setState('_processors', indexProcessors(options.property), options.property);
+            // rs.setState('_processors', indexProcessors(options.property), options.property);
             rs.setState('title', `Index of ${options.property}`, options.property);
             rs.setState('_links.self.title', `${options.property}`, options.property);
             addProfile(resourcePath,  `/schema/index`);
             addProfile(options.property, `/schema/index/${options.property}`);
 
-            rs.setState(['index', indexStateUri], true, options.property);
+            rs.setState(['index', indexStateUri], {}, options.property);
 
 
             const propertyStateUri = rs.getState('_links.self.href', options.property);
-            rs.setState('_processors', indexProcessors);
+            // rs.setState('_processors', indexProcessors);
             addProfile(resourcePath,  `/schema/index`);
             addProfile(options.property, `/schema/index`);
 
-            rs.setState(['index', propertyStateUri], true);
+            rs.setState(['index', propertyStateUri], {});
         });
 
         return rs.resource;
@@ -554,36 +588,89 @@ export const processorDefinitions: Core.Processors[] = [{
             options.property +  options.filter:
             options.property + '/' + options.filter;
 
+        // copy index object, then copy the key into the "embedded properties" object and use that object as the link.
+        // this will insert all the embedded properties into the link, which puts a bunch of non-standard properties into the link.
+        // TODO: put the embedded properties somewhere else (_embed), only copy relevant embeds into the link (title, type, profile, etc.)
+
         return rs.execProcessor([{
             name: 'copyState',
             options: {
                 processor: 'index',
                 resourcePath,
-                from: '_links.item',
+                from: 'index',
                 to: options.to
             }
+        }]).then(() => {
+            const items = Object.entries(HalUtil.getProperty(rs.resource, options.to)).reduce((links, [uri, embedded]) => {
+                    links.push({
+                        href: uri,
+                        profile: options.filter,
+                        ...(embedded as any)
+                    });
+                    return links;
+            }, [] as Hal.Link[]);
+
+            HalUtil.setProperty(rs.resource, options.to, items);
+
+            return rs.execProcessor([{
+                name: 'insert',
+                options: {
+                    property: '_links.profile',
+                    values: [
+                        {href: `/schema/index/${resourcePath}`},
+                        {href: `/schema/index`},
+                    ]
+                }
+            }]);
+        });
+
+        // implemented with only processors for some reason
+        // return rs.execProcessor([{
+        //     name: 'copyState',
+        //     options: {
+        //         processor: 'index',
+        //         resourcePath,
+        //         from: 'index',
+        //         to: options.to
+        //     }
+        // }, {
+        //     name: 'objectEntries',
+        //     options: {
+        //         property: options.to
+        //     }
         // }, {
         //     name: 'map',
         //     options: {
-        //         property: '_links.item',
+        //         property: options.to,
         //         processor: {
         //             name: 'copy',
         //             options: {
-        //                 from: 'name',
-        //                 to: 'title',
+        //                 from: '0',
+        //                 to: '1.href'
         //             }
         //         }
         //     }
-        }, {
-            name: 'insert',
-            options: {
-                property: '_links.profile',
-                values: [
-                    {href: `/schema/index/${resourcePath}`},
-                    {href: `/schema/index`},
-                ]
-            }
-        }]);
+        // }, {
+        //     name: 'map',
+        //     options: {
+        //         property: options.to,
+        //         processor: {
+        //             name: 'replace',
+        //             options: {
+        //                 property: '1'
+        //             }
+        //         }
+        //     }
+        // }, {
+        //     name: 'insert',
+        //     options: {
+        //         property: '_links.profile',
+        //         values: [
+        //             {href: `/schema/index/${resourcePath}`},
+        //             {href: `/schema/index`},
+        //         ]
+        //     }
+        // }]);
     }
 }, {
     /** create an excerpt summary from the first N words or paragraphs of a property.
