@@ -116,44 +116,47 @@ export class BuildManager {
                 )).pipe(
                     finalize(() => {
                         if(task.watch) {
-                            Object.keys(fileOptions.inputs).forEach((inputName) => {
-                                fileOptions.inputs[inputName].forEach((inputPath) => {
-                                    let watchFile = this.watchedFiles.get(inputPath);
-                                    if(!watchFile) {
-                                        watchFile = new Map();
-                                        this.watchedFiles.set(inputPath, watchFile);
-                                    }
+                            Object.keys(fileOptions.inputs).reduce((files, inputName) => {
+                                files.push(...fileOptions.inputs[inputName]);
+                                return files;
+                            }, [] as string[])
+                                    .concat(task.watchFiles || [])
+                                    .forEach((inputPath) => {
+                                let watchFile = this.watchedFiles.get(inputPath);
+                                if(!watchFile) {
+                                    watchFile = new Map();
+                                    this.watchedFiles.set(inputPath, watchFile);
+                                }
 
-                                    let watchEntry = watchFile.get(task.definition);
-                                    if(!watchEntry) {
-                                        watchEntry = {
-                                            task,
-                                            eventSubscription: watchFiles(inputPath).pipe(
-                                                skip(Object.keys(fileOptions.inputs).length), // skip the first event for each file when they're first detected
-                                                debounceTime(this.watchDebounceMs),
-                                                mergeMap((watchEvent) => {
-                                                    return this.buildTask(task, basePath, buildStepPath)
-                                                }),
-                                                catchError((error) => {
-                                                    this.watchSubject.next({
-                                                        buildStep: task,
-                                                        buildStepPath,
-                                                        eType: 'error' as const,
-                                                        error
-                                                    });
-
-                                                    throw error;
-                                                }),
-                                                retry(),
-                                            ).subscribe((buildEvent) => {
-                                                    this.watchSubject.next(buildEvent);
+                                let watchEntry = watchFile.get(task.definition);
+                                if(!watchEntry) {
+                                    watchEntry = {
+                                        task,
+                                        eventSubscription: watchFiles(inputPath).pipe(
+                                            skip(Object.keys(fileOptions.inputs).length), // skip the first event for each file when they're first detected
+                                            debounceTime(this.watchDebounceMs),
+                                            mergeMap((watchEvent) => {
+                                                return this.buildTask(task, basePath, buildStepPath)
                                             }),
-                                        };
+                                            catchError((error) => {
+                                                this.watchSubject.next({
+                                                    buildStep: task,
+                                                    buildStepPath,
+                                                    eType: 'error' as const,
+                                                    error
+                                                });
 
-                                        watchFile.set(task.definition, watchEntry);
-                                    }
-                                });
-                            })
+                                                throw error;
+                                            }),
+                                            retry(),
+                                        ).subscribe((buildEvent) => {
+                                                this.watchSubject.next(buildEvent);
+                                        }),
+                                    };
+
+                                    watchFile.set(task.definition, watchEntry);
+                                }
+                            });
                         }
                     })
                 );

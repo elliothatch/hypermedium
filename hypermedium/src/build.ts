@@ -34,6 +34,10 @@ export interface Task {
      * the watch is registered when task is used in build().
      * if there already exists a watch with the same path and definition, a new one will not be registered */
     watch?: boolean;
+
+    /** if watch is enabled, this array of file paths is used to retrigger the build task, as if the input files changed.
+    * useful for retriggering build for tasks that depend on other files hypermedium is not aware of (e.g. sass @use directives) */
+    watchFiles?: string[];
 }
 
 /**
