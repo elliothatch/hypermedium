@@ -1,5 +1,5 @@
-import { defer, Observable, from, of, forkJoin, concat, Subject, merge, Subscription } from 'rxjs';
-import { debounceTime, map, mergeMap, catchError, filter, finalize, retry, skip } from 'rxjs/operators';
+import { defer, Observable, from, of, forkJoin, concat, Subject, merge, Subscription, EMPTY } from 'rxjs';
+import { debounceTime, map, mergeMap, catchError, filter, finalize, retry, skip, skipWhile, takeWhile, publish } from 'rxjs/operators';
 import { Router, RequestHandler } from 'express';
 
 import { Logger, Target, Serializer } from 'freshlog';
@@ -116,12 +116,18 @@ export class BuildManager {
                 )).pipe(
                     finalize(() => {
                         if(task.watch) {
-                            Object.keys(fileOptions.inputs).reduce((files, inputName) => {
+                            // TODO: there is a bug where we may trigger a build event twice, if it is included in multiple inputs/watchFiles
+                            // for example, we create a sass task for sass/styles.scss, but also add the sass/ directory to the watchFiles of that task, because we want files we @use in styles.scss to also trigger the build.
+                            // since styles.scss is in sass/, we end up registering a watch on the file twice, once for only the file, and once for the containing directory. this triggers the build event twice anytime we edit styles.scss
+                            // with the current watchFile setup, it is challenging to filter out these duplicates.
+                            const extraWatchFiles = task.watchFiles?
+                                Build.prefixPaths({watch: task.watchFiles}, basePath)['watch']:
+                                [];
+                            const files = Object.keys(fileOptions.inputs).reduce((files, inputName) => {
                                 files.push(...fileOptions.inputs[inputName]);
                                 return files;
-                            }, [] as string[])
-                                    .concat(task.watchFiles || [])
-                                    .forEach((inputPath) => {
+                            }, [] as string[]).concat(extraWatchFiles);
+                            files.forEach((inputPath) => {
                                 let watchFile = this.watchedFiles.get(inputPath);
                                 if(!watchFile) {
                                     watchFile = new Map();
@@ -133,7 +139,10 @@ export class BuildManager {
                                     watchEntry = {
                                         task,
                                         eventSubscription: watchFiles(inputPath).pipe(
-                                            skip(Object.keys(fileOptions.inputs).length), // skip the first event for each file when they're first detected
+                                            // skip the initial scan of files. only watch for changes
+                                            skipWhile((watchEvent) => watchEvent.eType !== 'ready'),
+                                            // skip the 'ready' event
+                                            skip(1),
                                             debounceTime(this.watchDebounceMs),
                                             mergeMap((watchEvent) => {
                                                 return this.buildTask(task, basePath, buildStepPath)
@@ -143,7 +152,8 @@ export class BuildManager {
                                                     buildStep: task,
                                                     buildStepPath,
                                                     eType: 'error' as const,
-                                                    error
+                                                    error,
+                                                    watch: inputPath
                                                 });
 
                                                 throw error;

@@ -147,6 +147,8 @@ export namespace Event {
     export interface BuildError extends Base {
         eType: 'error';
         error: Error;
+        /** indicates the watched file that triggered the build */
+        watch?: string;
     }
 
     export interface Success extends Base {

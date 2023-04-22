@@ -7,7 +7,7 @@ Hypermedium is a NodeJs tool for creating static and dynamic websites.
 
 ## Hypermedium is alpha software. It may have bugs, and APIs and functionality are subject to change over the course of development.
 ### The Plugin API will remain as stable as possible, but until the release of Hypermedium v1.0.0, breaking changes may be introduced if deemed necessary.
-### Hypermedium resources use the HAL data format, but this may change to JSON-LD or another format before the release of v1.0.0.
+### Hypermedium core processors use the HAL data format, but this may change to JSON-LD or another format before the release of v1.0.0.
 
 # Quick Start
 ## The Hypermedium packages have not been published to NPM. To use Hypermedium you must build from source and use `yarn link` in your project. See [Development](#development).

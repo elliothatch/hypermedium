@@ -5,7 +5,7 @@ import { Graph } from 'graphlib';
 import { concat, defer, from, merge, of, Observable } from 'rxjs';
 import { filter, map } from 'rxjs/operators';
 
-import { watchFiles } from './util';
+import { watchFiles, WatchEvent } from './util';
 import { Processor } from './hypermedia-engine';
 
 import { Plugin, Module } from './plugin';
@@ -201,8 +201,8 @@ export class PluginManager {
                                 eCategory: 'hypermedia',
                                 eType: 'resource-changed',
                                 fileEvent: watchEvent.eType as 'add' | 'change' | 'unlink',
-                                path: watchEvent.path,
-                                uri: watchEvent.uri,
+                                path: (watchEvent as WatchEvent.File).path,
+                                uri: (watchEvent as WatchEvent.File).uri,
                             }))
                         ));
                     }
@@ -256,8 +256,8 @@ export class PluginManager {
                                 eCategory: 'renderer',
                                 eType: 'template-changed',
                                 fileEvent: watchEvent.eType as 'add' | 'change' | 'unlink',
-                                path: watchEvent.path,
-                                uri: watchEvent.uri,
+                                path: (watchEvent as WatchEvent.File).path,
+                                uri: (watchEvent as WatchEvent.File).uri,
                             }))
                         ));
                     }
@@ -270,8 +270,8 @@ export class PluginManager {
                                 eCategory: 'renderer',
                                 eType: 'partial-changed',
                                 fileEvent: watchEvent.eType as 'add' | 'change' | 'unlink',
-                                path: watchEvent.path,
-                                uri: watchEvent.uri,
+                                path: (watchEvent as WatchEvent.File).path,
+                                uri: (watchEvent as WatchEvent.File).uri,
                             }))
                         ));
                     }

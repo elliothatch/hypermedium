@@ -93,19 +93,26 @@ export function objectDifference<A extends {[propery: string]: any}, B extends {
     }, {} as any);
 }
 
-export interface WatchEvent {
-    eType: 'add' | 'change' | 'unlink' | 'addDir' | 'unlinkDir';
-    path: string;
-    uri: string;
+export type WatchEvent = WatchEvent.File | WatchEvent.Ready;
+export namespace WatchEvent {
+    export interface File {
+        eType: 'add' | 'change' | 'unlink' | 'addDir' | 'unlinkDir';
+        path: string;
+        uri: string;
+    }
+    export interface Ready {
+        /** ready event is fired after the initial scan of files has completed. */
+        eType: 'ready';
+    }
 }
 
 /** watch a file or directory (recursively) and emit events when files and directories are added, changed, or removed
  * @returns object with an observable of the watch events, and a function that can be used to stop watching the files
  */
-export function watchFiles(path: string | string[], uriPrefix?: string): Observable<WatchEvent> {
+export function watchFiles(path: string | string[], uriPrefix?: string, chokidarOptions?: any): Observable<WatchEvent> {
     return using(() => {
         const paths = Array.isArray(path)? path: [path];
-        const watchers = paths.map((path) => ({path, watcher: chokidar.watch(path)}));
+        const watchers = paths.map((path) => ({path, watcher: chokidar.watch(path, chokidarOptions)}));
         return {
             watchers,
             unsubscribe: () => {
@@ -118,17 +125,24 @@ export function watchFiles(path: string | string[], uriPrefix?: string): Observa
         const watchers = (resource as ({watchers: Array<{path: string, watcher: chokidar.FSWatcher}>} & Unsubscribable)).watchers;
         // TODO: are rxjs types for "using" incorrect?
         const eventObservables = watchers.map(({path, watcher}) => {
-            return fromEventPattern<[string, string]>((addHandler) => {
-                ['add', 'change', 'unlink', 'addDir', 'unlinkDir'].forEach((eventName) => {
-                    watcher.on(eventName, (...args: any[]) => addHandler(eventName, ...args));
+            return fromEventPattern<[string, string, any]>((handler) => {
+                ['add', 'change', 'unlink', 'addDir', 'unlinkDir', 'ready'].forEach((eventName) => {
+                    watcher.on(eventName, (...args: any[]) => handler([eventName, ...args]));
                 });
             }).pipe(
-                map(([eventType, filename]) => {
+                map(([eventType, filename, stats]) => {
+                    if(eventType === 'ready') {
+                        return {
+                            eType: 'ready' as const,
+                        };
+                    }
+
+                    // file event
                     return {
-                        eType: eventType,
+                        eType: eventType as 'add' | 'change' | 'unlink' | 'addDir' | 'unlinkDir',
                         path: filename,
                         uri: Url.resolve(uriPrefix || '', Path.relative(path, filename).replace(/\\/g, '/')),
-                    } as WatchEvent;
+                    };
                 }),
             );
         });
