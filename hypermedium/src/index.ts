@@ -23,7 +23,7 @@ import * as HypermediaEngine from './hypermedia-engine';
 import * as Build from './build';
 import { Module } from './plugin';
 
-import { server } from './server';
+import { server, Server } from './server';
 
 import * as Minimist from 'minimist';
 
@@ -130,7 +130,8 @@ export function HypermediumCmd(argv: string[]) {
             const hypermediumOptions: HypermediumInitOptions = {
                 plugins: args._,
                 pluginSearchPaths: defaultPluginSearchPaths,
-                };
+                port: args['p'] || args['port'],
+            };
 
             try {
                 initializeHypermedium(hypermediumOptions, staticMappings);
@@ -192,6 +193,9 @@ export interface HypermediumInitOptions {
         /** if true, overwrite existing files */
         overwrite?: boolean;
     }
+
+    /** port number if in server mode */
+    port?: number;
 }
 
 // temp function
@@ -358,7 +362,12 @@ function initializeHypermedium(options: HypermediumInitOptions, staticMappings: 
                 res.status(errorOut.code).json(errorOut);
             });
 
-            server(app).subscribe({
+            const serverOptions: Partial<Server.Options> = {};
+            if(options.port !== undefined) {
+                serverOptions.port = options.port;
+            }
+
+            server(app, serverOptions).subscribe({
                 next: (server) => {
                     Log.info(`server-listening at port ${server.port}`, {port: server.port});
                 }, 

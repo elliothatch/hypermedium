@@ -11,7 +11,7 @@
 			<!-- no head.hbs found -->
 		{{/ includes/head.hbs }}
 	</head>
-	<body>
+	<body class="{{join (map-pick 'href' (getProfiles this)) " "}}">
 		<script>
 			if(!window.hypermedium) {
 				window.hypermedium = {};

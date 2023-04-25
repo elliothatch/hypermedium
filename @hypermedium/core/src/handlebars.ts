@@ -44,6 +44,7 @@ const handlebarsHelpers: {[name: string]: HelperDelegate} = {
     'json-stringify': (val) => new SafeString(JSON.stringify(val)),
     'html-uri': HalUtil.htmlUri,
     'expandCuri': HalUtil.expandCuri,
+    'getProfiles': HalUtil.getProfiles,
     'datetime': (dateStr, formatStr) => {
         const format = (formatStr && typeof formatStr === 'string')?
             formatStr:
@@ -83,6 +84,13 @@ const handlebarsHelpers: {[name: string]: HelperDelegate} = {
         return array.find( (v: any) =>
             key? HalUtil.getProperty(v, key) === value: v === value);
     },
+    'join': (array, value) => {
+        return array.join(value)
+    },
+    /** pick an value off each object in the array */
+    'map-pick': (key, array) => {
+        return array.map((e: any) => e[key]);
+    },
     'repeat': function(count, options) {
         return options.fn(this).repeat(count);
     },
@@ -107,7 +115,7 @@ const handlebarsHelpers: {[name: string]: HelperDelegate} = {
         }
 
         return options.fn(embeddedResource);
-    }
+    },
 };
 
 export { handlebarsHelpers };
