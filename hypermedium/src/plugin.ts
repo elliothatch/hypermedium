@@ -67,6 +67,11 @@ export type Module = Partial<{
         stateProcessors: {[stage: string]: Processor[]};
         /** if set, this url is prepended to the URI of every HAL resources served from this module */
         baseUri: string;
+        /** files matching any of these extensions are loaded into the hypermedia engine as resources. these files MUST be parsable as json. should include the period `.`.
+        * matches the entire string from the end of the file name, so ['.json'] will match 'example.json' and 'example.hyp.json', while ['.hyp.json'] only matches 'example.hyp.json'. ['.json', '.hyp.json'] has the same behavior as ['.json'].
+        * defaults to ['.json'].
+        */
+        resourceExtensions: string[];
         // websocket middleware
     }>;
     renderer: Partial<{

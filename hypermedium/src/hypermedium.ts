@@ -10,7 +10,7 @@ import * as Build from './build';
 import { BuildManager } from './build-manager';
 import { HtmlRenderer } from './renderer';
 import { HypermediaEngine, ResourceGraph } from './hypermedia-engine';
-import { WatchEvent } from './util';
+import { WatchEvent, matchesFullExtension } from './util';
 import { Module } from './plugin';
 import { PluginManager } from './plugin-manager';
 
@@ -169,6 +169,12 @@ export class Hypermedium {
                                     switch(moduleEvent.fileEvent) {
                                         case 'add':
                                         case'change':
+                                            if(!matchesFullExtension(moduleEvent.path, moduleInstance.module.hypermedia?.resourceExtensions || ['.json'])) {
+                                                this.hypermedia.loadFile(moduleEvent.uri, moduleEvent.path);
+                                                return this.hypermedia.processResource(moduleEvent.uri);
+                                            }
+
+                                            // load resource
                                             return from(fs.readFile(moduleEvent.path, 'utf-8')).pipe(
                                                 mergeMap((fileContents) => {
                                                     try {
@@ -275,14 +281,27 @@ export class Hypermedium {
                 const resources = this.hypermedia.resourceGraph.graph.nodes();
                 const writeResourceObservables = resources.map((uri) => {
                     return defer(() => {
-                        // TODO: this assumes all resources are .json files
-                        const filename = uri.split('.').slice(0, -1).join('.') + '.html';
-                        const filePath = Path.join(targetDir, filename);
                         const node: ResourceGraph.Node = this.hypermedia.resourceGraph.graph.node(uri);
+
+
+                        if(node.eType === 'file') {
+                            const filePath = Path.join(targetDir, uri);
+                            return of({
+                                eType: 'Export' as const,
+                                from: uri,
+                                path: filePath
+                            });
+                        }
+
                         if(!node.resource) {
                             // TODO: emit warning
                             return EMPTY;
                         }
+
+                        // HAL resource
+                        // TODO: this assumes all resources have exactly one extension at the end that we want to replace with .html
+                        const filename = uri.split('.').slice(0, -1).join('.') + '.html';
+                        const filePath = Path.join(targetDir, uri);
 
                         const html = this.renderer.render(node.resource, this.renderer.defaultTemplate, uri);
                         return from(fs.outputFile(filePath, html)).pipe(

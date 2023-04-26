@@ -401,7 +401,7 @@ function logModuleEvent(event: Module.Event | ({eCategory: 'build-event'} & Buil
         Log.error(`${moduleInstance.name}: ${(event as any).uri || ''} ${event.error.message}`, {event, moduleInstance: {name: moduleInstance.name, modulePath: moduleInstance.modulePath, error: event.error}});
     }
     else if(event.eType === 'resource-changed') {
-        Log.info(`${moduleInstance.name}: ${event.fileEvent} HAL resource: ${event.uri}`, {event, moduleInstance: {name: moduleInstance.name, modulePath: moduleInstance.modulePath}});
+        Log.info(`${moduleInstance.name}: ${event.fileEvent} Hypermedia resource: ${event.uri}`, {event, moduleInstance: {name: moduleInstance.name, modulePath: moduleInstance.modulePath}});
     }
     else if(event.eType === 'initialized') {
         Log.trace(`${moduleInstance.name}: ${event.eType}: ${moduleInstance.modulePath}`, {event, moduleInstance: {name: moduleInstance.name, modulePath: moduleInstance.modulePath}});

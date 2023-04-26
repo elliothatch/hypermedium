@@ -1,5 +1,6 @@
 import * as graphlib from 'graphlib';
-import { ExtendedResource, Processor, ResourceState, HypermediaEngine, Hal, HalUtil } from 'hypermedium';
+import { Processor, ResourceState, HypermediaEngine, Hal, HalUtil } from 'hypermedium';
+import * as fs from 'fs/promises';
 
 type PropertyPath = HalUtil.PropertyPath;
 
@@ -21,6 +22,7 @@ export namespace Core {
         Processors.Replace |
         Processors.Copy |
         Processors.CopyState |
+        Processors.CopyFile |
         Processors.Embed |
         Processors.ObjectEntries |
         Processors.ObjectKeys |
@@ -59,6 +61,12 @@ export namespace Core {
             resourcePath: Hal.Uri;
             from: PropertyPath;
             to: PropertyPath;
+        }>;
+        /** read file at the uri and copy its contents to the resource property. default encoding: 'utf8' */
+        export type CopyFile = Processor.Definition<'copyFile', {
+            uri: Hal.Uri;
+            to: PropertyPath;
+            encoding?: string;
         }>;
         export type Embed = Processor.Definition<'embed', {
             property: PropertyPath;
@@ -305,6 +313,20 @@ export const processorDefinitions: Core.Processors[] = [{
         const value = JSON.parse(JSON.stringify(HalUtil.getProperty(resource, options.from)));
         rs.resource = HalUtil.setProperty(rs.resource, options.to, value);
         return rs.resource;
+    }
+}, {
+    name: 'copyFile',
+    onProcess: (rs, options) => {
+        //TODO: rethink how files interact with processors. don't reload HAL resources from disk since they are already in memory
+        const path = rs.getFile(options.uri);
+        if(path === undefined) {
+                rs.logger.error(`skipping copyFile: '${options.uri} has not been loaded as a file.'`);
+                return rs.resource;
+        }
+        return fs.readFile(path, (options.encoding || 'utf8') as BufferEncoding).then((contents: any) => {
+            rs.resource = HalUtil.setProperty(rs.resource, options.to, contents);
+            return rs.resource;
+        });
     }
 }, {
     name: 'embed',

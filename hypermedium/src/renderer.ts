@@ -15,7 +15,7 @@ import { publish, refCount } from 'rxjs/operators';
 import { NextFunction, Router, Request, Response } from 'express';
 import * as Handlebars from 'handlebars';
 
-import { HypermediaEngine, ExtendedResource } from './hypermedia-engine';
+import { HypermediaEngine } from './hypermedia-engine';
 import * as HAL from './hal';
 import { expandCuri, getProfiles, htmlUri, normalizeUri } from './hal-util';
 import { File } from './util';
@@ -177,7 +177,7 @@ export class HtmlRenderer {
     /**
      * @param uri - used only for logging
      */
-    public render(resource: ExtendedResource, templateUri: string, uri?: HAL.Uri): Html {
+    public render(resource: HAL.ExtendedResource, templateUri: string, uri?: HAL.Uri): Html {
         // let links: Html.Link[] = [];
         // if(resource._links) {
         //     links = Object.keys(resource._links).reduce((l: Html.Link[], rel) => {
@@ -260,7 +260,7 @@ export namespace HtmlRenderer {
             eType: 'render-resource';
             uri?: HAL.Uri;
 
-            context: ExtendedResource;
+            context: HAL.ExtendedResource;
             html: Html;
         }
     }

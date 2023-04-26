@@ -37,3 +37,7 @@ export interface Curie {
     name: string;
     templated: boolean;
 }
+
+export interface ExtendedResource extends Resource {
+    [uri: string]: any;
+}

@@ -8,6 +8,7 @@ export type Event =
      | Event.ProcessResourceStart
      | Event.LoadResource
      | Event.UnloadResource
+     | Event.LoadFile
      | Event.AddDependency
      | Event.ProcessorError
      | Event.Warning
@@ -21,7 +22,7 @@ export namespace Event {
         duration: number;
         uri: HAL.Uri;
         edges: ResourceGraph.Edge[];
-        resource: HAL.Resource;
+        resource: HAL.ExtendedResource;
         processors: Processor[];
     }
 
@@ -42,6 +43,13 @@ export namespace Event {
         eType: 'UnloadResource';
 
         uri: HAL.Uri;
+    }
+
+    export interface LoadFile {
+        eType: 'LoadFile';
+
+        uri: HAL.Uri;
+        path: string;
     }
 
     export interface AddDependency {

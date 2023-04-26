@@ -150,3 +150,16 @@ export function watchFiles(path: string | string[], uriPrefix?: string, chokidar
         return merge(...eventObservables);
     });
 }
+
+/**
+* @returns true if the filePath ends with any of the strings in extensions
+ */
+export function matchesFullExtension(filePath: string, extensions: string[]): boolean {
+    const basename = Path.basename(filePath);
+    for(let i = 0; i < extensions.length; i++) {
+        if(basename.endsWith(extensions[i])) {
+            return true;
+        }
+    }
+    return false;
+}

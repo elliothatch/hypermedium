@@ -11,7 +11,7 @@ import * as HAL from '../hal';
 import * as HalUtil from '../hal-util';
 import { normalizeUri } from '../hal-util';
 
-import { ExtendedResource, ResourceGraph } from './resource-graph'
+import { ResourceGraph } from './resource-graph'
 import { Processor, ResourceState } from './processor';
 import { Event } from './events';
 
@@ -119,11 +119,16 @@ export class HypermediaEngine {
 
     protected middleware = (req: Request, res: Response, next: NextFunction) => {
         const resource = this.resourceGraph.getResource(req.path);
-        if(!resource) {
-            return next();
+        if(resource) {
+            return res.status(200).json(resource);
         }
 
-        return res.status(200).json(resource);
+        const file = this.resourceGraph.getFile(req.path);
+        if(file) {
+            return res.status(200).sendFile(file);
+        }
+
+        return next();
     }
 
     public addGlobalProcessor(processor: Processor, stage: string): void {
@@ -140,7 +145,8 @@ export class HypermediaEngine {
         // }
     }
 
-    public loadResource(uri: HAL.Uri, resource: ExtendedResource, origin: string): ResourceGraph.Node {
+    /** load a file as a hypermedia resource */
+    public loadResource(uri: HAL.Uri, resource: HAL.ExtendedResource, origin: string): ResourceGraph.Node.Resource {
         const normalizedUri = normalizeUri(uri);
         if(this.resourceGraph.graph.hasNode(normalizedUri)) {
             if(this.resourceGraph.graph.node(normalizedUri)) {
@@ -153,7 +159,8 @@ export class HypermediaEngine {
             }
         }
 
-        const node: ResourceGraph.Node = {
+        const node: ResourceGraph.Node.Resource = {
+            eType: 'resource',
             originalResource: resource,
             origin
         };
@@ -171,6 +178,7 @@ export class HypermediaEngine {
     }
 
     public unloadResource(uri: HAL.Uri): ResourceGraph.Node | undefined {
+        // TODO: the way we mix files and resources in the resource graph is kind of half baked. the naming is confusing. why do we unload a "loadFile" with "unloadResource", etc.
         const normalizedUri = normalizeUri(uri);
         const resource = this.resourceGraph.graph.node(normalizedUri);
         this.resourceGraph.graph.removeNode(normalizedUri);
@@ -183,8 +191,36 @@ export class HypermediaEngine {
         return resource;
     }
 
+    public loadFile(uri: HAL.Uri, path: string): void {
+        const normalizedUri = normalizeUri(uri);
+        if(this.resourceGraph.graph.hasNode(normalizedUri)) {
+            if(this.resourceGraph.graph.node(normalizedUri)) {
+                // if hasNode returns true but the node is undefined, it was only created as a placeholder for a dependency, so we don't need to show a warning
+                // also, this probably can just be a trace instead of a warning
+                this.log({
+                    eType: 'Warning',
+                    message: `Resource ${normalizedUri} already loaded. Overwriting...`,
+                });
+            }
+        }
+
+        const node: ResourceGraph.Node.File = {
+            eType: 'file',
+            path,
+        };
+
+        this.resourceGraph.addResource(normalizedUri, node);
+
+        this.log({
+            eType: 'LoadFile',
+
+            uri: normalizedUri,
+            path
+        });
+    }
+
     /** returns observable with each resource that is processed as a result of this one */
-    public processResource(uri: HAL.Uri, prevUris?: HAL.Uri[] ): Observable<{uri: HAL.Uri, resource: ExtendedResource}> {
+    public processResource(uri: HAL.Uri, prevUris?: HAL.Uri[] ): Observable<{uri: HAL.Uri, resource: HAL.ExtendedResource}> {
         return defer(() => {
             const startTime = hrtime.bigint();
             if(!prevUris) {
@@ -221,6 +257,29 @@ export class HypermediaEngine {
                 return of({uri: normalizedUri, resource: {}});
             }
 
+            if(node.eType === 'file') {
+                // when processing a file, just process the dependencies
+                const endTime = hrtime.bigint();
+                this.log({
+                    eType: 'ProcessResource',
+                    duration: Number(endTime - startTime)/1000000,
+                    edges: this.resourceGraph.graph.nodeEdges(normalizedUri) as unknown as ResourceGraph.Edge[],
+                    uri: normalizedUri,
+                    resource: {path: node.path},
+                    processors: []
+                });
+
+                const dependentResourceObservables = (this.resourceGraph.graph.nodeEdges(normalizedUri) as unknown as Edge[])
+                    .filter(({v}) => v !== normalizedUri)
+                    .map(({v}) => this.processResource(v, prevUris!.concat(normalizedUri)));
+
+
+                return concat(
+                    of({uri: normalizedUri, resource: {path: node.path}}),
+                    merge(...dependentResourceObservables)
+                );
+            }
+
             // reset
             this.resourceGraph.resetDependencies(normalizedUri);
             const resourceCopy = JSON.parse(JSON.stringify(node.originalResource));
@@ -228,7 +287,7 @@ export class HypermediaEngine {
             // track processors used for debugging
             const processorsExecuted: Processor[] = [];
 
-            const executeLocalProcessors = (resource: ExtendedResource): Observable<ExtendedResource> => {
+            const executeLocalProcessors = (resource: HAL.ExtendedResource): Observable<HAL.ExtendedResource> => {
                 if(!resource._processors || resource._processors.length === 0) {
                     return of(resource);
                 }
@@ -247,7 +306,7 @@ export class HypermediaEngine {
                 );
             };
 
-            const executeGlobalProcessors = (resource: ExtendedResource, processors: Processor[]): Observable<ExtendedResource> => {
+            const executeGlobalProcessors = (resource: HAL.ExtendedResource, processors: Processor[]): Observable<HAL.ExtendedResource> => {
                 if(processors.length === 0) {
                     return of(resource);
                 }
@@ -298,11 +357,11 @@ export class HypermediaEngine {
         });
     }
 
-    public processAllResources(): Observable<ExtendedResource> {
+    public processAllResources(): Observable<HAL.ExtendedResource> {
         return merge(...this.resourceGraph.graph.sources().map((uri) => this.processResource(uri)));
     }
 
-    protected executeProcessor(processor: Processor, uri: HAL.Uri, resource: ExtendedResource): Observable<ExtendedResource> {
+    protected executeProcessor(processor: Processor, uri: HAL.Uri, resource: HAL.ExtendedResource): Observable<HAL.ExtendedResource> {
         const processorDefinition = this.processorDefinitions.get(processor.name);
         if(!processorDefinition) {
             this.log({
@@ -338,7 +397,7 @@ export class HypermediaEngine {
         const markDirty: ResourceState['markDirty'] = (markUri, template) => {
             let loadedResource = false;
             if(template && !this.resourceGraph.getResource(markUri)) {
-                let newResource: ExtendedResource | undefined = {};
+                let newResource: HAL.ExtendedResource | undefined = {};
 
                 if(typeof template === 'string') {
                     // TODO: originalResource isn't updated when the resource providing the template changes
@@ -370,9 +429,9 @@ export class HypermediaEngine {
             logger,
             processor,
             markDirty,
-            execProcessor: (p, r?: ExtendedResource) => {
+            execProcessor: (p, r?: HAL.ExtendedResource) => {
                 const processors = Array.isArray(p)? p: [p];
-                return processors.reduce<Promise<ExtendedResource>>((execPromise, processor) => {
+                return processors.reduce<Promise<HAL.ExtendedResource>>((execPromise, processor) => {
                     if(!processor || !processor.name) {
                         throw new Error(`invalid processor: ${processor}`);
                     }
@@ -386,6 +445,28 @@ export class HypermediaEngine {
                 const normalizedDependencyUri = normalizeUri(dependencyUri);
 
                 const r = this.resourceGraph.getResource(normalizedDependencyUri);
+                // add the dependency, even if the target node doesn't exist yet
+                // this allows processors to trigger if the dependency is loaded later
+                // TODO: find a way to suppress processor errors that occur because of this?
+                const result = this.resourceGraph.addDependency(uri, normalizedDependencyUri, processor);
+                if(r) {
+                    if(result) {
+                        this.log({
+                            eType: 'AddDependency',
+
+                            v: uri,
+                            w: normalizedDependencyUri,
+                            processor: processor.name,
+                        });
+                    }
+                }
+
+                return r;
+            },
+            getFile: (dependencyUri: HAL.Uri) => {
+                const normalizedDependencyUri = normalizeUri(dependencyUri);
+
+                const r = this.resourceGraph.getFile(normalizedDependencyUri);
                 // add the dependency, even if the target node doesn't exist yet
                 // this allows processors to trigger if the dependency is loaded later
                 // TODO: find a way to suppress processor errors that occur because of this?
@@ -501,7 +582,7 @@ export class HypermediaEngine {
     //     };
     // }
 
-    // protected markDirtyFactory(dependentUri: HAL.Uri, processor: Processor): (uri: HAL.Uri | HAL.Uri[], template?: string | ExtendedResource) => void {
+    // protected markDirtyFactory(dependentUri: HAL.Uri, processor: Processor): (uri: HAL.Uri | HAL.Uri[], template?: string | HAL.ExtendedResource) => void {
     //     return (uri, template) => {
     //         return (Array.isArray(uri)?
     //             uri:
