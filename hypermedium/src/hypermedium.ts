@@ -1,3 +1,4 @@
+import * as Url from 'url';
 import * as Process from 'process';
 import * as fs from 'fs-extra';
 import * as fsPromises from 'fs/promises';
@@ -13,6 +14,7 @@ import { HypermediaEngine, ResourceGraph } from './hypermedia-engine';
 import { WatchEvent, matchesFullExtension } from './util';
 import { Module } from './plugin';
 import { PluginManager } from './plugin-manager';
+import * as HAL from './hal';
 
 /** sets up the hypermedia engine, html renderer, and build system
  */
@@ -25,6 +27,8 @@ export class Hypermedium {
 
     public mainModule?: Module.Instance;
 
+    /** stores the computed context for each module */
+    public siteContexts: Map<string, {[property: string]: any}>
     protected pluginFileEvent$: Subject<Observable<WatchEvent>>;
     // public watchEvent$: Observable<WatchEvent>;
 
@@ -42,7 +46,9 @@ export class Hypermedium {
 
         this.build = new BuildManager(Process.cwd());
 
+        this.siteContexts = new Map();
         this.pluginFileEvent$ = new Subject();
+
         // this.watchEvent$ = this.pluginFileEvent$.pipe(
             // mergeAll()
         // );
@@ -177,21 +183,35 @@ export class Hypermedium {
                                             // load resource
                                             return from(fs.readFile(moduleEvent.path, 'utf-8')).pipe(
                                                 mergeMap((fileContents) => {
-                                                    try {
+                                                    // try {
                                                         this.hypermedia.loadResource(moduleEvent.uri, JSON.parse(fileContents), 'fs');
-                                                        return this.hypermedia.processResource(moduleEvent.uri);
-                                                    }
-                                                    catch(error) {
-                                                        // if we failed to parse as json and the file is supposed to be json, it's probably a user error
-                                                        if(Path.extname(moduleEvent.path) === '.json') {
-                                                            throw error;
-                                                        }
+                                                        return this.hypermedia.processResource(moduleEvent.uri).pipe(
+                                                            tap(() => {
+                                                                const baseUri = moduleInstance.module.hypermedia?.baseUri != null?
+                                                                    moduleInstance.module.hypermedia.baseUri:
+                                                                    '/';
+                                                                const contextUri = typeof moduleInstance.module.renderer?.context === 'string'?
+                                                                    Url.resolve(baseUri, moduleInstance.module.renderer.context):
+                                                                    undefined;
+                                                                if(contextUri === moduleEvent.uri) {
+                                                                    const resource = this.hypermedia.resourceGraph.getResource(contextUri) || {};
+                                                                    const context = moduleNamespace?
+                                                                        {[moduleNamespace]: resource}:
+                                                                        resource;
 
-                                                        // TODO: it probably doesn't make a lot of sense to "wrap" files as resources. will cause issues with encodings (e.g. binary)
-                                                        // there should be a different loadResource style function and filetype info should be added to resource nodes
-                                                        this.hypermedia.loadResource(moduleEvent.uri, {contents: fileContents, _links: {profile: {href:'/schema/file'}}}, 'fs-c');
-                                                        return this.hypermedia.processResource(moduleEvent.uri);
-                                                    }
+                                                                    this.siteContexts.set(moduleInstance.name, context);
+                                                                    this.renderer.siteContext = this.computeContext();
+                                                                }
+                                                            })
+                                                        );
+                                                    // }
+                                                    // catch(error) {
+                                                        // if we failed to parse as json and the file is supposed to be json, it's probably a user error
+                                                        // if(Path.extname(moduleEvent.path) === '.json') {
+                                                            // throw error;
+                                                        // }
+
+                                                    // }
                                                 })
                                             );
                                         case 'unlink':
@@ -242,12 +262,24 @@ export class Hypermedium {
                                     this.renderer.setProfileLayout(moduleEvent.profile, moduleEvent.uri);
                                     return EMPTY;
                                 case 'context-changed':
-                                    if(moduleNamespace) {
-                                        this.renderer.siteContext = Object.assign(this.renderer.siteContext, {[moduleNamespace]: moduleEvent.context});
+                                    let baseContext = moduleInstance.module.renderer?.context || {};
+                                    if(typeof baseContext === 'string') {
+                                        // use the resource at the url as the context
+                                        const baseUri = moduleInstance.module.hypermedia?.baseUri != null?
+                                            moduleInstance.module.hypermedia.baseUri:
+                                            '/';
+                                        const contextUri = Url.resolve(baseUri, baseContext);
+                                        baseContext = this.hypermedia.resourceGraph.getResource(contextUri) || {};
                                     }
-                                    else {
-                                        this.renderer.siteContext = Object.assign(this.renderer.siteContext, moduleEvent.context);
-                                    }
+
+                                    this.siteContexts.set(moduleInstance.name, baseContext);
+                                    const context = moduleNamespace?
+                                        {[moduleNamespace]: baseContext}:
+                                        baseContext;
+
+                                    this.siteContexts.set(moduleInstance.name, context);
+                                    this.renderer.siteContext = this.computeContext();
+
                                     return EMPTY;
                             }
 
@@ -271,6 +303,13 @@ export class Hypermedium {
                 );
             })
         );
+    }
+
+    public computeContext(): HAL.ExtendedResource {
+        return Array.from(this.siteContexts.values()).reduce((result, ctx) => {
+            return Object.assign(result, ctx);
+        }, {});
+
     }
 
     /** output resources as rendered HTML */

@@ -79,8 +79,9 @@ export type Module = Partial<{
         partialPaths: string[];
         handlebarsHelpers: {[name: string]: HelperDelegate};
         profileLayouts: ProfileLayoutMap;
-        /** every property in this object is assigned to the handlebars context object */
-        context: {[property: string]: any};
+        /** every property in this object is assigned to the handlebars context object
+            * if the value is a string, it is the url of a local resource, which is used as the context */
+        context: {[property: string]: any} | string;
     }>;
 
     build: Partial<{
@@ -200,7 +201,7 @@ export namespace Module {
 
             export interface ContextChanged extends Base {
                 eType: 'context-changed';
-                context: {[property: string]: any};
+                context: {[property: string]: any} | string;
             }
         }
 

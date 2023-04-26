@@ -78,23 +78,7 @@ const demoPlugin = {
 				profileLayouts: {
 					'/schema/welcome-page': 'layouts/welcome-page.hbs',
 				},
-				context: {
-					title: 'hypermedium demo',
-					navLinks: {
-						"author": {
-							"href": "/about",
-							"title": "About"
-						},
-						"fs:posts": {
-							"href": "/posts",
-							"title": "Posts"
-						},
-						"fs:tags": {
-							"href": "/tags",
-							"title": "Tags"
-						}
-					}
-				}
+				context: '/site.json'
 			},
 			build: {
 				buildSteps: {
