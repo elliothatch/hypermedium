@@ -153,6 +153,8 @@ export function getProperty(obj: any, propertyName?: PropertyPath): any {
 
 /**
  * returns all instances of a property, searching all values in any arrays in the property chain
+* for example. matchProperty({items: [{name: 'a'}, {name: 'b'}]}, 'items.name') returns ['a', 'b']
+* }
  */
 export function matchProperty(obj: any, propertyName: PropertyPath): any[] {
     if(!obj) {
@@ -214,6 +216,38 @@ export function normalizeUri(uri: Hal.Uri): Hal.Uri {
         return uri + suffix;
     }
     return uri;
+}
+
+/** returns an object containing only the properties listed in 'properties' */
+export function pickProperties<T extends {[key: string]: any}>(target: T, properties: PropertyPath[]): Partial<T> {
+
+    properties.reduce((result, property) => {
+        setProperty(result, property, getProperty(target, property));
+        return result;
+    }, {});
+    return target;
+}
+
+/** recursively merge two objects. source values overwrite target values
+* arrays are overwritten rather than merged. */
+export function mergeObjects<T extends {[key: string]: any}, U extends {[key: string]: any}>(target: T, source: U): T & U {
+    Array.from(Object.entries(source)).forEach(([key, value]) => {
+        if(typeof value !== 'object' || Array.isArray(value)) {
+            target[key as keyof T & U] = value;
+            return;
+        }
+
+        if(typeof target[key] !== 'object' || Array.isArray(target[key])) {
+            // target value is not an object, overwite it with the object
+            target[key as keyof T & U] = value;
+            return;
+        }
+
+        // both values are objects, merge
+        mergeObjects(target[key], value);
+    });
+
+    return target as T & U;
 }
 
 // TODO: what is the purpose of this

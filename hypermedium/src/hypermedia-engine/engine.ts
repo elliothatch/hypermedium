@@ -78,6 +78,13 @@ import { Logger, Serializer} from 'freshlog';
 
 // TODO: maybe it would make sense to mark certain resources as "deferred" so they only get processed after a moment of inactivity. prevents state resources (e.g. index) from being processed every time a new resource is loaded during the initial filesystem walk
 
+// rethinking the processor state again...
+// some processors need intermediate state. it's also useful to have processors that maintain some kind of "output" resource that can be easily accessed by pages.
+// the problem is in framing this class of operations as a "processor" at all. a processor shouldn't have state, it should just be a simple, functional transformation of a resource.
+// instead, what we need is a "dynamic" resource object.
+// dynamic resources are not part of the resource/processor system at all. they exist outside, manage their state themselves (in memory or otherwise), and can be triggered by internal events (resource-change/add/remove) and external events (timer, html hook, etc.)
+// crucially, dynamic resources produce one or more resources, computed from their state (rather than using the resource as their state). they are always a sink on the dependency graph, having no dependencies. they can still have procesors applied after they are changed
+
 export class HypermediaEngine {
     public router: Router;
     public resourceGraph: ResourceGraph;
