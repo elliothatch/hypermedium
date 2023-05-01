@@ -1,10 +1,12 @@
-{{#if title}}<h1>{{title}}</h1>{{/if}}
-{{#if body}}<p>{{body}}</p>{{/if}}
+{{#if headline}}<h1>{{headline}}</h1>
+{{else if name}}<h1>{{name}}</h1>{{/if}}
+{{#if articleBody}}<p>{{articleBody}}</p>
+{{else if description}}<p>{{description}}</p>{{/if}}
 
 <div class="container">
 	{{#each this}}
 	<div>
-		{{#unless (or (or (eq @key 'title') (eq @key 'body')) (and (startsWith @key '_') (not (eq @key '_embedded'))))}}
+		{{#unless (or (or (eq @key 'name') (eq @key 'description')) (and (startsWith @key '_') (not (eq @key '_embedded'))))}}
 			<h2>{{@key}}</h2>
 			{{#if (eq (typeof this) 'object')}}
 				{{> includes/json-object.hbs this}}
@@ -14,21 +16,4 @@
 		{{/unless}}
 	</div>
 	{{/each}}
-
-	<h3>Links:</h3>
-	<ul>
-		{{#each _links}}
-			{{#unless (eq @key 'self')}}
-			<li><h4>{{@key}}</h4><ul>
-				{{#if (isArray this)}}
-				{{#each this}}
-				<li>{{hal-link @../key this}}</li>
-				{{/each}}
-				{{else}}
-				<li>{{hal-link @key this}}</li>
-				{{/if}}
-		</li></ul>
-	{{/unless}}
-		{{/each}}
-	</ul>
 </div>

@@ -1,5 +1,5 @@
 import * as fs from 'fs-extra';
-import { Build, HalUtil } from 'hypermedium';
+import { Build, } from 'hypermedium';
 
 export const taskDefinitions: Build.TaskDefinition[] = [{
     name: 'clean',

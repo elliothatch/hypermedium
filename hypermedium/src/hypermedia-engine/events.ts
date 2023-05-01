@@ -1,4 +1,4 @@
-import * as HAL from '../hal';
+import * as JsonLD from '../json-ld';
 
 import { ResourceGraph } from './resource-graph';
 import { Processor } from './processor';
@@ -23,35 +23,35 @@ export namespace Event {
 
         /** execution time in milliseconds */
         duration: number;
-        uri: HAL.Uri;
+        uri: JsonLD.IRI;
         edges: ResourceGraph.Edge[];
-        resource: HAL.ExtendedResource;
+        resource: JsonLD.Document;
         processors: Processor[];
     }
 
     export interface ProcessResourceStart {
         eType: 'ProcessResourceStart';
 
-        uri: HAL.Uri;
+        uri: JsonLD.IRI;
     }
 
     export interface LoadResource {
         eType: 'LoadResource';
 
-        uri: HAL.Uri;
-        resource: HAL.Resource;
+        uri: JsonLD.IRI;
+        resource: JsonLD.Document;
     }
 
     export interface UnloadResource {
         eType: 'UnloadResource';
 
-        uri: HAL.Uri;
+        uri: JsonLD.IRI;
     }
 
     export interface LoadFile {
         eType: 'LoadFile';
 
-        uri: HAL.Uri;
+        uri: JsonLD.IRI;
         path: string;
     }
 
@@ -68,7 +68,7 @@ export namespace Event {
     export interface ProcessorError {
         eType: 'ProcessorError';
 
-        uri: HAL.Uri;
+        uri: JsonLD.IRI;
         error: Error;
     }
 
@@ -88,12 +88,12 @@ export namespace Event {
         eType: 'DynamicResourceError';
         error: Error;
         dynamicResource: DynamicResource,
-        uri?: HAL.Uri;
+        uri?: JsonLD.IRI;
     }
 
     export interface DynamicResourceLog {
         eType: 'DynamicResourceLog';
         log: any;
-        uri?: HAL.Uri;
+        uri?: JsonLD.IRI;
     }
 }

@@ -1,16 +1,16 @@
 <article>
 	<header>
 		<div class="headline">
-			<h1>{{title}}</h1>
+			<h1>{{coalesce headline name}}</h1>
 			<div class="byline">
-				{{#if author}}<div>by <span class="author">{{author}}</span></div>{{/if}}
-				{{#if date-created}}{{datetime date-created}}{{/if}}
+				{{#if author}}<div>by <span class="author">{{coalese author creator}}</span></div>{{/if}}
+				{{#if date-created}}{{datetime (coalese datePublished dateCreated)}}{{/if}}
 			</div>
 		</div>
 		<h2>{{description}}</h2>
 	</header>
 	<main>
-		{{{body}}}
+		{{{articleBody}}}
 	</main>
 	<footer>
 		<div>

@@ -8,9 +8,8 @@ import { NextFunction, Router, Request, Response } from 'express';
 
 import { Edge } from 'graphlib';
 
-import * as HAL from '../hal';
-import * as HalUtil from '../hal-util';
-import { normalizeUri } from '../hal-util';
+import * as JsonLD from '../json-ld';
+import * as JsonLDUtil from '../json-ld-util';
 
 import { ResourceGraph, DynamicResourceData } from './resource-graph'
 import { Processor, ResourceState } from './processor';
@@ -120,7 +119,7 @@ export class HypermediaEngine {
         });
     }
 
-    public executeDynamicResourceCallback(resourceData: DynamicResourceData, callbackData: {cType: 'init'} | {cType: 'resource' | 'node', callbackName: 'onAdd' | 'onProcess' | 'onDelete', uri: HAL.Uri}) { 
+    public executeDynamicResourceCallback(resourceData: DynamicResourceData, callbackData: {cType: 'init'} | {cType: 'resource' | 'node', callbackName: 'onAdd' | 'onProcess' | 'onDelete', uri: JsonLD.IRI}) { 
         return defer(() => {
             if((callbackData.cType === 'init' && !resourceData.definition.init)
                 || callbackData.cType === 'resource' && !resourceData.definition.resourceEvents?.[callbackData.callbackName]
@@ -131,12 +130,12 @@ export class HypermediaEngine {
 
             const loggerMiddleware: LoggerMiddleware = callbackData.cType === 'init'?
                 (obj) => {
-                    HalUtil.setProperty(obj, 'dynamicResource', resourceData.dynamicResource);
+                    JsonLDUtil.setProperty(obj, 'dynamicResource', resourceData.dynamicResource);
                     return obj;
                 }: 
                 (obj) => {
-                    HalUtil.setProperty(obj, 'dynamicResource', resourceData.dynamicResource);
-                    HalUtil.setProperty(obj, 'uri', callbackData.uri);
+                    JsonLDUtil.setProperty(obj, 'dynamicResource', resourceData.dynamicResource);
+                    JsonLDUtil.setProperty(obj, 'uri', callbackData.uri);
                     return obj;
                 };
 
@@ -193,8 +192,8 @@ export class HypermediaEngine {
     }
 
     /** load a file as a hypermedia resource */
-    public loadResource(uri: HAL.Uri, resource: HAL.ExtendedResource, dynamic?: DynamicResourceData): ResourceGraph.Node.Resource {
-        const normalizedUri = normalizeUri(uri);
+    public loadResource(uri: JsonLD.IRI, resource: JsonLD.Document, dynamic?: DynamicResourceData): ResourceGraph.Node.Resource {
+        const normalizedUri = JsonLDUtil.normalizeUri(uri);
         if(this.resourceGraph.graph.hasNode(normalizedUri)) {
             if(this.resourceGraph.graph.node(normalizedUri)) {
                 // if hasNode returns true but the node is undefined, it was only created as a placeholder for a dependency, so we don't need to show a warning
@@ -238,9 +237,9 @@ export class HypermediaEngine {
         return node;
     }
 
-    public unloadResource(uri: HAL.Uri): ResourceGraph.Node | undefined {
+    public unloadResource(uri: JsonLD.IRI): ResourceGraph.Node | undefined {
         // TODO: the way we mix files and resources in the resource graph is kind of half baked. the naming is confusing. why do we unload a "loadFile" with "unloadResource", etc.
-        const normalizedUri = normalizeUri(uri);
+        const normalizedUri = JsonLDUtil.normalizeUri(uri);
         const resource = this.resourceGraph.graph.node(normalizedUri);
         this.resourceGraph.graph.removeNode(normalizedUri);
 
@@ -267,8 +266,8 @@ export class HypermediaEngine {
         return resource;
     }
 
-    public loadFile(uri: HAL.Uri, path: string): void {
-        const normalizedUri = normalizeUri(uri);
+    public loadFile(uri: JsonLD.IRI, path: string): void {
+        const normalizedUri = JsonLDUtil.normalizeUri(uri);
         if(this.resourceGraph.graph.hasNode(normalizedUri)) {
             if(this.resourceGraph.graph.node(normalizedUri)) {
                 // if hasNode returns true but the node is undefined, it was only created as a placeholder for a dependency, so we don't need to show a warning
@@ -296,14 +295,14 @@ export class HypermediaEngine {
     }
 
     /** returns observable with each resource that is processed as a result of this one */
-    public processResource(uri: HAL.Uri, prevUris?: HAL.Uri[] ): Observable<{uri: HAL.Uri, resource: HAL.ExtendedResource}> {
+    public processResource(uri: JsonLD.IRI, prevUris?: JsonLD.IRI[] ): Observable<{uri: JsonLD.IRI, resource: JsonLD.Document}> {
         return defer(() => {
             const startTime = hrtime.bigint();
             if(!prevUris) {
                 prevUris = [];
             }
 
-            const normalizedUri = normalizeUri(uri);
+            const normalizedUri = JsonLDUtil.normalizeUri(uri);
 
             if(prevUris.includes(normalizedUri)) {
                 const cycle = prevUris.concat(uri);
@@ -363,7 +362,7 @@ export class HypermediaEngine {
             // track processors used for debugging
             const processorsExecuted: Processor[] = [];
 
-            const executeLocalProcessors = (resource: HAL.ExtendedResource): Observable<HAL.ExtendedResource> => {
+            const executeLocalProcessors = (resource: JsonLD.Document): Observable<JsonLD.Document> => {
                 if(!resource._processors || resource._processors.length === 0) {
                     return of(resource);
                 }
@@ -382,7 +381,7 @@ export class HypermediaEngine {
                 );
             };
 
-            const executeGlobalProcessors = (resource: HAL.ExtendedResource, processors: Processor[]): Observable<HAL.ExtendedResource> => {
+            const executeGlobalProcessors = (resource: JsonLD.Document, processors: Processor[]): Observable<JsonLD.Document> => {
                 if(processors.length === 0) {
                     return of(resource);
                 }
@@ -442,11 +441,11 @@ export class HypermediaEngine {
         });
     }
 
-    public processAllResources(): Observable<HAL.ExtendedResource> {
+    public processAllResources(): Observable<JsonLD.Document> {
         return merge(...this.resourceGraph.graph.sources().map((uri) => this.processResource(uri)));
     }
 
-    protected executeProcessor(processor: Processor, uri: HAL.Uri, resource: HAL.ExtendedResource): Observable<HAL.ExtendedResource> {
+    protected executeProcessor(processor: Processor, uri: JsonLD.IRI, resource: JsonLD.Document): Observable<JsonLD.Document> {
         const processorDefinition = this.processorDefinitions.get(processor.name);
         if(!processorDefinition) {
             this.log({
@@ -459,8 +458,8 @@ export class HypermediaEngine {
 
         const logger = new Logger({
             middleware: [{ mw: (obj) => {
-                HalUtil.setProperty(obj, 'processor', processor);
-                HalUtil.setProperty(obj, 'uri', uri);
+                JsonLDUtil.setProperty(obj, 'processor', processor);
+                JsonLDUtil.setProperty(obj, 'uri', uri);
                 return obj;
             }, levels: true }],
             serializer: Serializer.identity,
@@ -482,9 +481,9 @@ export class HypermediaEngine {
             uri,
             logger,
             processor,
-            execProcessor: (p, r?: HAL.ExtendedResource) => {
+            execProcessor: (p, r?: JsonLD.Document) => {
                 const processors = Array.isArray(p)? p: [p];
-                return processors.reduce<Promise<HAL.ExtendedResource>>((execPromise, processor) => {
+                return processors.reduce<Promise<JsonLD.Document>>((execPromise, processor) => {
                     if(!processor || !processor.name) {
                         throw new Error(`invalid processor: ${processor}`);
                     }
@@ -494,8 +493,8 @@ export class HypermediaEngine {
                 }, Promise.resolve(r || resource));
 
             },
-            getResource: (dependencyUri: HAL.Uri) => {
-                const normalizedDependencyUri = normalizeUri(dependencyUri);
+            getResource: (dependencyUri: JsonLD.IRI) => {
+                const normalizedDependencyUri = JsonLDUtil.normalizeUri(dependencyUri);
 
                 const r = this.resourceGraph.getResource(normalizedDependencyUri);
                 // add the dependency, even if the target node doesn't exist yet
@@ -516,8 +515,8 @@ export class HypermediaEngine {
 
                 return r;
             },
-            getFile: (dependencyUri: HAL.Uri) => {
-                const normalizedDependencyUri = normalizeUri(dependencyUri);
+            getFile: (dependencyUri: JsonLD.IRI) => {
+                const normalizedDependencyUri = JsonLDUtil.normalizeUri(dependencyUri);
 
                 const r = this.resourceGraph.getFile(normalizedDependencyUri);
                 // add the dependency, even if the target node doesn't exist yet

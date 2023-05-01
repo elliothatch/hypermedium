@@ -4,14 +4,14 @@
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width, initial-scale=1">
 		<meta http-equiv="X-UA-Compatible" content="IE=Edge">
-		<title>{{#if title}}{{title}} | {{/if}}{{_site.title}}</title>
+		<title>{{#if name}}{{name}} | {{/if}}{{_site.name}}</title>
 		<meta name="viewport" content="width=device-width">
 
 		{{#> includes/head.hbs }}
 			<!-- no head.hbs found -->
 		{{/ includes/head.hbs }}
 	</head>
-	<body class="{{join (map-pick 'href' (getProfiles this)) " "}}">
+	<body class="{{join (getTypes this) " "}}">
 		<script>
 			if(!window.hypermedium) {
 				window.hypermedium = {};

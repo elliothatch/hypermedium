@@ -7,7 +7,7 @@ import { map, mergeMap, catchError, takeUntil } from 'rxjs/operators';
 
 import * as chokidar from 'chokidar';
 
-import * as HAL from './hal';
+import * as JsonLD from './json-ld';
 
 export type FileProcessor<T> = (filePath: string, relativeUri: string, fileContents: string) => T;
 
@@ -51,7 +51,7 @@ export class ProcessFileError extends Error {
 // export namespace Schema {
     /** describes the type of a value in a JSON object
      * the value may be the URI of another schema */
-export type Schema = 'string' | 'number' | 'array' | 'null' | 'undefined' | HAL.Uri | {[prop: string]: Schema };
+export type Schema = 'string' | 'number' | 'array' | 'null' | 'undefined' | JsonLD.IRI | {[prop: string]: Schema };
 // }
 
 export function createSchema(target: any): Schema {

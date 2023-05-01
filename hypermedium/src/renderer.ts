@@ -16,8 +16,8 @@ import { NextFunction, Router, Request, Response } from 'express';
 import * as Handlebars from 'handlebars';
 
 import { HypermediaEngine } from './hypermedia-engine';
-import * as HAL from './hal';
-import { expandCuri, getProfiles, htmlUri, normalizeUri } from './hal-util';
+import * as JsonLD from './json-ld';
+import * as JsonLDUtil from './json-ld-util';
 import { File } from './util';
 
 export type Html = string;
@@ -30,7 +30,7 @@ export type TemplateMap = {[uri: string]: Handlebars.TemplateDelegate};
 // maps a partial uri to the string content partial
 export type PartialMap = {[uri: string]: string};
 // maps resource 'profile' Uris to layout partial Uris
-export type ProfileLayoutMap = {[uri: string]: HAL.Uri};
+export type ProfileLayoutMap = {[uri: string]: JsonLD.IRI};
 
 /** list of objects that map an express.js router path glob to a template URI
  * paths are applied to the router in order from beginning to end.
@@ -57,7 +57,7 @@ export class HtmlRenderer {
     // template paths are grouped into a router so we can add more paths dynamically and still have the fallback template last
     public templateRouter: Router;
 
-    public defaultTemplate: HAL.Uri;
+    public defaultTemplate: JsonLD.IRI;
     public siteContext: object;
 
     public events: Observable<HtmlRenderer.Event>;
@@ -104,7 +104,7 @@ export class HtmlRenderer {
     /** recursively load partials
      * deprecated
      * */
-    // public loadPartials(partialsPath: string, uriPrefix?: HAL.Uri): Promise<PartialMap> {
+    // public loadPartials(partialsPath: string, uriPrefix?: JsonLD.IRI): Promise<PartialMap> {
     //     return walkDirectory(
     //         partialsPath,
     //         (filePath: string, uri: string, fileContents: string) => {
@@ -137,7 +137,7 @@ export class HtmlRenderer {
      * @param partialsPath - path to the partials directory in the file system
      * @param relativeUri - this prefix is prepended to the URI that all partials are mapped to
      */
-    // public loadTemplates(templatesPath: string, uriPrefix?: HAL.Uri): Promise<TemplateMap> {
+    // public loadTemplates(templatesPath: string, uriPrefix?: JsonLD.IRI): Promise<TemplateMap> {
     //     return walkDirectory(
     //         templatesPath,
     //         (filePath: string, uri: string, fileContents: string) => {
@@ -177,7 +177,7 @@ export class HtmlRenderer {
     /**
      * @param uri - used only for logging
      */
-    public render(resource: HAL.ExtendedResource, templateUri: string, uri?: HAL.Uri): Html {
+    public render(resource: JsonLD.Document, templateUri: string, uri?: JsonLD.IRI): Html {
         // let links: Html.Link[] = [];
         // if(resource._links) {
         //     links = Object.keys(resource._links).reduce((l: Html.Link[], rel) => {
@@ -190,9 +190,9 @@ export class HtmlRenderer {
 
         // use the first layout found
         // TODO: match layout with path-to-regexp
-        const layout: HAL.Uri | undefined = getProfiles(resource).reduce((layout, profile) => {
-            return layout || this.profileLayouts[profile.href];
-        }, undefined as HAL.Uri | undefined);
+        const layout: JsonLD.IRI | undefined = JsonLDUtil.getTypes(resource).reduce((layout, ldType) => {
+            return layout || (ldType && this.profileLayouts[ldType]);
+        }, undefined as JsonLD.IRI | undefined);
         const context = Object.assign({}, {
             _site: Object.assign({}, this.siteContext, {layout}),
         },
@@ -219,14 +219,10 @@ export class HtmlRenderer {
         }
     }
 
-    public renderLink(rel: HAL.Uri, link: HAL.Link): Html.Link {
-        return `<a rel=${rel} href=${link.href}>${link.title || rel}</a>`;
-    }
-
     /** if templateUri is empty or undefined, use the default template */
     protected middleware = (templateUri?: string) => (req: Request, res: Response, next: NextFunction) => {
         const suffix = '.json';
-        if(Path.extname(req.url) === suffix || req.headers.accept === "application/hal+json") {
+        if(Path.extname(req.url) === suffix || req.headers.accept === "application/ld+json" || req.headers.accept === "application/json") {
             return next();
         }
 
@@ -243,7 +239,7 @@ export class HtmlRenderer {
 export namespace HtmlRenderer {
     export interface Options {
         hypermedia: HypermediaEngine;
-        defaultTemplate?: HAL.Uri;
+        defaultTemplate?: JsonLD.IRI;
         /** provides dynamic context data that can be accessed in partials as the "_site" object
          * e.g. providing the object {title: "hypermedium"} allows you to use {{_site.title}} in a partial to display "hypermedium"
          * WARNING: if the underlying HAL resource contains a "_site" property on the root object, it will override these values
@@ -258,9 +254,9 @@ export namespace HtmlRenderer {
     export namespace Event {
         export interface RenderResource {
             eType: 'render-resource';
-            uri?: HAL.Uri;
+            uri?: JsonLD.IRI;
 
-            context: HAL.ExtendedResource;
+            context: JsonLD.Document;
             html: Html;
         }
     }

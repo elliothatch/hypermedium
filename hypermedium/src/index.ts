@@ -1,6 +1,6 @@
 /** core types and libraries */
 export * as Build from './build';
-export * as Hal from './hal';
+export * as JsonLD from './json-ld';
 export * from './plugin';
 
 /** core utilities */
@@ -9,7 +9,7 @@ export * from './hypermedia-engine';
 export * from './renderer';
 export * from './plugin-manager';
 export * as Server from './server';
-export * as HalUtil from './hal-util';
+export * as JsonLDUtil from './json-ld-util';
 export * as Util from './util';
 
 import * as Path from 'path';

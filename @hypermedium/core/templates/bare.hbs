@@ -4,9 +4,9 @@
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width, initial-scale=1">
 		<meta http-equiv="X-UA-Compatible" content="IE=Edge">
-		<title>{{#if title}}{{title}} | {{/if}}{{_site.title}}</title>
+		<title>{{#if name}}{{name}} | {{/if}}{{_site.name}}</title>
 	</head>
-	<body>
+	<body class="{{join (map-pick 'href' (getTypes this)) " "}}">
 		<main>
 			{{#> layouts/default.hbs }}
 				<!-- no layout found -->

@@ -1,6 +1,6 @@
 import { HelperDelegate, SafeString  } from 'handlebars';
 import * as Moment from 'moment';
-import { HalUtil } from 'hypermedium';
+import { JsonLDUtil } from 'hypermedium';
 
 const handlebarsHelpers: {[name: string]: HelperDelegate} = {
     'not': (lhs) => !lhs,
@@ -27,8 +27,21 @@ const handlebarsHelpers: {[name: string]: HelperDelegate} = {
 
         return Array.from({length: Math.floor(Math.abs(start-stop)/Math.abs(step))}, (x, i) => (i*step + start))
     },
-    'matchesProfile': function(profile) {
-        return HalUtil.matchesProfile(this, profile)
+    'matchesType': function(ldType) {
+        return JsonLDUtil.matchesType(this, ldType)
+    },
+    /** creates a link from a json-ld object */
+    'link': (resource, rel, target, ...options) => {
+        if(!resource?.['@id']) {
+            throw new Error(`handlebars helper link (core): invalid link: @id was '${resource?.['@id']}'`);
+        }
+        const relHtml = typeof rel === 'string'? `rel=${rel}`: '';
+
+        if(typeof target == 'string') {
+            return new SafeString(`<a ${relHtml} href=${JsonLDUtil.htmlUri(resource['@id'])} target=${target}>${resource.headline || resource.name || resource['@id']}</a>`)
+        }
+
+            return new SafeString(`<a ${relHtml} href=${JsonLDUtil.htmlUri(resource['@id'])}>${resource.headline || resource.name || resource['@id']}</a>`)
     },
 
     /** creates a shallow copy of the object and sets/overwrites top-level properties with the provided values */
@@ -42,9 +55,8 @@ const handlebarsHelpers: {[name: string]: HelperDelegate} = {
 		// return options.fn(Object.assign(Object.assign({}, this), JSON.parse(context)));
 	// },
     'json-stringify': (val) => new SafeString(JSON.stringify(val)),
-    'html-uri': HalUtil.htmlUri,
-    'expandCuri': HalUtil.expandCuri,
-    'getProfiles': HalUtil.getProfiles,
+    'html-uri': JsonLDUtil.htmlUri,
+    'getTypes': JsonLDUtil.getTypes,
     'datetime': (dateStr, formatStr) => {
         const format = (formatStr && typeof formatStr === 'string')?
             formatStr:
@@ -54,35 +66,11 @@ const handlebarsHelpers: {[name: string]: HelperDelegate} = {
 		return new SafeString('<time datetime="' + date.toISOString() + '">' + date.format(format) + '</time>');
     },
     'get': (key, map) => map[key],
-    /**
-     * renders the link as an anchor tag. automatically expands curies based on the root resource. to use a different resource to resolve the curi, pass it as the third parameter
-     * TODO: this doesn't work with link arrays.
-     * TODO: add option to not use html-link shortening
-     */
-    'hal-link': (rel, link, target, ...options) => {
-        if(!link?.href) {
-            throw new Error('handlebars helper hal-link (core): invalid link');
-        }
-        // let resource = options[0];
-        // if(options.length === 1) {
-            // no resource provided, use the root resource
-            // resource = options[0].data.root;
-        // }
-
-        // const relHtml = typeof rel === 'string'? `rel=${HalUtil.expandCuri(resource, rel)}`: '';
-        const relHtml = typeof rel === 'string'? `rel=${rel}`: '';
-
-        if(typeof target == 'string') {
-            return new SafeString(`<a ${relHtml} href=${HalUtil.htmlUri(link.href)} target=${target}>${link.title || link.name || link.href}</a>`)
-        }
-
-        return new SafeString(`<a ${relHtml} href=${HalUtil.htmlUri(link.href)}>${link.title || link.name || link.href}</a>`)
-    },
     'replace': (str: string, regex: string, newValue: string) => new SafeString(str.replace(new RegExp(regex), newValue)),
     'find': (array, value, key) => {
         array = (Array.isArray(array)? array: [array])
         return array.find( (v: any) =>
-            key? HalUtil.getProperty(v, key) === value: v === value);
+            key? JsonLDUtil.getProperty(v, key) === value: v === value);
     },
     'join': (array, value) => {
         return array.join(value)

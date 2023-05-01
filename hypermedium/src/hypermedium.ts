@@ -14,7 +14,7 @@ import { HypermediaEngine, ResourceGraph } from './hypermedia-engine';
 import { WatchEvent, matchesFullExtension } from './util';
 import { Module } from './plugin';
 import { PluginManager } from './plugin-manager';
-import * as HAL from './hal';
+import * as JsonLD from './json-ld';
 
 /** sets up the hypermedia engine, html renderer, and build system
  */
@@ -311,7 +311,7 @@ export class Hypermedium {
         );
     }
 
-    public computeContext(): HAL.ExtendedResource {
+    public computeContext(): JsonLD.Document {
         return Array.from(this.siteContexts.values()).reduce((result, ctx) => {
             return Object.assign(result, ctx);
         }, {});

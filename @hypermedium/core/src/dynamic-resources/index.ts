@@ -1,12 +1,12 @@
-import { DynamicResource, Hal, HalUtil } from 'hypermedium';
+import { DynamicResource, JsonLD, JsonLDUtil } from 'hypermedium';
 
-type PropertyPath = HalUtil.PropertyPath;
+type PropertyPath = JsonLDUtil.PropertyPath;
 
-function createIndexResource(propertyName: string, index: Map<string, Set<Hal.Uri>>): Hal.ExtendedResource {
+function createIndexResource(propertyName: string, index: Map<string, Set<JsonLD.IRI>>): JsonLD.Document {
     const indexObj = Array.from(index.entries()).reduce((obj, [key, uris]) => {
         obj[key] = Array.from(uris);
         return obj;
-    }, {} as Record<string, Hal.Uri[]>);
+    }, {} as Record<string, JsonLD.IRI[]>);
 
     return {
         "@type": [
@@ -30,9 +30,9 @@ export const Index: DynamicResource.Definition<'index', {
     property: PropertyPath;
 }, {
         /** maps each indexed value to the set of resources that contain that value */
-        index: Map<string, Set<Hal.Uri>>;
+        index: Map<string, Set<JsonLD.IRI>>;
         /** reverse index is required to detect when indexed values are removed from a resource or when a resource is deleted, without needing to check every index */
-        reverseIndex: Map<Hal.Uri, Set<string>>;
+        reverseIndex: Map<JsonLD.IRI, Set<string>>;
     }> = {
         name: 'index',
         init: (api, options) => {
@@ -44,7 +44,7 @@ export const Index: DynamicResource.Definition<'index', {
         resourceEvents: {
             onProcess: (uri, resource, api, options) => {
                 const oldMatches = api.state.reverseIndex.get(uri) || new Set();
-                const matches = new Set(HalUtil.matchProperty(resource, options.property).map((match) => {
+                const matches = new Set(JsonLDUtil.matchProperty(resource, options.property).map((match) => {
                     if(typeof match === 'object') {
                         return JSON.stringify(match)
                     }

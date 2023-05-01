@@ -1,8 +1,8 @@
 import * as graphlib from 'graphlib';
-import { Processor, ResourceState, HypermediaEngine, Hal, HalUtil } from 'hypermedium';
+import { Processor, ResourceState, HypermediaEngine, JsonLD, JsonLDUtil } from 'hypermedium';
 import * as fs from 'fs/promises';
 
-type PropertyPath = HalUtil.PropertyPath;
+type PropertyPath = JsonLDUtil.PropertyPath;
 
 // import { embed } from './embed';
 // import { makeIndex } from './make-index';
@@ -29,7 +29,7 @@ export namespace Core {
         Processors.Insert |
         Processors.Flatten |
         Processors.FlattenObject |
-        Processors.MatchProfile |
+        Processors.MatchType |
         Processors.Map |
         Processors.Sort |
         Processors.Excerpt;
@@ -37,7 +37,7 @@ export namespace Core {
     export namespace Processors {
         export type Link = Processor.Definition<'link', {
             property?: PropertyPath;
-            name?: Hal.Uri;
+            name?: JsonLD.IRI;
         } | undefined>;
         export type Extend = Processor.Definition<'extend', {
             obj: any,
@@ -48,7 +48,7 @@ export namespace Core {
         }>;
         export type Copy = Processor.Definition<'copy', {
             /** uri to copy from */
-            uri?: Hal.Uri;
+            uri?: JsonLD.IRI;
             /** property to use as the value for uri. if uriProperty is provided, uri is ignored */
             uriProperty?: PropertyPath;
             from: PropertyPath;
@@ -56,13 +56,13 @@ export namespace Core {
         }>;
         export type CopyState = Processor.Definition<'copyState', {
             processor: string;
-            resourcePath: Hal.Uri;
+            resourcePath: JsonLD.IRI;
             from: PropertyPath;
             to: PropertyPath;
         }>;
         /** read file at the uri and copy its contents to the resource property. default encoding: 'utf8' */
         export type CopyFile = Processor.Definition<'copyFile', {
-            uri: Hal.Uri;
+            uri: JsonLD.IRI;
             to: PropertyPath;
             encoding?: string;
         }>;
@@ -71,7 +71,7 @@ export namespace Core {
             // property: PropertyPath;
             /** rel of the embedded resource.
              * if undefined, uses last part of property path */
-            rel?: Hal.Uri;
+            rel?: JsonLD.IRI;
             pick?: PropertyPath[];
             max?: number;
         }>;
@@ -119,9 +119,8 @@ export namespace Core {
             /** the property 'toOption' will be overwritten with the value of the element in the array each iteration */
             // toOption: string;
         }>;
-        export type MatchProfile = Processor.Definition<'matchProfile', {
-            profile: Hal.Uri;
-            baseUri?: Hal.Uri;
+        export type MatchType = Processor.Definition<'matchType', {
+            ldType: JsonLD.IRI;
             processors: Processor;
         }>;
         export type Excerpt = Processor.Definition<'excerpt', {
@@ -134,40 +133,19 @@ export namespace Core {
 }
 
 export const processorDefinitions: Core.Processors[] = [{
-    name: 'link',
-    /** maps the uri to a HAL.Link by extracting data from the target resource
-     *  - uses "self" link if it exists
-     *  - otherwise, tries to scrape title, profile
-     *  */
-    onProcess: (rs, options) => {
-        // TODO: deprecate
-        const uri = HalUtil.getProperty(rs.resource, options?.property);
-        if(typeof uri !== 'string') {
-            rs.logger.warn(`skipping link: '${options?.property}' must be a string`);
-            return rs.resource;
-        }
-        const resource = rs.getResource(uri);
-        if(!resource) {
-            throw new Error(`Resource not found: ${uri}`);
-        }
-
-        rs.resource = HalUtil.setProperty(rs.resource, options?.property, HalUtil.makeLink(resource, uri, options?.name));
-        return rs.resource;
-    }
-}, {
     /** extend each resource with the properties of an object. does not overwrite existing properties unless overwrite is true */
     name: 'extend',
     onProcess: (rs, options) => {
         if(options.overwrite) {
             Object.keys(options.obj).forEach((property) => {
-                rs.resource = HalUtil.setProperty(rs.resource, property, options.obj[property]);
+                rs.resource = JsonLDUtil.setProperty(rs.resource, property, options.obj[property]);
             });
 
         }
         else {
             Object.keys(options.obj).forEach((property) => {
-                if(HalUtil.getProperty(rs.resource, property) === undefined) {
-                    rs.resource = HalUtil.setProperty(rs.resource, property, options.obj[property]);
+                if(JsonLDUtil.getProperty(rs.resource, property) === undefined) {
+                    rs.resource = JsonLDUtil.setProperty(rs.resource, property, options.obj[property]);
                 }
             });
         }
@@ -178,7 +156,7 @@ export const processorDefinitions: Core.Processors[] = [{
     /** replace an entire resource with one of its properties. usually only useful inside a 'map' processor */
     name: 'replace',
     onProcess: (rs, options) => {
-        rs.resource = HalUtil.getProperty(rs.resource, options.property);
+        rs.resource = JsonLDUtil.getProperty(rs.resource, options.property);
         return rs.resource;
     }
 }, {
@@ -188,14 +166,14 @@ export const processorDefinitions: Core.Processors[] = [{
             options.values = [options.values];
         }
 
-        const value = HalUtil.getProperty(rs.resource, options.property);
+        const value = JsonLDUtil.getProperty(rs.resource, options.property);
         if(value == undefined) {
-            rs.resource = HalUtil.setProperty(rs.resource, options.property, options.values)
+            rs.resource = JsonLDUtil.setProperty(rs.resource, options.property, options.values)
             return rs.resource;
         }
         else if(!Array.isArray(value)) {
             // make the existing value the first value in the array
-            rs.resource = HalUtil.setProperty(rs.resource, options.property, [value, ...options.values]);
+            rs.resource = JsonLDUtil.setProperty(rs.resource, options.property, [value, ...options.values]);
             return rs.resource;
         }
 
@@ -205,7 +183,7 @@ export const processorDefinitions: Core.Processors[] = [{
 }, {
     name: 'flatten',
     onProcess: (rs, options) => {
-        const value = HalUtil.getProperty(rs.resource, options?.property);
+        const value = JsonLDUtil.getProperty(rs.resource, options?.property);
         if(!Array.isArray(value)) {
             rs.logger.warn(`skipping flatten: '${options?.property || 'resource'}': must be an array, but has type ${typeof value}`);
             return rs.resource;
@@ -213,13 +191,13 @@ export const processorDefinitions: Core.Processors[] = [{
 
         const flatArray = value.reduce((array, subArray) => array.concat(subArray), []);
 
-        rs.resource = HalUtil.setProperty(rs.resource, options?.property, flatArray);
+        rs.resource = JsonLDUtil.setProperty(rs.resource, options?.property, flatArray);
         return rs.resource;
     }
 }, {
     name: 'flattenObject',
     onProcess: (rs, options) => {
-        const obj = HalUtil.getProperty(rs.resource, options?.property);
+        const obj = JsonLDUtil.getProperty(rs.resource, options?.property);
         if(typeof obj !== 'object') {
             rs.logger.warn(`skipping flattenObject: '${options?.property || 'resource'}': must be an object, but has type ${typeof obj}`);
             return rs.resource;
@@ -232,28 +210,28 @@ export const processorDefinitions: Core.Processors[] = [{
 
             if(options?.key) {
                 elements.forEach((e: any) => {
-                    HalUtil.setProperty(e, options.key, property);
+                    JsonLDUtil.setProperty(e, options.key, property);
                 });
             }
 
             return array.concat(elements)
         }, []);
 
-        rs.resource = HalUtil.setProperty(rs.resource, options?.property, flatArray);
+        rs.resource = JsonLDUtil.setProperty(rs.resource, options?.property, flatArray);
         return rs.resource;
     }
 }, {
     name: 'copy',
     onProcess: (rs, options) => {
         const resource = options.uriProperty?
-            rs.getResource(HalUtil.getProperty(options.uriProperty)):
+            rs.getResource(JsonLDUtil.getProperty(options.uriProperty)):
             options.uri?
             rs.getResource(options.uri):
             rs.resource;
 
         if(!resource) {
             if(options.uriProperty) {
-                rs.logger.error(`Resource not found: ${HalUtil.getProperty(options.uriProperty)} (from ${options.uriProperty})`);
+                rs.logger.error(`Resource not found: ${JsonLDUtil.getProperty(options.uriProperty)} (from ${options.uriProperty})`);
             }
             else {
                 rs.logger.error(`Resource not found: ${options.uri}`);
@@ -262,13 +240,13 @@ export const processorDefinitions: Core.Processors[] = [{
         }
 
         // deep clone so we don't accidentally modify the source
-        const sourceValue = HalUtil.getProperty(resource, options.from);
+        const sourceValue = JsonLDUtil.getProperty(resource, options.from);
         // parse(stringify()) doesn't work on undefined or null
         const value = sourceValue == undefined?
             sourceValue:
             JSON.parse(JSON.stringify(sourceValue));
         rs.logger.trace(`copy '${value}'`);
-        rs.resource = HalUtil.setProperty(rs.resource, options.to, value);
+        rs.resource = JsonLDUtil.setProperty(rs.resource, options.to, value);
         return rs.resource;
     }
 }, {
@@ -281,7 +259,7 @@ export const processorDefinitions: Core.Processors[] = [{
                 return rs.resource;
         }
         return fs.readFile(path, (options.encoding || 'utf8') as BufferEncoding).then((contents: any) => {
-            rs.resource = HalUtil.setProperty(rs.resource, options.to, contents);
+            rs.resource = JsonLDUtil.setProperty(rs.resource, options.to, contents);
             return rs.resource;
         });
     }
@@ -293,8 +271,8 @@ export const processorDefinitions: Core.Processors[] = [{
             return Object.entries(rs.resource);
         }
 
-        const obj = HalUtil.getProperty(rs.resource, options.property);
-        rs.resource = HalUtil.setProperty(rs.resource, options.to || options.property, Object.entries(obj));
+        const obj = JsonLDUtil.getProperty(rs.resource, options.property);
+        rs.resource = JsonLDUtil.setProperty(rs.resource, options.to || options.property, Object.entries(obj));
 
         return rs.resource;
     }
@@ -305,8 +283,8 @@ export const processorDefinitions: Core.Processors[] = [{
             return Object.keys(rs.resource);
         }
 
-        const obj = HalUtil.getProperty(rs.resource, options.property);
-        rs.resource = HalUtil.setProperty(rs.resource, options.to || options.property, Object.keys(obj));
+        const obj = JsonLDUtil.getProperty(rs.resource, options.property);
+        rs.resource = JsonLDUtil.setProperty(rs.resource, options.to || options.property, Object.keys(obj));
 
         return rs.resource;
     }
@@ -317,17 +295,17 @@ export const processorDefinitions: Core.Processors[] = [{
             return Object.values(rs.resource);
         }
 
-        const obj = HalUtil.getProperty(rs.resource, options.property);
-        rs.resource = HalUtil.setProperty(rs.resource, options.to || options.property, Object.values(obj));
+        const obj = JsonLDUtil.getProperty(rs.resource, options.property);
+        rs.resource = JsonLDUtil.setProperty(rs.resource, options.to || options.property, Object.values(obj));
 
         return rs.resource;
     }
 }, {
 //     /* higher-order processor that only runs the provided processor if the resource matches the designated profile */
-    name: 'matchProfile',
+    name: 'matchType',
     onProcess: (rs, options) => {
         // TODO: replace with matchType
-        if(!HalUtil.matchesProfile(rs.resource, options.profile, options.baseUri)) {
+        if(!JsonLDUtil.matchesType(rs.resource, options.ldType)) {
             return rs.resource;
         }
 
@@ -339,7 +317,7 @@ export const processorDefinitions: Core.Processors[] = [{
 * TODO: accept array of processors
 * */
     onProcess: (rs, options) => {
-        const values = HalUtil.getProperty(rs.resource, options.property);
+        const values = JsonLDUtil.getProperty(rs.resource, options.property);
         if(!Array.isArray(values) && typeof values !== 'object') {
             rs.logger.error(`skipping map: '${options.property}' must be an array or object, but had type ${typeof values}`);
             return rs.resource;
@@ -375,7 +353,7 @@ export const processorDefinitions: Core.Processors[] = [{
                 (a: any, b: any) => baseCompareFn(b, a):
                 baseCompareFn;
 
-        const array = HalUtil.getProperty(rs.resource, options?.property);
+        const array = JsonLDUtil.getProperty(rs.resource, options?.property);
 
         if(!Array.isArray(array)) {
             rs.logger.warn(`skipping sort: '${options?.property}' must be an array`);
@@ -383,23 +361,23 @@ export const processorDefinitions: Core.Processors[] = [{
         }
 
         array.sort((a: any, b: any) => {
-            let aVal = HalUtil.getProperty(a, options?.key);
-            let bVal = HalUtil.getProperty(b, options?.key);
+            let aVal = JsonLDUtil.getProperty(a, options?.key);
+            let bVal = JsonLDUtil.getProperty(b, options?.key);
 
             if(aVal === undefined && a?.href && options?.key) {
                 const aResource = rs.getResource(a.href);
-                aVal = HalUtil.getProperty(aResource, options.key);
+                aVal = JsonLDUtil.getProperty(aResource, options.key);
             }
 
             if(bVal === undefined && b?.href && options?.key) {
                 const bResource = rs.getResource(b.href);
-                bVal = HalUtil.getProperty(bResource, options.key);
+                bVal = JsonLDUtil.getProperty(bResource, options.key);
             }
 
             return compareFn(aVal, bVal);
         });
 
-        rs.resource = HalUtil.setProperty(rs.resource, options?.property, array);
+        rs.resource = JsonLDUtil.setProperty(rs.resource, options?.property, array);
 
         return rs.resource;
     }
@@ -408,7 +386,7 @@ export const processorDefinitions: Core.Processors[] = [{
      * reads options from _excerpt and add the result as the "excerpt" property, then delete _excerpt */
     name: 'excerpt',
     onProcess: (rs, options) => {
-        const text = HalUtil.getProperty(rs.resource, options.from);
+        const text = JsonLDUtil.getProperty(rs.resource, options.from);
         if(!text || typeof text !== 'string') {
             rs.logger.warn(`skipping excerpt: '${options.from}' must be a string`);
             return rs.resource;
@@ -429,6 +407,6 @@ export const processorDefinitions: Core.Processors[] = [{
             excerpt += '...';
         }
 
-        return HalUtil.setProperty(rs.resource, options.to, excerpt);
+        return JsonLDUtil.setProperty(rs.resource, options.to, excerpt);
     }
 }];

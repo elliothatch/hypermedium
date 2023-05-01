@@ -1,6 +1,6 @@
-import { Processor, ResourceState, HypermediaEngine, Hal, HalUtil } from 'hypermedium';
+import { Processor, ResourceState, HypermediaEngine, JsonLD, JsonLDUtil } from 'hypermedium';
 
-type PropertyPath = HalUtil.PropertyPath;
+type PropertyPath = JsonLDUtil.PropertyPath;
 
 /**
 * Standard processors that operate on a subset of JSON-LD compliant resources, that hypermedium works with.
@@ -8,18 +8,18 @@ type PropertyPath = HalUtil.PropertyPath;
 */
 
 /** Set the '@id' properto to the resource's fully resolved URI */
-export const Self: Processor.Definition<'ld:self', {
+export const Self: Processor.Definition<'self', {
     /** set a property other than '@id' */
     to?: PropertyPath;
     /** overwrite the value of 'to'/'@id' if the resource already has a value */
     overwrite?: boolean;
 } | undefined> = {
-        name: 'ld:self',
+        name: 'self',
         onProcess: (rs, options) => {
             const to = options?.to || '@id';
 
-            if(HalUtil.getProperty(rs.resource, to) != undefined && !options?.overwrite) {
-                rs.logger.warn(`Property '${to}' has value '${HalUtil.getProperty(rs.resource, to)}', but overwrite is not enabled. Skipping...`);
+            if(JsonLDUtil.getProperty(rs.resource, to) != undefined && !options?.overwrite) {
+                rs.logger.warn(`Property '${to}' has value '${JsonLDUtil.getProperty(rs.resource, to)}', but overwrite is not enabled. Skipping...`);
                 return rs.resource;
             }
 
@@ -31,7 +31,7 @@ export const Self: Processor.Definition<'ld:self', {
                 rs.uri.endsWith('.json')?
                 rs.uri.substring(0, rs.uri.lastIndexOf('.json')):
                 rs.uri;
-            HalUtil.setProperty(rs.resource, to, uri);
+            JsonLDUtil.setProperty(rs.resource, to, uri);
             return rs.resource;
         }
     };
@@ -39,9 +39,9 @@ export const Self: Processor.Definition<'ld:self', {
 /** embed a resource or partial resource to the specified property
 * TODO: support embedding remote/non-hypermedium resources, enabled by an options flag
 */
-export const Embed: Processor.Definition<'ld:embed', {
+export const Embed: Processor.Definition<'embed', {
     /** uri of the resource to embed */
-    uri?: Hal.Uri;
+    uri?: JsonLD.IRI;
     /** property where the resource will be embedded.
 * if undefined, embeds directly into the root object (useful for map).
 * if uri is not provided, tries to infer the uri.
@@ -63,9 +63,9 @@ export const Embed: Processor.Definition<'ld:embed', {
 */
     merge?: boolean | 'preserve' | 'recursive' | 'preserve-recursive';
 } | undefined> = {
-        name: 'ld:embed',
+        name: 'embed',
         onProcess: (rs, options) => {
-            const value = HalUtil.getProperty(rs.resource, options?.to);
+            const value = JsonLDUtil.getProperty(rs.resource, options?.to);
             const uri = options?.uri
                 || (typeof value === 'string'?
                     value:
@@ -86,25 +86,25 @@ export const Embed: Processor.Definition<'ld:embed', {
             }
 
             const embed = options?.properties?
-                HalUtil.pickProperties(embedResource, options?.properties):
+                JsonLDUtil.pickProperties(embedResource, options?.properties):
                 embedResource;
 
             switch(options?.merge) {
                 case true:
-                    rs.resource = HalUtil.setProperty(rs.resource, options?.to, Object.assign(value || {}, embed));
+                    rs.resource = JsonLDUtil.setProperty(rs.resource, options?.to, Object.assign(value || {}, embed));
                     return rs.resource;
                 case 'preserve':
-                    rs.resource = HalUtil.setProperty(rs.resource, options?.to, Object.assign(embed, value));
+                    rs.resource = JsonLDUtil.setProperty(rs.resource, options?.to, Object.assign(embed, value));
                     return rs.resource;
                 case 'recursive':
-                    rs.resource = HalUtil.mergeObjects(value || {}, embed);
+                    rs.resource = JsonLDUtil.mergeObjects(value || {}, embed);
                     return rs.resource;
                 case 'preserve-recursive':
-                    rs.resource = HalUtil.mergeObjects(embed, value || {});
+                    rs.resource = JsonLDUtil.mergeObjects(embed, value || {});
                     return rs.resource;
                 default:
                     // overwrite
-                    rs.resource = HalUtil.setProperty(rs.resource, options?.to, embed);
+                    rs.resource = JsonLDUtil.setProperty(rs.resource, options?.to, embed);
                     return rs.resource;
             }
         }
@@ -118,7 +118,7 @@ export const Order: Processor.Definition<'order', {
 }> = {
         name: 'order',
         onProcess: (rs, options) => {
-        const array = HalUtil.getProperty(rs.resource, options?.property);
+        const array = JsonLDUtil.getProperty(rs.resource, options?.property);
 
         if(!Array.isArray(array)) {
             rs.logger.warn(`skipping order: '${options?.property}' must be an array`);
@@ -126,8 +126,8 @@ export const Order: Processor.Definition<'order', {
         }
 
         array.sort((a: any, b: any) => {
-            const aVal = HalUtil.getProperty(a, options?.key);
-            const bVal = HalUtil.getProperty(b, options?.key);
+            const aVal = JsonLDUtil.getProperty(a, options?.key);
+            const bVal = JsonLDUtil.getProperty(b, options?.key);
 
             const aIndex = options.values.indexOf(aVal);
             const bIndex = options.values.indexOf(bVal);
@@ -142,17 +142,17 @@ export const Order: Processor.Definition<'order', {
             return aIndex - bIndex;
         });
 
-        rs.resource = HalUtil.setProperty(rs.resource, options?.property, array);
+        rs.resource = JsonLDUtil.setProperty(rs.resource, options?.property, array);
 
         return rs.resource;
         }
     };
 
-// export const GetIndex: Processor.Definition<'ld:getIndex', {
+// export const GetIndex: Processor.Definition<'getIndex', {
 //     /**  */
 //     property: PropertyPath;
 // } | undefined> = {
-//         name: 'ld:getIndex',
+//         name: 'getIndex',
 //         onProcess: (rs, options) => {
 //             return rs.resource;
 //         }

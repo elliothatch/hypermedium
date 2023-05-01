@@ -1,7 +1,7 @@
 import { Graph, Edge } from 'graphlib';
 
-import * as HAL from '../hal';
-import { normalizeUri } from '../hal-util';
+import * as JsonLD from '../json-ld';
+import * as JsonLDUtil from '../json-ld-util';
 import { Processor } from './processor';
 import { DynamicResource } from './dynamic-resource';
 
@@ -12,10 +12,10 @@ export class ResourceGraph {
         this.graph = new Graph();
     }
 
-    public getResource(uri: HAL.Uri): HAL.ExtendedResource | undefined {
+    public getResource(uri: JsonLD.IRI): JsonLD.Document | undefined {
         const suffix = '.json';
         if(uri.slice(-1) === '/') {
-            const node = this.graph.node(normalizeUri(uri) || this.graph.node(uri));
+            const node = this.graph.node(JsonLDUtil.normalizeUri(uri) || this.graph.node(uri));
             // returns undefined if we get a file node, because it doesn't have a resource/originalResource property
             return node && (node.resource || node.originalResource);
         }
@@ -23,7 +23,7 @@ export class ResourceGraph {
             // no file extension, try to find a file with the default suffix
             // TODO: store a set of "suffixes", pick based on Accept header, or use default 'suffix' if missing
             // TODO: default suffix should be inherited from all the modules' resourceExtension
-            const node = this.graph.node(`${uri}${suffix}`) || this.graph.node(uri) || this.graph.node(normalizeUri(uri + '/'));
+            const node = this.graph.node(`${uri}${suffix}`) || this.graph.node(uri) || this.graph.node(JsonLDUtil.normalizeUri(uri + '/'));
             return node && (node.resource || node.originalResource);
 
         }
@@ -31,16 +31,16 @@ export class ResourceGraph {
         return node && (node.resource || node.originalResource);
     }
 
-    public addResource(uri: HAL.Uri, node: ResourceGraph.Node): void {
+    public addResource(uri: JsonLD.IRI, node: ResourceGraph.Node): void {
         this.graph.setNode(uri, node);
     }
 
-    public getFile(uri: HAL.Uri): string | undefined {
-        const node = this.graph.node(normalizeUri(uri) || this.graph.node(uri));
+    public getFile(uri: JsonLD.IRI): string | undefined {
+        const node = this.graph.node(JsonLDUtil.normalizeUri(uri) || this.graph.node(uri));
         return node && node.path;
     }
 
-    public addDependency(relativeUriSource: HAL.Uri, relativeUriTarget: HAL.Uri, processor: Processor): boolean {
+    public addDependency(relativeUriSource: JsonLD.IRI, relativeUriTarget: JsonLD.IRI, processor: Processor): boolean {
         const edge: ResourceGraph.Edge | undefined = this.graph.edge(relativeUriSource, relativeUriTarget);
         if(!edge) {
             this.graph.setEdge(relativeUriSource, relativeUriTarget, {
@@ -57,7 +57,7 @@ export class ResourceGraph {
         return false;
     }
 
-    public resetDependencies(uri: HAL.Uri): void {
+    public resetDependencies(uri: JsonLD.IRI): void {
         const prevDependencies = this.graph.nodeEdges(uri) as Edge[];
 
         prevDependencies
@@ -71,7 +71,7 @@ export interface DynamicResourceData {
     definition: DynamicResource.Definition;
     api: DynamicResource.Api;
     /** resources this dynamic resource has created */
-    resources: Set<HAL.Uri>;
+    resources: Set<JsonLD.IRI>;
 }
 
 export namespace ResourceGraph {
@@ -81,9 +81,9 @@ export namespace ResourceGraph {
             eType: 'resource';
             /** the processed resource that will be served to the user
              * should ALWAYS be serializable. nothing fancy in the resources */
-            resource?: HAL.ExtendedResource;
+            resource?: JsonLD.Document;
             /** the parsed resource before any processing has been applied */
-            originalResource: HAL.ExtendedResource;
+            originalResource: JsonLD.Document;
             /** true if the resource is currently being processed */
             // processing: boolean;
             /** if defined, this is a dynamic resource created by the DynamicResource instance */
