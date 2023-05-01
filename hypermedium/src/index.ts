@@ -220,6 +220,20 @@ function initializeHypermedium(options: HypermediumInitOptions, staticMappings: 
                         Log.log(e.log.level, e.log.message, e.log);
                         return;
                     }
+                    if(e.eType === 'DynamicResourceLog') {
+                        Log.log(e.log.level, e.log.message, e.log);
+                        return;
+                    }
+                    if(e.eType === 'DynamicResourceError') {
+                        if(e.uri) {
+                            Log.error(`hypermedia-engine: ${event.eType} ${e.dynamicResource!.name} ${e.uri}: ${e.error!.message}`, e);
+                        }
+                        else {
+                            Log.error(`hypermedia-engine: ${event.eType} ${e.dynamicResource!.name}: ${e.error!.message}`, e);
+                        }
+                        return
+                    }
+
                     if(e.eType === 'ProcessResource') {
                         delete e.edges;
                         delete e.resource;

@@ -104,6 +104,7 @@ export function getProfiles(resource: Hal.Resource): Hal.Link[] {
  * @param baseUri - if the URI doesn't match exactly, tries again with this used as a prefix
  */
 export function profilesMatch(profile: Hal.Uri, targetProfile: Hal.Uri, baseUri?: Hal.Uri): boolean {
+    // TODO: this may not work as expected if targetProfile starts with a slash '/' since Url.resolve will always ignore the baseUri in that case
     let matchFn: ReturnType<typeof match>;
     try {
         matchFn = match(profile);

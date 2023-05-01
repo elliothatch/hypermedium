@@ -2,6 +2,7 @@ import * as HAL from '../hal';
 
 import { ResourceGraph } from './resource-graph';
 import { Processor } from './processor';
+import { DynamicResource } from './dynamic-resource';
 
 export type Event =
     Event.ProcessResource
@@ -12,7 +13,9 @@ export type Event =
      | Event.AddDependency
      | Event.ProcessorError
      | Event.Warning
-     | Event.ProcessorLog;
+     | Event.ProcessorLog
+     | Event.DynamicResourceError
+     | Event.DynamicResourceLog;
 
 export namespace Event {
     export interface ProcessResource {
@@ -79,5 +82,18 @@ export namespace Event {
     export interface ProcessorLog {
         eType: 'ProcessorLog';
         log: any;
+    }
+
+    export interface DynamicResourceError {
+        eType: 'DynamicResourceError';
+        error: Error;
+        dynamicResource: DynamicResource,
+        uri?: HAL.Uri;
+    }
+
+    export interface DynamicResourceLog {
+        eType: 'DynamicResourceLog';
+        log: any;
+        uri?: HAL.Uri;
     }
 }

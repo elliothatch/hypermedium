@@ -184,9 +184,10 @@ export class Hypermedium {
                                             return from(fs.readFile(moduleEvent.path, 'utf-8')).pipe(
                                                 mergeMap((fileContents) => {
                                                     // try {
-                                                        this.hypermedia.loadResource(moduleEvent.uri, JSON.parse(fileContents), 'fs');
+                                                        this.hypermedia.loadResource(moduleEvent.uri, JSON.parse(fileContents));
                                                         return this.hypermedia.processResource(moduleEvent.uri).pipe(
                                                             tap(() => {
+                                                                // TODO: context CANNOT be provided by a dynamic resource
                                                                 const baseUri = moduleInstance.module.hypermedia?.baseUri != null?
                                                                     moduleInstance.module.hypermedia.baseUri:
                                                                     '/';
@@ -225,6 +226,11 @@ export class Hypermedium {
                                 case 'processor-changed':
                                     this.hypermedia.addGlobalProcessor(moduleEvent.processor, moduleEvent.stage);
                                     return this.hypermedia.processAllResources();
+                                case 'dynamic-resource-definition-changed':
+                                    this.hypermedia.dynamicResourceDefinitions.set(moduleNamespace + moduleEvent.dynamicResourceDefinition.name, moduleEvent.dynamicResourceDefinition);
+                                    return EMPTY;
+                                case 'dynamic-resource-changed':
+                                    return this.hypermedia.addDynamicResource(moduleEvent.dynamicResource);
                             }
                         case 'renderer':
                             switch(moduleEvent.eType) {

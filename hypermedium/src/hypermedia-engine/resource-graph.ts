@@ -3,6 +3,7 @@ import { Graph, Edge } from 'graphlib';
 import * as HAL from '../hal';
 import { normalizeUri } from '../hal-util';
 import { Processor } from './processor';
+import { DynamicResource } from './dynamic-resource';
 
 export class ResourceGraph {
     public graph: Graph;
@@ -11,7 +12,7 @@ export class ResourceGraph {
         this.graph = new Graph();
     }
 
-    public getResource(uri: HAL.Uri): HAL.Resource | undefined {
+    public getResource(uri: HAL.Uri): HAL.ExtendedResource | undefined {
         const suffix = '.json';
         if(uri.slice(-1) === '/') {
             const node = this.graph.node(normalizeUri(uri) || this.graph.node(uri));
@@ -65,6 +66,14 @@ export class ResourceGraph {
     }
 }
 
+export interface DynamicResourceData {
+    dynamicResource: DynamicResource;
+    definition: DynamicResource.Definition;
+    api: DynamicResource.Api;
+    /** resources this dynamic resource has created */
+    resources: Set<HAL.Uri>;
+}
+
 export namespace ResourceGraph {
     export type Node = Node.Resource | Node.File;
     export namespace Node {
@@ -77,13 +86,15 @@ export namespace ResourceGraph {
             originalResource: HAL.ExtendedResource;
             /** true if the resource is currently being processed */
             // processing: boolean;
-            /** indicates how the original resource was created */
-            origin: string;
+            /** if defined, this is a dynamic resource created by the DynamicResource instance */
+            dynamic?: DynamicResourceData;
         }
+
         export interface File {
             eType: 'file';
             path: string;
         }
+
     }
 
     export interface Edge {

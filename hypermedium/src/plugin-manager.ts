@@ -7,6 +7,7 @@ import { filter, map } from 'rxjs/operators';
 
 import { watchFiles, WatchEvent } from './util';
 import { Processor } from './hypermedia-engine';
+import { DynamicResource } from './hypermedia-engine';
 
 import { Plugin, Module } from './plugin';
 
@@ -219,7 +220,6 @@ export class PluginManager {
                     if(module.hypermedia.processors) {
                         // TODO: is this a race condition with processorDefinitions?
 
-
                         const processorEvents = Object.keys(module.hypermedia.processors).reduce((arr: {processor: Processor, stage: string}[], stage) => {
                             return arr.concat(module.hypermedia!.processors![stage].map((processor) => ({processor, stage})));
                         }, []).map(({processor, stage}) => ({
@@ -231,20 +231,26 @@ export class PluginManager {
                         moduleEventSources.push(from(processorEvents));
                     }
 
-                    if(module.hypermedia.stateProcessors) {
-                        // TODO: is this a race condition with processorDefinitions?
-
-
-                        const processorEvents = Object.keys(module.hypermedia.stateProcessors).reduce((arr: {processor: Processor, stage: string}[], stage) => {
-                            return arr.concat(module.hypermedia!.stateProcessors![stage].map((processor) => ({processor, stage})));
-                        }, []).map(({processor, stage}) => ({
+                    if(module.hypermedia.dynamicResourceDefinitions) {
+                        const dynamicResourceDefinitionEvents = module.hypermedia.dynamicResourceDefinitions.map((dynamicResourceDefinition) => ({
                             eCategory: 'hypermedia' as const,
-                            eType: 'state-processor-changed' as const,
-                            processor,
-                            stage
+                            eType: 'dynamic-resource-definition-changed' as const,
+                            dynamicResourceDefinition
                         }));
-                        moduleEventSources.push(from(processorEvents));
+                        installEventSources.push(from(dynamicResourceDefinitionEvents));
                     }
+
+                    if(module.hypermedia.dynamicResources) {
+                        // TODO: is this a race condition with dynamicResourceDefinitions?
+
+                        const dynamicResourceEvents = module.hypermedia.dynamicResources.map((dynamicResource) => ({
+                            eCategory: 'hypermedia' as const,
+                            eType: 'dynamic-resource-changed' as const,
+                            dynamicResource,
+                        }));
+                        moduleEventSources.push(from(dynamicResourceEvents));
+                    }
+
                 }
 
                 if(module.renderer) {

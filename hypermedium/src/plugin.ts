@@ -3,7 +3,7 @@ import { validate } from 'fresh-validation';
 import { HelperDelegate } from 'handlebars';
 
 import { ProfileLayoutMap } from './renderer';
-import { Processor } from './hypermedia-engine';
+import { Processor, DynamicResource } from './hypermedia-engine';
 import * as BuildManager from './build';
 
 // TODO: should plugins be able to provide options for their dependencies, or otherwise control how their dependencies are initialized?
@@ -45,6 +45,7 @@ export namespace Plugin {
     }
 }
 
+// TODO: rename processor to transformer
 /** The moduleFactory of a Plugin returns a Module that can be registered to extend hypermedium
  * all paths are relative to Plugin.baseUrl
  */
@@ -63,8 +64,10 @@ export type Module = Partial<{
         processorDefinitions: Processor.Definition[];
         /** processors that should be created and added to the hypermedia engine */
         processors: {[stage: string]: Processor[]};
-        /** processors (only run on state objects) that should be created and added to the hypermedia engine */
-        stateProcessors: {[stage: string]: Processor[]};
+        /** new types of dynamic resources that can be used in the hypermedia engine */
+        dynamicResourceDefinitions: DynamicResource.Definition[];
+        /** dynamic resource instances that should be created and added to the hypermedia engine */
+        dynamicResources: DynamicResource[];
         /** if set, this url is prepended to the URI of every HAL resources served from this module */
         baseUri: string;
         /** files matching any of these extensions are loaded into the hypermedia engine as resources. these files MUST be parsable as json. should include the period `.`.
@@ -136,7 +139,7 @@ export namespace Module {
                 uri?: string;
             }
         }
-        export type Hypermedia = Hypermedia.ResourceChanged | Hypermedia.ProcessorDefinitionChanged | Hypermedia.ProcessorChanged | Hypermedia.StateProcessorChanged;
+        export type Hypermedia = Hypermedia.ResourceChanged | Hypermedia.ProcessorDefinitionChanged | Hypermedia.ProcessorChanged | Hypermedia.DynamicResourceDefinitionChanged | Hypermedia.DynamicResourceChanged;
         export namespace Hypermedia {
             export interface Base {
                 eCategory: 'hypermedia'
@@ -160,10 +163,14 @@ export namespace Module {
                 stage: string; //'pre' | 'post';
             }
 
-            export interface StateProcessorChanged extends Base {
-                eType: 'state-processor-changed';
-                processor: Processor;
-                stage: string; //'pre' | 'post';
+            export interface DynamicResourceDefinitionChanged extends Base {
+                eType: 'dynamic-resource-definition-changed';
+                dynamicResourceDefinition: DynamicResource.Definition;
+            }
+
+            export interface DynamicResourceChanged extends Base {
+                eType: 'dynamic-resource-changed';
+                dynamicResource: DynamicResource;
             }
         }
 

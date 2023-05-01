@@ -23,7 +23,15 @@ export const Self: Processor.Definition<'ld:self', {
                 return rs.resource;
             }
 
-            HalUtil.setProperty(rs.resource, to, rs.uri);
+            // TODO: add options for extension
+            // TODO: use resourceExtensions from module
+            // TODO: use uri normalizer util function
+            const uri = rs.uri.endsWith('/index.json')?
+                rs.uri.substring(0, rs.uri.lastIndexOf('/index.json')):
+                rs.uri.endsWith('.json')?
+                rs.uri.substring(0, rs.uri.lastIndexOf('.json')):
+                rs.uri;
+            HalUtil.setProperty(rs.resource, to, uri);
             return rs.resource;
         }
     };
@@ -102,59 +110,59 @@ export const Embed: Processor.Definition<'ld:embed', {
         }
     };
 
-// index will be a dynamic resource, not a processor!
-// /** indexes a resource, so all resources of a matching type can be retrieved as a list with 'ld:getIndex' */
-// export const Index: Processor.Definition<'ld:index', {
-//     /** all resources processed with 'ld:index' that have a value for this property are added to the index.
-// * all values in an array are index. additionally, if any part of the propertypath is an array, all elements of each array are searched for matching properties to index.
-// * the value of a property match MUST NOT be an object, or contain objects. in this case, the match will be skipped and a warning is emitted */
+/** reorders an array, placing elements with matching values at the beginning of the array, then leaving the rest as-is */
+export const Order: Processor.Definition<'order', {
+    property?: PropertyPath;
+    key?: PropertyPath;
+    values: any[];
+}> = {
+        name: 'order',
+        onProcess: (rs, options) => {
+        const array = HalUtil.getProperty(rs.resource, options?.property);
+
+        if(!Array.isArray(array)) {
+            rs.logger.warn(`skipping order: '${options?.property}' must be an array`);
+            return rs.resource;
+        }
+
+        array.sort((a: any, b: any) => {
+            const aVal = HalUtil.getProperty(a, options?.key);
+            const bVal = HalUtil.getProperty(b, options?.key);
+
+            const aIndex = options.values.indexOf(aVal);
+            const bIndex = options.values.indexOf(bVal);
+
+            if(aIndex < 0 && bIndex >= 0) {
+                return 1;
+            }
+            if(aIndex >= 0 && bIndex < 0) {
+                return -1;
+            }
+
+            return aIndex - bIndex;
+        });
+
+        rs.resource = HalUtil.setProperty(rs.resource, options?.property, array);
+
+        return rs.resource;
+        }
+    };
+
+// export const GetIndex: Processor.Definition<'ld:getIndex', {
+//     /**  */
 //     property: PropertyPath;
-// }> = {
-//         name: 'ld:index',
+// } | undefined> = {
+//         name: 'ld:getIndex',
 //         onProcess: (rs, options) => {
-//             const matches = HalUtil.matchProperty(rs.resource, options.property);
-//             if(matches.length === 0) {
-//                 return rs.resource;
-//             }
-
-//             matches.forEach((match: any) => {
-//                 // convert the match to a string, so it can be serialized as a key
-//                 const filterArrayObjects = (value: any[]): any[] => {
-//                     return value.reduce((result, v) => {
-//                         if(Array.isArray(v)) {
-//                             result.push(filterArrayObjects(v));
-//                         }
-//                         else if(typeof v === 'object') {
-//                             rs.logger.warn(`Cannot index object '${JSON.stringify(v)}'. Skipping...`)
-//                         }
-//                         else {
-//                             result.push(v);
-//                         }
-//                         return result;
-//                     }, [] as any[]);
-//                 };
-
-//                 if(!Array.isArray(match) && typeof match === 'object') {
-//                     rs.logger.warn(`Cannot index object '${JSON.stringify(match)}'. Skipping...`)
-//                     return;
-//                 }
-//                 const matchStr = Array.isArray(match)?
-//                     '' + filterArrayObjects(match):
-//                     '' + match;
-
-//                 // options.property: 'tags'
-//                 // we want to find all pages with tag 'hello'
-//                 // Map<string, uri>.get('hello')
-//                 // we want to find all pages with any tags
-//             });
-
 //             return rs.resource;
 //         }
 //     };
 
+
 export const processorDefinitions: Processor.Definition[] = [
     Self,
     Embed,
-    // Index,
+    Order,
+    // GetIndex,
 ];
 

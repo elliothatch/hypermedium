@@ -3,6 +3,7 @@ import { Plugin } from 'hypermedium';
 import { handlebarsHelpers } from './handlebars';
 import { processorDefinitions } from './processors';
 import { taskDefinitions } from './task-definitions';
+import { dynamicResourceDefinitions } from './dynamic-resources';
 
 export interface CoreOptions {
 }
@@ -17,6 +18,7 @@ const corePlugin: Plugin<CoreOptions> = {
         return {
             hypermedia: {
                 processorDefinitions,
+                dynamicResourceDefinitions
             },
             renderer: {
                 templatePaths: ['templates'],

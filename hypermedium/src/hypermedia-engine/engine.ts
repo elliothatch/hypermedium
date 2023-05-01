@@ -1,6 +1,7 @@
 import { hrtime } from 'process';
+import {URL} from 'url';
 
-import { concat, merge, defer, from, of, Observable, Subject } from 'rxjs';
+import { concat, merge, defer, from, of, Observable, Subject, EMPTY } from 'rxjs';
 import { mergeMap, publish, refCount } from 'rxjs/operators';
 
 import { NextFunction, Router, Request, Response } from 'express';
@@ -11,79 +12,12 @@ import * as HAL from '../hal';
 import * as HalUtil from '../hal-util';
 import { normalizeUri } from '../hal-util';
 
-import { ResourceGraph } from './resource-graph'
+import { ResourceGraph, DynamicResourceData } from './resource-graph'
 import { Processor, ResourceState } from './processor';
+import { DynamicResource } from './dynamic-resource';
 import { Event } from './events';
 
-import { Logger, Serializer} from 'freshlog';
-/**
- * currently:
- * processors are dumb stateless functions. every processor is executed on every resource (inefficient), and can be disabled conditionally through the use of higher-order processors.
- * A higher order processor works by locally instantiating a processor and storing it through closure.
- * Processors must manually check if the resource contains a special "options" property, and noop if not found.
- * Async is implemented by triggering processResource once the target promise has resolved. This is nice because it ensures that processes cannot hang the processor queue, but it requires a significant amount of non-trivial code to handle async situations
- *
- * ISSUES
- *  - unnecessary execution of processors
- *  - no ability to detect conflicting processor properties
- *  - confusing async support
- *  - doesn't support resource-local processors easily (have to store state, create proessors, etc.
- *  - high memory usage as number of processors increases
- *  - no logging
- *  - can only store state by making changes to core resource-state object
- *  - processor execution order determined by global registration order. this makes configuring some pages a specific way difficult (sort before or after embed, etc.
- *   - some "indexing" processsors (makeIndex/tags) need to track state about the entire site (e.g. which pages have which tags). currently they are excuted on every document once to track index state, the have additional code that only executes on "index page" resources. these would be easier to understand if they were done in two steps--a "read only" indexing step, and a separate "processor" step for building the index pages.
- *
- * GOALS
- *  - Isolated
- *    - processors can be easily written without knowlede of other processors
- *    - resources shouldn't need to worry about the "global execution order" of processors
- *    - user is notified when multiple processors modify the same properties?
- *     - configuring different processors for various types of resources should be simple
- *    - options used to configure a processor should just be passed to the processor. simplify or remove the concept of "processorFactory" which was used to accomplish this
- *
- *  - Async
- *    - doesn't hang the processor queue
- *    - shouldn't require tons of confusing boilerplate to support async functions
- *    - shouldn't span across multiple executions of the processor. all code for an async process should be contained within one execution cycle of the process.
- *    - don't trigger dependent reprocessing until the async flow is complete
- *       - multiple async processors on the same resource are "bundled"
- *  - static site generation
- *
- * OPTIONS
- *   - global processors include array of "matcher" functions which determine if the processor is used. much simpler and easier to use than nesting higher order processors
- *   - processors should store state with a Storage API. differentiate between persistent storage and temporary/intermediate storage
- *   - support dependency processing triggered by modifications to specific properties, rather than the entire resource
- *   - instantiate processors on the fly to reduce unnecessary memory usage
- *   - add helper function for inserting links from another page
- *   - local processor stages? "pre" stage is executed before global processors, "postGlobal" executed after local, "post" executes locally after postGlobal
- *   - higher-order processors are still useful as they allow constructs like "forEach" to be added. support these by making them first-class i.e. easy to execute other processors from the current one. good "isolation" makes this possible without a ton of boilerplate or extra work.
- *
- * SOLUTIONS
- *   - global processors only should be used if you actually want the processor to be executed on every document or every "matching" document
- *   - local processors executed after global processors. instantiated only for as long as the resource is actully being processed
- */
-/**
- * Processor Phases:
- * 1. embedding
- */
-
-// TODO: add log functions to processors
-/** augments a hypermedia site with dynamic properties and resources
- * for example, adds "self" links and "breadcrumb"
- * dynamic resources like comments can be updated with CRUD actions through hypermedia
- * dynamic tagging
- * use middleware to extend resources that match a certain profile
- */
-
-// TODO: maybe it would make sense to mark certain resources as "deferred" so they only get processed after a moment of inactivity. prevents state resources (e.g. index) from being processed every time a new resource is loaded during the initial filesystem walk
-
-// rethinking the processor state again...
-// some processors need intermediate state. it's also useful to have processors that maintain some kind of "output" resource that can be easily accessed by pages.
-// the problem is in framing this class of operations as a "processor" at all. a processor shouldn't have state, it should just be a simple, functional transformation of a resource.
-// instead, what we need is a "dynamic" resource object.
-// dynamic resources are not part of the resource/processor system at all. they exist outside, manage their state themselves (in memory or otherwise), and can be triggered by internal events (resource-change/add/remove) and external events (timer, html hook, etc.)
-// crucially, dynamic resources produce one or more resources, computed from their state (rather than using the resource as their state). they are always a sink on the dependency graph, having no dependencies. they can still have procesors applied after they are changed
+import { Logger, Serializer, Middleware as LoggerMiddleware} from 'freshlog';
 
 export class HypermediaEngine {
     public router: Router;
@@ -94,10 +28,9 @@ export class HypermediaEngine {
         post: Processor[],
     };
 
-    public globalStateProcessors: {
-        pre: Processor[],
-        post: Processor[],
-    };
+    public dynamicResourceDefinitions: Map<string, DynamicResource.Definition>;
+    // TOOD: optimization: track specific resource callbacks so we don't have to iterate over this list
+    public dynamicResources: DynamicResourceData[];
 
     public events: Observable<Event>;
     protected eventsSubject: Subject<Event>;
@@ -109,10 +42,8 @@ export class HypermediaEngine {
             pre: [],
             post: [],
         };
-        this.globalStateProcessors = {
-            pre: [],
-            post: [],
-        };
+        this.dynamicResourceDefinitions = new Map();
+        this.dynamicResources = [];
 
         this.eventsSubject = new Subject();
         this.events = this.eventsSubject.pipe(
@@ -140,20 +71,129 @@ export class HypermediaEngine {
 
     public addGlobalProcessor(processor: Processor, stage: string): void {
         (this.globalProcessors as any)[stage].push(processor);
-        // if(processor.onInit) {
-            // return processor.onInit(processor.options);
-        // }
     }
 
-    public addGlobalStateProcessor(processor: Processor, stage: string): void {
-        (this.globalStateProcessors as any)[stage].push(processor);
-        // if(processor.onInit) {
-            // return processor.onInit(processor.options);
-        // }
+    public addDynamicResource(dynamicResource: DynamicResource) {
+        return defer(() => {
+            const definition = this.dynamicResourceDefinitions.get(dynamicResource.name);
+            if(!definition) {
+                const error = new Error(`dynamic resource definition not found: ${dynamicResource.name}`);
+                this.log({
+                    eType: 'DynamicResourceError',
+                    dynamicResource,
+                    error
+                });
+                throw error;
+            }
+
+            const resourceData: DynamicResourceData = {
+                dynamicResource,
+                definition,
+                resources: new Set(),
+                api: {
+                    hypermedia: this,
+                    state: undefined,
+                    logger: new Logger(), // temprory, will be replaced by executeDynamicResourceCallback
+                    createResource: (uri, resource) => {
+                        const baseUri = dynamicResource.config?.baseUri || `/~hypermedium/dynamic/${dynamicResource.name}`;
+                        // TODO: join uris more robustly
+                        const fullUri = baseUri + (uri.startsWith('/')? '': '/') + uri;
+                        const updated = this.resourceGraph.getResource(fullUri) != undefined;
+                        resourceData.resources.add(fullUri);
+                        this.loadResource(fullUri, resource);
+                        return this.processResource(fullUri).toPromise().then(() => {
+                            return {
+                                resource: this.resourceGraph.getResource(fullUri)!,
+                                updated
+                            };
+                        });
+                    }
+                }
+            }
+            this.dynamicResources.push(resourceData);
+
+            if(definition.init) {
+                return this.executeDynamicResourceCallback(resourceData, {cType: 'init'});
+            }
+
+            return EMPTY;
+        });
+    }
+
+    public executeDynamicResourceCallback(resourceData: DynamicResourceData, callbackData: {cType: 'init'} | {cType: 'resource' | 'node', callbackName: 'onAdd' | 'onProcess' | 'onDelete', uri: HAL.Uri}) { 
+        return defer(() => {
+            if((callbackData.cType === 'init' && !resourceData.definition.init)
+                || callbackData.cType === 'resource' && !resourceData.definition.resourceEvents?.[callbackData.callbackName]
+                || callbackData.cType === 'node' && !resourceData.definition.nodeEvents?.[callbackData.callbackName]
+            ) {
+                return EMPTY;
+            }
+
+            const loggerMiddleware: LoggerMiddleware = callbackData.cType === 'init'?
+                (obj) => {
+                    HalUtil.setProperty(obj, 'dynamicResource', resourceData.dynamicResource);
+                    return obj;
+                }: 
+                (obj) => {
+                    HalUtil.setProperty(obj, 'dynamicResource', resourceData.dynamicResource);
+                    HalUtil.setProperty(obj, 'uri', callbackData.uri);
+                    return obj;
+                };
+
+            resourceData.api.logger = new Logger({
+                middleware: [{ mw: loggerMiddleware, levels: true }],
+                serializer: Serializer.identity,
+                target: {
+                    name: 'dynamic-resource',
+                    write: (serializedData) => {
+                        this.log({
+                            eType: 'DynamicResourceLog',
+                            log: serializedData
+                        });
+                    }
+                }
+            });
+
+            resourceData.api.logger.handlers.forEach((handler) => handler.enabled = true);
+
+            try {
+                let result: any | Promise<any> = undefined;
+                switch(callbackData.cType) {
+                    case 'init':
+                        resourceData.api.logger.trace(`exec dynamic resource '${resourceData.dynamicResource.name}'.init`);
+                        result = resourceData.definition.init!(resourceData.api, resourceData.dynamicResource.options);
+                        break;
+                    case 'node':
+                        resourceData.api.logger.trace(`exec dynamic resource '${resourceData.dynamicResource.name}'.nodeEvents.${callbackData.callbackName}: ${callbackData.uri}`);
+                        const node = this.resourceGraph.graph.node(callbackData.uri);
+                        result = resourceData.definition.nodeEvents![callbackData.callbackName]!(callbackData.uri, node, resourceData.api, resourceData.dynamicResource.options);
+                        break;
+                    case 'resource':
+                        resourceData.api.logger.trace(`exec dynamic resource '${resourceData.dynamicResource.name}'.resourceEvents.${callbackData.callbackName}: ${callbackData.uri}`);
+                        const resource = this.resourceGraph.getResource(callbackData.uri)!;
+                        result = resourceData.definition.resourceEvents![callbackData.callbackName]!(callbackData.uri, resource, resourceData.api, resourceData.dynamicResource.options);
+                }
+                if(result instanceof Promise) {
+                    return from(result);
+                }
+
+                return of(result);
+            }
+            catch(error) {
+                const err = new Error(`Dynamic Resource '${resourceData.dynamicResource.name}' error: ${error}`);
+                this.log({
+                    eType: 'DynamicResourceError',
+                    error: err,
+                    dynamicResource: resourceData.dynamicResource,
+                    uri: (callbackData as any).uri
+                });
+                throw err;
+            }
+        });
     }
 
     /** load a file as a hypermedia resource */
-    public loadResource(uri: HAL.Uri, resource: HAL.ExtendedResource, origin: string): ResourceGraph.Node.Resource {
+    public loadResource(uri: HAL.Uri, resource: HAL.ExtendedResource, dynamic?: DynamicResourceData): ResourceGraph.Node.Resource {
         const normalizedUri = normalizeUri(uri);
         if(this.resourceGraph.graph.hasNode(normalizedUri)) {
             if(this.resourceGraph.graph.node(normalizedUri)) {
@@ -169,7 +209,7 @@ export class HypermediaEngine {
         const node: ResourceGraph.Node.Resource = {
             eType: 'resource',
             originalResource: resource,
-            origin
+            dynamic
         };
 
         this.resourceGraph.addResource(normalizedUri, node);
@@ -179,6 +219,20 @@ export class HypermediaEngine {
 
             uri: normalizedUri,
             resource,
+        });
+
+        concat(
+            merge(...this.dynamicResources.filter((resourceData) => resourceData.definition.nodeEvents?.onAdd).map((resourceData) => {
+                return this.executeDynamicResourceCallback(resourceData, {cType: 'node', callbackName: 'onAdd', uri});
+            })),
+            merge(...this.dynamicResources.filter((resourceData) => resourceData.definition.resourceEvents?.onAdd).map((resourceData) => {
+                return this.executeDynamicResourceCallback(resourceData, {cType: 'resource', callbackName: 'onAdd', uri});
+            }))
+        ).subscribe({
+            next: (result) => {
+            },
+            error: (err) => {
+            }
         });
 
         return node;
@@ -195,6 +249,21 @@ export class HypermediaEngine {
 
             uri: normalizedUri,
         });
+
+        concat(
+            merge(...this.dynamicResources.filter((resourceData) => resourceData.definition.nodeEvents?.onDelete).map((resourceData) => {
+                return this.executeDynamicResourceCallback(resourceData, {cType: 'node', callbackName: 'onDelete', uri});
+            })),
+            merge(...this.dynamicResources.filter((resourceData) => resourceData.definition.resourceEvents?.onDelete).map((resourceData) => {
+                return this.executeDynamicResourceCallback(resourceData, {cType: 'resource', callbackName: 'onDelete', uri});
+            }))
+        ).subscribe({
+            next: (result) => {
+            },
+            error: (err) => {
+            }
+        });
+
         return resource;
     }
 
@@ -324,16 +393,10 @@ export class HypermediaEngine {
                 );
             }
 
-            const executeAllProcessors = normalizedUri.startsWith('/~hypermedium/state')?
-            executeGlobalProcessors(resourceCopy, this.globalStateProcessors.pre).pipe(
-                mergeMap((resource) => executeLocalProcessors(resource)),
-                mergeMap((resource) => executeGlobalProcessors(resource, this.globalStateProcessors.post))):
-            executeGlobalProcessors(resourceCopy, this.globalProcessors.pre).pipe(
+            const executeAllProcessors = executeGlobalProcessors(resourceCopy, this.globalProcessors.pre).pipe(
                 mergeMap((resource) => executeLocalProcessors(resource)),
                 mergeMap((resource) => executeGlobalProcessors(resource, this.globalProcessors.post)));
 
-
-                        // don't execute global processors on state objects
 
             return executeAllProcessors.pipe(
                 mergeMap((resource) => {
@@ -348,6 +411,21 @@ export class HypermediaEngine {
                         uri: normalizedUri,
                         resource,
                         processors: processorsExecuted
+                    });
+
+                    // TODO: since calling dynamic resource callbacks can trigger processing, maybe it is a very bad idea to invoke it as a side effect outside of the processResource flow.
+                    concat(
+                        merge(...this.dynamicResources.filter((resourceData) => resourceData.definition.nodeEvents?.onProcess).map((resourceData) => {
+                            return this.executeDynamicResourceCallback(resourceData, {cType: 'node', callbackName: 'onProcess', uri});
+                        })),
+                        merge(...this.dynamicResources.filter((resourceData) => resourceData.definition.resourceEvents?.onProcess).map((resourceData) => {
+                            return this.executeDynamicResourceCallback(resourceData, {cType: 'resource', callbackName: 'onProcess', uri});
+                        }))
+                    ).subscribe({
+                        next: (result) => {
+                        },
+                        error: (err) => {
+                        }
                     });
 
                     const dependentResourceObservables = (this.resourceGraph.graph.nodeEdges(normalizedUri) as unknown as Edge[])
@@ -379,8 +457,6 @@ export class HypermediaEngine {
             return of(resource);
         }
 
-        const stateUri = `/~hypermedium/state/${processor.name}/`;
-
         const logger = new Logger({
             middleware: [{ mw: (obj) => {
                 HalUtil.setProperty(obj, 'processor', processor);
@@ -401,41 +477,11 @@ export class HypermediaEngine {
 
         logger.handlers.forEach((handler) => handler.enabled = true);
 
-        const markDirty: ResourceState['markDirty'] = (markUri, template) => {
-            let loadedResource = false;
-            if(template && !this.resourceGraph.getResource(markUri)) {
-                let newResource: HAL.ExtendedResource | undefined = {};
-
-                if(typeof template === 'string') {
-                    // TODO: originalResource isn't updated when the resource providing the template changes
-                    // adding a dependency doesn't work since it doesn't deal with reloading/modifying original resource
-                    newResource = this.resourceGraph.getResource(template);
-                    if(!newResource) {
-                        logger.warn(`markDirty: template resource not found: ${template}`, {template});
-                        newResource = {};
-                    }
-                }
-                else if(typeof template === 'object') {
-                    newResource = template;
-                }
-                else {
-                    throw new Error(`markDirty: template must be string or object, but had type ${typeof template}`);
-                }
-
-                this.loadResource(normalizeUri(markUri), newResource!, processor.name);
-                loadedResource = true;
-            }
-
-            this.resourceGraph.addDependency(normalizeUri(markUri), uri, processor);
-            return loadedResource;
-        };
-
         const resourceState: ResourceState = {
             resource,
             uri,
             logger,
             processor,
-            markDirty,
             execProcessor: (p, r?: HAL.ExtendedResource) => {
                 const processors = Array.isArray(p)? p: [p];
                 return processors.reduce<Promise<HAL.ExtendedResource>>((execPromise, processor) => {
@@ -492,42 +538,6 @@ export class HypermediaEngine {
 
                 return r;
             },
-            getState: (property, resourcePath) => {
-                const state = this.resourceGraph.getResource(stateUri + (resourcePath || ''));
-                return HalUtil.getProperty(state, property);
-            },
-            setState: (property, value, resourcePath) => {
-                const normalizedStateUri = normalizeUri(stateUri + (resourcePath || ''));
-
-                const template = {
-                    "_links": {
-                        "self": {
-                            "href": normalizedStateUri,
-                            "title": `${processor.name} state`
-                        },
-                        "profile": [
-                            {"href": `/schema/hypermedium/state/${processor.name}`},
-                            {"href": `/schema/hypermedium/state`},
-                        ]
-                    }
-                };
-
-                markDirty(normalizedStateUri, template);
-                // the state shouldn't be processed as a dependency
-                // this.resourceGraph.resetDependencies(normalizedStateUri);
-                //
-                // the state shouldn't be processed as a dependency of another state
-                const prevDependencies = this.resourceGraph.graph.nodeEdges(normalizedStateUri) as Edge[];
-                prevDependencies
-                    .filter(({v, w}) => v === normalizedStateUri && w.startsWith('/~hypermedium/state'))
-                    .forEach(({v, w}) => this.resourceGraph.graph.removeEdge(v, w));
-
-
-                const stateNode = this.resourceGraph.graph.node(normalizedStateUri);
-                stateNode.originalResource = HalUtil.setProperty(stateNode.originalResource, property, value);
-
-                return stateNode.originalResource;
-            },
             hypermedia: this
         };
 
@@ -554,60 +564,6 @@ export class HypermediaEngine {
     protected log(event: Event): void {
         this.eventsSubject.next(event);
     }
-
-
-    // protected calculateFromFactory(uri: HAL.Uri, processor: Processor): CalculateFromResource {
-    //     return(dependencyUri: HAL.Uri | HAL.Uri[], fn: CalculateFromResourceFn | CalculateFromResourcesFn) => {
-    //         const dependencyUris = Array.isArray(dependencyUri)? dependencyUri: [dependencyUri];
-    //         // process dependencies
-    //         const dependencyResourceParams: CalculateFromResourceParams[] = dependencyUris.map((uri) => {
-    //             const normalizedDependencyUri = normalizeUri(uri);
-    //             const dependencyResource = this.resourceGraph.graph.node(normalizedDependencyUri);
-    //             if(!dependencyResource) {
-    //                 this.log({
-    //                     eType: 'ProcessorError',
-    //                     uri: uri,
-    //                     error: new Error(`Resource ${normalizedDependencyUri} has not been loaded`)
-    //                 });
-    //                 return {href: normalizedDependencyUri, resource: undefined};
-    //             }
-
-    //             if(normalizedDependencyUri !== uri) {
-    //                 this.resourceGraph.addDependency(uri, normalizedDependencyUri, processor);
-
-    //                 if(!dependencyResource.resource) {
-    //                     this.processResource(normalizedDependencyUri);
-    //                 }
-    //             }
-
-    //             return {href: normalizedDependencyUri, resource: dependencyResource.resource};
-    //         });
-
-    //         return Array.isArray(dependencyUri)?
-    //             (fn as CalculateFromResourcesFn)(dependencyResourceParams):
-    //             (fn as CalculateFromResourceFn)(dependencyResourceParams[0]);
-    //     };
-    // }
-
-    // protected markDirtyFactory(dependentUri: HAL.Uri, processor: Processor): (uri: HAL.Uri | HAL.Uri[], template?: string | HAL.ExtendedResource) => void {
-    //     return (uri, template) => {
-    //         return (Array.isArray(uri)?
-    //             uri:
-    //             [uri]
-    //         ).forEach((u) => {
-    //             if(template && !this.resourceGraph.getResource(u)) {
-    //                 const newResource = typeof template === 'string'?
-    //                     this.resourceGraph.getResource(template):
-    //                     template;
-
-    //                 if(newResource) {
-    //                     this.loadResource(u, newResource, processor.name);
-    //                 }
-    //             }
-    //             this.resourceGraph.addDependency(normalizeUri(u), dependentUri, processor)
-    //         })
-    //     }
-    // }
 }
 
 export namespace HypermediaEngine {
@@ -619,92 +575,3 @@ export namespace HypermediaEngine {
     }
 
 }
-
-// when a /schema/post is added
-// add to /schema/post index
-// generate body->bodyHtml
-//
-// when a /schema/index/schema/post is added
-// get list of posts from index, add to fs:entries
-// foreach fs:entries: embed title, author, date-created, excerpt
-// sort by date-created
-
-// _processors: [] list of processors that will be run on this resource in order
-// _options: {} map of options that will be provided to global processors
-//
-// index (property): indexes resources that have the given property.
-// if the value of the property is an array, use every value in the array as an index
-//
-//
-// index('_links.profile') -> map<profile, set<uri>>
-// /schema/posts -> /a, /b, /c
-// /schema/books -> /d
-//
-// index('tags') -> map<tag, set<uri>>
-// blog -> /a, /b
-// hello -> /a
-//
-// to make a page that lists all posts
-// listIndex('_links.profile', '/schema/post')
-//  -> fs:entries: [/a, /b, /c]
-//
-// listIndex('_links.profile', '/schema/books')
-//  -> fs:entries: [/d]
-//
-// listIndex('_links.profile')
-//  -> fs:entries: {/schema/post: [/a, /b, /c], /schema/books: [/d]}
-//  listIndex('tags')
-//  -> fs:entries: {blog: [...], hello: [...]}
-//
-//  listIndex('tags', 'blog')
-//  -> fs:entries: [/a, /b]
-//
-//
-//  posts page:
-//  /posts: {
-//     profile: '/schema/index/_links.profile/schema/post',
-//
-//     _processors: [{
-//          name: 'listIndex', options: {
-//              index: '_links.profile',
-//              value: '/schema/post',
-//              //'output': 'fs:entries'
-//          }}
-//     ]
-//
-//     //fs:entries: [uris...]
-//  }
-//
-//  tags page:
-//  /tags: {
-//      profile: '/schema/index/tags',
-//     _processors: [
-//          {name: 'listIndex', options: {
-//              index: 'tags',
-//              //'output': 'fs:entries'
-//              // creates map object of tags
-//          }},
-//          {name: 'forEach', options: {
-//              key: 'tags',
-//              processor: 'forEach', options: {
-//                  // no key
-//                 processor: 'embed',
-//                 options: {
-//                     properties: ['title']
-//                 }
-//          }}
-//     ]
-//      //fs:entries: {tag1: [uris...], tag2: [uris...]}
-//  }
-//
-// metaIndex (e.g. tags)
-// processors are NOT a good tool for creating completely dynamic pages from data (e.g. create an index page for each tag)
-// need a first-class data->document builder
-//
-// post -> index -> trigger create tags index. Tags page is an index of /schema/index/tags style pages
-// tags page exists and contains an index of values. sub pages are generated by tags page
-//
-// should an "index" just be a collection (stored internally). does it make sense for "index" to autogenerate a resource (output may be specified). then the page data has to live in the processor options (bad).
-// where are "data templates" stored? if generation is triggered by a root resource
-// foreach "value in 
-// 
