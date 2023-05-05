@@ -30,18 +30,19 @@ const handlebarsHelpers: {[name: string]: HelperDelegate} = {
     'matchesType': function(ldType) {
         return JsonLDUtil.matchesType(this, ldType)
     },
-    /** creates a link from a json-ld object */
+    /** creates a link from a json-ld object. tries to use url, falls back to @id */
     'link': (resource, rel, target, ...options) => {
-        if(!resource?.['@id']) {
-            throw new Error(`handlebars helper link (core): invalid link: @id was '${resource?.['@id']}'`);
+        const url = resource?.url || resource?.['@id'];
+        if(!url) {
+            throw new Error(`handlebars helper link (core): invalid link: 'url' and '@id' were '${url}'`);
         }
         const relHtml = typeof rel === 'string'? `rel=${rel}`: '';
 
         if(typeof target == 'string') {
-            return new SafeString(`<a ${relHtml} href=${JsonLDUtil.htmlUri(resource['@id'])} target=${target}>${resource.headline || resource.name || resource['@id']}</a>`)
+            return new SafeString(`<a ${relHtml} href=${JsonLDUtil.htmlUri(url)} target=${target}>${resource.headline || resource.name || url}</a>`)
         }
 
-            return new SafeString(`<a ${relHtml} href=${JsonLDUtil.htmlUri(resource['@id'])}>${resource.headline || resource.name || resource['@id']}</a>`)
+            return new SafeString(`<a ${relHtml} href=${JsonLDUtil.htmlUri(url)}>${resource.headline || resource.name || url}</a>`)
     },
 
     /** creates a shallow copy of the object and sets/overwrites top-level properties with the provided values */

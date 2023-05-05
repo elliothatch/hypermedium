@@ -1,6 +1,6 @@
 import { promisify } from 'util';
 
-import { Plugin, Processor, HalUtil } from 'hypermedium';
+import { Plugin, Processor, JsonLDUtil } from 'hypermedium';
 import * as Marked from 'marked';
 
 const MarkedAsync = promisify<string, Marked.MarkedOptions | undefined, string>(Marked);
@@ -25,8 +25,8 @@ const markdownPlugin: Plugin = {
 export const markdown: Processor.Definition = {
     name: 'markdown',
     onProcess: (rs, options: MarkdownOptions) => {
-        return MarkedAsync(HalUtil.getProperty(rs.resource, options.from), options.markedOptions).then((html) => {
-            return HalUtil.setProperty(rs.resource, options.to || options.from, html);
+        return MarkedAsync(JsonLDUtil.getProperty(rs.resource, options.from), options.markedOptions).then((html) => {
+            return JsonLDUtil.setProperty(rs.resource, options.to || options.from, html);
         });
     }
 }

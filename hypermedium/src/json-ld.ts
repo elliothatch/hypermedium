@@ -1,4 +1,6 @@
-/** simplified JSON-LD types based on JSON-LD 1.1 (16 July 2020): https://www.w3.org/TR/json-ld/ */
+/** simplified JSON-LD types based on JSON-LD 1.1 (16 July 2020): https://www.w3.org/TR/json-ld/
+* Hypermedium operates on simplified, compacted form JSON-LD documents. Currently, it only supports documents that contain a top-level Node object (not an array or graph). Support of most keywords is extremely limited. The ultimate goal is to fully support the JSON-LD spec.
+* */
 
 /** An IRI is the absolute form of an IRI containing a scheme along with a path and optional query and fragment segments.
 * IRIReference Denotes the common usage of an Internationalized Resource Identifier. An IRI reference may be absolute or relative. However, the "IRI" that results from such a reference only includes absolute IRIs; any relative IRI references are resolved to their absolute form.

@@ -10,7 +10,7 @@ import { catchError, concatMap, combineLatest, map, mergeMap, last, publish, fil
 import * as Build from './build';
 import { BuildManager } from './build-manager';
 import { HtmlRenderer } from './renderer';
-import { HypermediaEngine, ResourceGraph } from './hypermedia-engine';
+import { HypermediaEngine, ResourceGraph, Event as HypermediaEvent } from './hypermedia-engine';
 import { WatchEvent, matchesFullExtension } from './util';
 import { Module } from './plugin';
 import { PluginManager } from './plugin-manager';
@@ -319,7 +319,8 @@ export class Hypermedium {
     }
 
     /** output resources as rendered HTML */
-    public exportResources(targetDir: string): Observable<Hypermedium.Event.Export> {
+    public exportResources(targetDir: string): Observable<Hypermedium.Event.Export | HypermediaEvent.Warning> {
+        // TODO: should emit Error event instead of throwing, so we don't have to cancel the entire export for a single error
         return from(fsPromises.mkdir(targetDir, {recursive: true})).pipe(
             mergeMap(() => {
                 // NOTE: there probably is a more efficient way to traverse the nodes, but there doesn't seem to be a public api for it
@@ -327,26 +328,40 @@ export class Hypermedium {
                 const writeResourceObservables = resources.map((uri) => {
                     return defer(() => {
                         const node: ResourceGraph.Node = this.hypermedia.resourceGraph.graph.node(uri);
-
-
-                        if(node.eType === 'file') {
-                            const filePath = Path.join(targetDir, uri);
+                        if(!node) {
+                            const dependencies = (this.hypermedia.resourceGraph.graph.nodeEdges(uri) as unknown as ResourceGraph.Edge[])
+                                .filter(({v}) => v !== uri)
+                                .map(({v}) => v);
                             return of({
-                                eType: 'Export' as const,
-                                from: uri,
-                                path: filePath
+                                eType: 'Warning' as const,
+                                message: `Resource '${uri}' not found. The following resources have processor dependencies on this missing resource: ${dependencies.join(',')} Skipping export...`,
+                                data: {from: uri, dependencies}
                             });
                         }
 
+                        if(node.eType === 'file') {
+                            const filePath = Path.join(targetDir, uri);
+                            return from(fs.copy(node.path, filePath)).pipe(
+                                map(() => ({
+                                eType: 'Export' as const,
+                                from: uri,
+                                path: filePath
+                            }))
+                            );
+                        }
+
                         if(!node.resource) {
-                            // TODO: emit warning
-                            return EMPTY;
+                            return of({
+                                eType: 'Warning' as const,
+                                message: `Resource '${uri}' was exported before it was processed. Skipping export...`,
+                                data: {from: uri}
+                            });
                         }
 
                         // HAL resource
                         // TODO: this assumes all resources have exactly one extension at the end that we want to replace with .html
                         const filename = uri.split('.').slice(0, -1).join('.') + '.html';
-                        const filePath = Path.join(targetDir, uri);
+                        const filePath = Path.join(targetDir, filename);
 
                         const html = this.renderer.render(node.resource, this.renderer.defaultTemplate, uri);
                         return from(fs.outputFile(filePath, html)).pipe(
@@ -388,7 +403,7 @@ export class Hypermedium {
     * @param options.modules - by default, export site only exports static files (mappings listed in the plugin's "files" configuration option) from the main module, to the root of targetDir.
     * this option allows you to specify additional modules to export static files from. each module will be exported to a directory with the name of the module. the main module is always exported
     */
-    public exportSite(targetDir: string, options?: Partial<{modules: string[], overwrite: boolean}>): Observable<Hypermedium.Event.Export> {
+    public exportSite(targetDir: string, options?: Partial<{modules: string[], overwrite: boolean}>): Observable<Hypermedium.Event.Export | HypermediaEvent.Warning> {
         return from(fsPromises.mkdir(targetDir, {recursive: true})).pipe(
             mergeMap((createdDirPath) => {
                 if(!options?.overwrite && !createdDirPath) {

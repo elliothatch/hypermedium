@@ -1,0 +1,13 @@
+{{#if (eq (typeof this) "string")}}
+<div class="image">
+	<picture>
+		<img src="{{this}}">
+	</picture>
+</div>
+{{else}}
+<div class="image">
+	<picture>
+		<img src="{{this}}"{{#if caption}}alt="{{caption}}"{{/if}}>
+	</picture>
+</div>
+{{/if}}

@@ -85,6 +85,7 @@ export const Embed: Processor.Definition<'embed', {
                 throw error;
             }
 
+            // TODO: properties doesn't seem to limit. always, embeds entire resource?
             const embed = options?.properties?
                 JsonLDUtil.pickProperties(embedResource, options?.properties):
                 embedResource;
@@ -148,21 +149,51 @@ export const Order: Processor.Definition<'order', {
         }
     };
 
-// export const GetIndex: Processor.Definition<'getIndex', {
-//     /**  */
-//     property: PropertyPath;
-// } | undefined> = {
-//         name: 'getIndex',
-//         onProcess: (rs, options) => {
-//             return rs.resource;
-//         }
-//     };
+/** shorthand to automatically copy an index at the default uri, and embed properties */
+export const GetIndex: Processor.Definition<'getIndex', {
+    /** property */
+    property: PropertyPath;
+    /** the value of the property to match */
+    match: string;
+    /** write the index to this property. Default: 'itemListElement' */
+    to?: PropertyPath;
+    /** properties to embed into the indexed resource */
+    embed?: PropertyPath[];
+}> = {
+        name: 'getIndex',
+        onProcess: (rs, options) => {
+            const toProperty = options.to || 'itemListElement';
+            const processors: Processor[] = [{
+                name: 'copy',
+                options: {
+                    uri: `/~hypermedium/dynamic/index/${options.property}`,
+                    from: ['index', options.match],
+                    to: toProperty,
+                }
+            }];
+            if(options.embed) {
+                processors.push({
+                    name: 'map',
+                    options: {
+                        property: toProperty,
+                        processor: {
+                            name: 'embed',
+                            options: {
+                                properties: options.embed
+                            }
+                        }
+                    }
+                });
+            }
+            return rs.execProcessor(processors, rs.resource);
+        }
+    };
 
 
 export const processorDefinitions: Processor.Definition[] = [
     Self,
     Embed,
     Order,
-    // GetIndex,
+    GetIndex,
 ];
 

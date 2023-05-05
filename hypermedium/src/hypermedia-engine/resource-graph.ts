@@ -1,4 +1,4 @@
-import { Graph, Edge } from 'graphlib';
+import { Graph, Edge as GraphEdge } from 'graphlib';
 
 import * as JsonLD from '../json-ld';
 import * as JsonLDUtil from '../json-ld-util';
@@ -58,7 +58,7 @@ export class ResourceGraph {
     }
 
     public resetDependencies(uri: JsonLD.IRI): void {
-        const prevDependencies = this.graph.nodeEdges(uri) as Edge[];
+        const prevDependencies = this.graph.nodeEdges(uri) as GraphEdge[];
 
         prevDependencies
         .filter(({v, w}) => v === uri)
@@ -97,7 +97,7 @@ export namespace ResourceGraph {
 
     }
 
-    export interface Edge {
+    export interface Edge extends GraphEdge {
         processors: Processor[];
     }
 }

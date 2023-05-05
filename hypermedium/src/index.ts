@@ -301,13 +301,22 @@ function initializeHypermedium(options: HypermediumInitOptions, staticMappings: 
             hypermedium.build.watchEvents,
             moduleEvents) // TODO: module events are now doubling up
         .pipe(
-            timeoutWith(1000, concat(
+            timeoutWith(2000, concat(
                 defer(() => Log.info('exporting site')),
                 defer(() => {
                         const exportPath = options.export?.path || Path.join(hypermedium.mainModule?.modulePath || process.cwd(), 'export');
                         return hypermedium.exportSite(exportPath, {overwrite: options.export!.overwrite});
                 }).pipe(
-                tap((event: Hypermedium.Event.Export) => Log.trace(`export ${event.from} -> ${event.path}`, event)),
+                tap((event: Hypermedium.Event.Export | HypermediaEngine.Event.Warning) => {
+                    switch(event.eType) {
+                        case 'Export':
+                            Log.trace(`export ${event.from} -> ${event.path}`, event);
+                            break;
+                        case 'Warning':
+                            Log.warn(event.message, event);
+                            break;
+                    }
+                }),
                 catchError((error: Error) => {
                     Log.error(`Export site failed: ${error.message}`, error);
                     process.exit(1);
