@@ -1,0 +1,12 @@
+{{!-- https://schema.org/potentialAction --}}
+{{#if (isArray this)}}<ul class="actions">{{/if}}
+{{#each (asArray this)}}
+{{#if (isArray @..)}}<li>{{/if}}
+{{#if (eq (typeof this) "string")}}
+<a href="{{this}}">{{this}}</a>
+{{else}}
+{{> type/Action.hbs this}}
+{{/if}}
+{{#if (isArray @..)}}</li>{{/if}}
+{{/each}}
+{{#if (isArray this)}}</ul>{{/if}}

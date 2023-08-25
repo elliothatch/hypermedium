@@ -1,0 +1,12 @@
+{{!-- https://schema.org/Thing --}}
+<div class="{{join this.[@type] " "}}">
+	{{#if url}}<a href="{{url}}">{{/if}}<h1 class="name">{{name}}</h1>{{#if url}}</a>{{/if}}
+	{{#if alternateName}}<h2 class="alternateName">{{alternateName}}</h2>{{/if}}
+	{{#if identifier}}<span class="identifier">{{identifier}}</span>{{/if}}
+	{{#if description}}<p class="description">{{description}}</p>{{/if}}
+	{{#if disambiguatingDescription}}<p class="disambiguatingDescription">{{disambiguatingDescription}}</p>{{/if}}
+	{{> property/image.hbs image}}
+	{{> property/potentialAction.hbs potentialAction}}
+
+	{{#> slot-contents}}{{/slot-contents}}
+</div>

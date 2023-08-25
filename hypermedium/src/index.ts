@@ -90,7 +90,7 @@ export function HypermediumCmd(argv: string[]) {
                 initializeHypermedium(hypermediumOptions, []);
             }
             catch(error) {
-                Log.error(error.message, error);
+                Log.error(error.message, {error});
                 return 1;
             }
             // return 0;
@@ -137,7 +137,7 @@ export function HypermediumCmd(argv: string[]) {
                 initializeHypermedium(hypermediumOptions, staticMappings);
             }
             catch(error) {
-                Log.error(error.message, error);
+                Log.error(error.message, {error});
                 return 1;
             }
             // return 0;
@@ -226,10 +226,10 @@ function initializeHypermedium(options: HypermediumInitOptions, staticMappings: 
                     }
                     if(e.eType === 'DynamicResourceError') {
                         if(e.uri) {
-                            Log.error(`hypermedia-engine: ${event.eType} ${e.dynamicResource!.name} ${e.uri}: ${e.error!.message}`, e);
+                            Log.error(`hypermedia-engine: ${event.eType} ${e.dynamicResource!.name} ${e.uri}: ${e.error!.message}`, {error: e});
                         }
                         else {
-                            Log.error(`hypermedia-engine: ${event.eType} ${e.dynamicResource!.name}: ${e.error!.message}`, e);
+                            Log.error(`hypermedia-engine: ${event.eType} ${e.dynamicResource!.name}: ${e.error!.message}`, {error: e});
                         }
                         return
                     }
@@ -240,7 +240,7 @@ function initializeHypermedium(options: HypermediumInitOptions, staticMappings: 
                     }
                     if((e as any).uri) {
                         if(event.eType === 'ProcessorError') {
-                            Log.error(`hypermedia-engine: ${event.eType} ${(e as any).uri}: ${event.error.message}`, e);
+                            Log.error(`hypermedia-engine: ${event.eType} ${(e as any).uri}: ${event.error.message}`, {error: e});
                         }
                         else if(event.eType === 'LoadResource') {
                             Log.trace(`hypermedia-engine: ${event.eType} ${(e as any).uri}`, e);
@@ -318,7 +318,7 @@ function initializeHypermedium(options: HypermediumInitOptions, staticMappings: 
                     }
                 }),
                 catchError((error: Error) => {
-                    Log.error(`Export site failed: ${error.message}`, error);
+                    Log.error(`Export site failed: ${error.message}`, {error: error});
                     process.exit(1);
                     // return EMPTY;
                 }),

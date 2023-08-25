@@ -8,6 +8,8 @@ import { HypermediaEngine } from './engine';
 export interface ResourceState<R extends JsonLD.Document = JsonLD.Document> {
     resource: R;
     uri: string;
+    /** uri of the parent directory */
+    baseUri: string;
     /** call this function to calculate values based on other resources.
      * has the side-effect of letting the processing engine know to reprocess this file
      * whenever the dependency changes.

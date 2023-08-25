@@ -6,11 +6,11 @@
     "types": "declarations/index.d.ts",
     "dependencies": {
         "fs-extra": "^9.0.1",
-        "hypermedium": "^0.1.0",
         "sass": "^1.26.10"
     },
     "devDependencies": {
         "@types/fs-extra": "^9.0.1",
-        "@types/sass": "^1.16.0"
+        "@types/sass": "^1.16.0",
+        "hypermedium": "^0.1.0"
     }
 }

@@ -1,10 +1,10 @@
 const Path = require('path');
 
 const demoPlugin = {
-	name: 'hypermedium-demo',
+	name: 'hypermedium-demo-old',
 	version: '1.0.0',
 	pluginApi: '1',
-	dependencies: ['core', 'schema-org', 'sass', 'markdown'],
+	dependencies: ['core', 'sass', 'markdown'],
 	moduleFactory: (options) => {
 		return {
 			files: ['dist'],
@@ -14,6 +14,32 @@ const demoPlugin = {
 					pre: [{
 						name: 'self'
 					}],
+					post: [{
+						name: 'matchType',
+						options: {
+							profile: 'https://schema.org/BlogPosting',
+							processors: [{
+								name: 'markdown',
+								options: {
+									from: 'body',
+									to: 'bodyHtml',
+								}
+							}, {
+								name: 'excerpt',
+								options: {
+									from: 'body',
+									to: 'excerpt',
+									max: 50
+								}
+							}, {
+								name: 'markdown',
+								options: {
+									from: 'excerpt',
+									to: 'excerptHtml',
+								}
+							}]
+						}
+					}]
 				},
 				dynamicResources: [{
 					name: 'index',
@@ -31,8 +57,7 @@ const demoPlugin = {
 				templatePaths: ['templates'],
 				partialPaths: ['partials'],
 				profileLayouts: {
-					// '/schema/homepage': 'layouts/homepage.hbs',
-					'/schema/schema-examples': 'layouts/schema-examples.hbs',
+					'/schema/homepage': 'layouts/homepage.hbs',
 				},
 				context: '/site.json'
 			},

@@ -413,10 +413,10 @@ fresh@0.5.2:
   resolved "https://registry.yarnpkg.com/fresh/-/fresh-0.5.2.tgz#3d8cadd90d976569fa835ab1f8e4b23a105605a7"
   integrity sha1-PYyt2Q2XZWn6g1qx+OSyOhBWBac=
 
-freshlog@^0.2.4:
-  version "0.2.4"
-  resolved "https://registry.yarnpkg.com/freshlog/-/freshlog-0.2.4.tgz#7894ba262baee6ef7259c2af62377cc121d9030f"
-  integrity sha512-r0ub/tozHnyuL0qxYH3Iw0a9wqI5pVJSSPpqPK7vjTa5xSHHTCiQwyRD3DujiZnNOlS4sc9x5GQaKYFiOWfIRw==
+freshlog@^0.3.0:
+  version "0.3.0"
+  resolved "https://registry.yarnpkg.com/freshlog/-/freshlog-0.3.0.tgz#43f76f1748959ffd45f61911eb71b3dd2face9a6"
+  integrity sha512-lX9wFin1QS8z6BgixivvA91FI3EdfESLZN71C8ryHI1W/OzNvfgTW1QmMJj+zbtL4zYBtC/xSYflhCLhO+AI/A==
   dependencies:
     json-stringify-safe "^5.0.1"
     rxjs "^6.5.1"

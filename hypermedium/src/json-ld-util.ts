@@ -115,7 +115,16 @@ export function setProperty(obj: any, propertyName: PropertyPath | undefined, va
 }
 
 // TODO: make this work with different MIME types with sensible default beahvior
-export function normalizeUri(uri: JsonLD.IRI): JsonLD.IRI {
+/**
+ * @param baseUri - if uri is a relative IRI (doesn't start with a slash), the baseUri is prepended to the result
+ */
+export function normalizeUri(uri: JsonLD.IRI, baseUri?: JsonLD.IRI): JsonLD.IRI {
+    if(!uri.startsWith('/') && baseUri) {
+        uri = baseUri.slice(-1) == '/'?
+            baseUri + uri:
+            baseUri + '/' + uri;
+    }
+
     const suffix = '.json';
     if(uri.slice(-1) === '/') {
         return `${uri}index${suffix}`;

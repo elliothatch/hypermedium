@@ -11,8 +11,7 @@
 	"dependencies": {
 		"sanitize.css": "^12.0.1",
 		"@hypermedium/core": "^0.1.0",
-		"@hypermedium/sass": "^0.1.0",
-		"@hypermedium/schema-org": "^0.1.0"
+		"@hypermedium/sass": "^0.1.0"
 	},
 	"devDependencies": {
 		"hypermedium": "^0.1.0"

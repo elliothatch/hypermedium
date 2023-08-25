@@ -1,0 +1,10 @@
+{{!-- https://schema.org/ImageObject --}}
+<figure class="image">
+	<picture>
+		{{#each encoding}}
+			<source srcset="{{coalesce contentUrl url}}" {{#if encodingFormat}}type="{{encodingFormat}}"{{/if}}>
+		{{/each}}
+		<img src="{{coalesce contentUrl url}}{{#if (coalesce description name)}}alt="{{coalesce description name}}"{{/if}}>
+	</picture>
+	{{#if (eq (typeof caption) "string"}}<figcaption>{{caption}}</figcaption>{/if}}
+</figure>

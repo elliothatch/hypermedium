@@ -39,7 +39,7 @@
 		"chokidar": "^3.4.2",
 		"express": "^4.17.1",
 		"fresh-validation": "^3.0.0",
-		"freshlog": "^0.2.4",
+		"freshlog": "^0.3.0",
 		"fs-extra": "^9.0.1",
 		"graphlib": "^2.1.8",
 		"handlebars": "^4.7.6",

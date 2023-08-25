@@ -1,0 +1,16 @@
+{{!-- https://schema.org/image --}}
+{{#if (isArray this)}}<ul class="image-gallery">{{/if}}
+{{#each (asArray this)}}
+{{#if (isArray @..)}}<li>{{/if}}
+{{#if (eq (typeof this) "string")}}
+<figure class="image">
+	<picture>
+		<img src="{{this}}">
+	</picture>
+</figure>
+{{else}}
+{{> type/ImageObject.hbs this}}
+{{/if}}
+{{#if (isArray @..)}}</li>{{/if}}
+{{/each}}
+{{#if (isArray this)}}</ul>{{/if}}

@@ -6,6 +6,15 @@ import { PropertyPath } from '../json-ld-util';
 import { HypermediaEngine } from './engine';
 import { ResourceGraph } from './resource-graph';
 
+/**
+ * Dynamic resources are processes that manage the creation, deletion, and updates of one or more Hypermedia documents.
+ *
+ * The purpose of a dynamic resource is to use external (or internal) data sources to create documents that can leverage processors and be referenced and used by other documents in the Hypermedia Engine
+ *
+ * For example, you can use the Index dynamic resource to create an index of certain pages in your site, and then reference that index in a table of contents, which will automatically update whenever a resource matching the index is added, removed, or changed.
+ *
+ * You can also have a dynamic resource that is tied to an external database or service which creates JSON representations for resources returned by queries to that database.
+ */
 export interface DynamicResource<O = any> {
     /** name of the DynamicResource.Definition */
     name: string;

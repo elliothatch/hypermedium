@@ -1,0 +1,62 @@
+{
+	"@type": [
+		"/schema/schema-examples",
+		"https://schema.org/ItemList"
+	],
+	"name": "Schema Examples",
+	"itemListOrder": "Unordered",
+	"itemListElement": [{
+		"@type": "https://schema.org/Thing",
+		"url": "https://schema.org/Thing",
+		"name": "Thing",
+		"identifier": "type/Thing.hbs",
+		"description": "A generic thing",
+		"disambiguatingDescription": "The most generic type of item in Schema.org",
+		"image": "/schemas/schema-org/example.png",
+		"potentialAction": [{
+			"name": "Say hello",
+			"target": "javascript:alert('hello')"
+		}, {
+			"name": "Say goodbye",
+			"target": "javascript:alert('goodbye')"
+		}]
+	}, {
+		"@type": "https://schema.org/ItemList",
+		"url": "https://schema.org/ItemList",
+		"name": "ItemList",
+		"identifier": "type/ItemList.hbs",
+		"description": "A list of items",
+		"disambiguatingDescription": "An ascending, descending, or unordered list of items.",
+		"image": "/schemas/schema-org/example.png",
+		"potentialAction": {
+			"name": "Say Hello",
+			"target": "javascript:alert('hello')"
+		},
+		"itemListOrder": "Ascending",
+		"itemListElement": [{
+			"@type": "https://schema.org/Thing",
+			"name": "First thing",
+			"description": "#1 thing",
+			"potentialAction": {
+				"name": "Alert 1",
+				"target": "javascript:alert('1')"
+			}
+		}, {
+			"@type": "https://schema.org/Thing",
+			"name": "Second thing",
+			"description": "#2 thing",
+			"potentialAction": {
+				"name": "Alert 2",
+				"target": "javascript:alert('2')"
+			}
+		}, {
+			"@type": "https://schema.org/Thing",
+			"name": "Third thing",
+			"description": "#3 thing",
+			"potentialAction": {
+				"name": "Alert 3",
+				"target": "javascript:alert('3')"
+			}
+		}]
+	}]
+}

@@ -476,9 +476,14 @@ export class HypermediaEngine {
 
         logger.handlers.forEach((handler) => handler.enabled = true);
 
+        const baseUri = uri.endsWith('/')?
+            uri.slice(0, uri.slice(0,-1).lastIndexOf('/') + 1):
+            uri.slice(0, uri.lastIndexOf('/') + 1);
+
         const resourceState: ResourceState = {
             resource,
             uri,
+            baseUri,
             logger,
             processor,
             execProcessor: (p, r?: JsonLD.Document) => {
@@ -494,7 +499,7 @@ export class HypermediaEngine {
 
             },
             getResource: (dependencyUri: JsonLD.IRI) => {
-                const normalizedDependencyUri = JsonLDUtil.normalizeUri(dependencyUri);
+                const normalizedDependencyUri = JsonLDUtil.normalizeUri(dependencyUri, baseUri);
 
                 const r = this.resourceGraph.getResource(normalizedDependencyUri);
                 // add the dependency, even if the target node doesn't exist yet
@@ -516,7 +521,7 @@ export class HypermediaEngine {
                 return r;
             },
             getFile: (dependencyUri: JsonLD.IRI) => {
-                const normalizedDependencyUri = JsonLDUtil.normalizeUri(dependencyUri);
+                const normalizedDependencyUri = JsonLDUtil.normalizeUri(dependencyUri, baseUri);
 
                 const r = this.resourceGraph.getFile(normalizedDependencyUri);
                 // add the dependency, even if the target node doesn't exist yet

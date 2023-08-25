@@ -65,6 +65,14 @@ export class HtmlRenderer {
 
     constructor(options: HtmlRenderer.Options) {
         this.handlebarsEnvironment = Handlebars.create();
+        // we have to register these partials here because they access the handlebars environment.
+        // TODO: initialize handlebars helpers with factory function that is provided handlebars environment and other renderer data
+        this.handlebarsEnvironment.registerHelper('escapedPartial', (partial, context) => {
+            return this.handlebarsEnvironment.partials[partial](context);
+        });
+        this.handlebarsEnvironment.registerHelper('lookupLayout', (types) => {
+            return this.getProfileLayout(Array.isArray(types)? types: [types]);
+        });
 
         this.hypermedia = options.hypermedia;
         this.defaultTemplate = options.defaultTemplate || 'default.hbs';
@@ -174,6 +182,12 @@ export class HtmlRenderer {
         return true;
     }
 
+    public getProfileLayout(types: string[]): JsonLD.IRI | undefined {
+        return types.reduce((layout, ldType) => {
+            return layout || (ldType && this.profileLayouts[ldType]);
+        }, undefined as JsonLD.IRI | undefined);
+    }
+
     /**
      * @param uri - used only for logging
      */
@@ -188,17 +202,16 @@ export class HtmlRenderer {
         //     }, []);
         // }
 
-        // use the first layout found
-        // TODO: match layout with path-to-regexp
-        const layout: JsonLD.IRI | undefined = JsonLDUtil.getTypes(resource).reduce((layout, ldType) => {
-            return layout || (ldType && this.profileLayouts[ldType]);
-        }, undefined as JsonLD.IRI | undefined);
+        const layout = this.getProfileLayout(JsonLDUtil.getTypes(resource));
         const context = Object.assign({}, {
             _site: Object.assign({}, this.siteContext, {layout}),
         },
             resource
         );
 
+
+        // use the first layout found
+        // TODO: match layout with path-to-regexp
         try {
             const html = this.templates[templateUri](context);
             this.eventsSubject.next({

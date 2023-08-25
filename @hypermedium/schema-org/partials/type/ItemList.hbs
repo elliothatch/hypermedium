@@ -1,0 +1,18 @@
+{{!-- https://schema.org/ItemList --}}
+{{#> type/Thing.hbs}}
+	{{#*inline "slot-contents" }}
+	{{#if (eq itemListOrder "Unordered")}}
+	<ul class="itemList">
+	{{else}}
+	<ol class="itemList">
+	{{/if}}
+		{{#each itemListElement}}
+			<li class="itemListElement">{{> (lookupLayout this.[@type]) this}}</li>
+		{{/each}}
+	{{#if (eq itemListOrder "Unordered")}}
+	</ul>
+	{{else}}
+	</ol>
+	{{/if}}
+	{{/inline}}
+{{/ type/Thing.hbs}}

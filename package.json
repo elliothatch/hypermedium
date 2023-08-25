@@ -7,6 +7,7 @@
 			"@hypermedium/favicons",
 			"@hypermedium/markdown",
 			"@hypermedium/sass",
+			"@hypermedium/schema-org",
 			"hypermedium-demo"
 		],
 		"nohoist": ["hypermedium-demo/sanitize.css"]
@@ -17,6 +18,7 @@
 		"dev": "sift node ./hypermedium/build/index.js",
 		"demo": "sift node ./hypermedium/build/index.js -S hypermedium-demo",
 		"demo-export": "sift node ./hypermedium/build/index.js -O -f hypermedium-demo",
+		"website": "sift node ./hypermedium/build/index.js -S hypermedium-website",
         "debug": "node --inspect-brk ./hypermedium/build/index.js -S"
 	}
 }

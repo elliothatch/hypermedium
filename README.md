@@ -10,7 +10,6 @@ Hypermedium is a NodeJs tool for creating static and dynamic websites.
 ### Hypermedium core processors use the HAL data format, but this may change to JSON-LD or another format before the release of v1.0.0.
 
 # Quick Start
-## The Hypermedium packages have not been published to NPM. To use Hypermedium you must build from source and use `yarn link` in your project. See [Development](#development).
 Hypermedium can be used from the command line, or as a NodeJs module. In either case, you should install Hypermedium and any plugins into a local project directory.
 
 ```bash
@@ -372,6 +371,12 @@ We use nohoist for build assets in the demo workspace, so the sass includePath i
 <!---
 Rework markdown processor. Extract title and other metadata directly from md file? Are we just reinventing jekyll frontmatter?
 --->
+
+## Publish
+cd into the `hypermedium` or plugin directory, update the `package.json` version, and then publish.
+```
+yarn publish
+```
 
 ## Issues
  - processor ordering can be confusing

@@ -1,0 +1,22 @@
+<h1>{{name}}</h1>
+<ul>
+	{{#each itemListElement}}
+		<li><div class="tabs">
+			<input name="tabs-{{@index}}" type="radio" id="panel-{{@index}}-example" checked>
+			<label for="panel-{{@index}}-example">Example</label>
+			<div class="tab-panel">
+				{{> (lookup . 'identifier') this}}
+			</div>
+			<input name="tabs-{{@index}}" type="radio" id="panel-{{@index}}-json">
+			<label for="panel-{{@index}}-json">JSON-LD</label>
+			<div class="tab-panel">
+				<pre>{{json-stringify this 3}}</pre>
+			</div>
+			<input name="tabs-{{@index}}" type="radio" id="panel-{{@index}}-html">
+			<label for="panel-{{@index}}-html">HTML</label>
+			<div class="tab-panel">
+				<pre>{{stripEmptyLines (escapedPartial (lookup . 'identifier') this)}}</pre>
+			</div>
+		</div></li>
+	{{/each}}
+</ul>

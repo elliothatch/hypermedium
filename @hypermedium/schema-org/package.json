@@ -1,0 +1,6 @@
+{
+    "name": "@hypermedium/schema-org",
+    "version": "0.1.0",
+    "description": "hypermedium plugin - handlebars templates for schema.org schemas",
+    "main": "index.js"
+}

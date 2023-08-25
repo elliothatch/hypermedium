@@ -1,4 +1,4 @@
-import { HelperDelegate, SafeString  } from 'handlebars';
+import { HelperDelegate, SafeString } from 'handlebars';
 import * as Moment from 'moment';
 import { JsonLDUtil } from 'hypermedium';
 
@@ -7,6 +7,10 @@ const handlebarsHelpers: {[name: string]: HelperDelegate} = {
     'eq': (lhs, rhs) => lhs == rhs,
     'or': (lhs, rhs) => lhs || rhs,
     'and': (lhs, rhs) => lhs && rhs,
+    'lt': (lhs, rhs) => lhs < rhs,
+    'gt': (lhs, rhs) => lhs > rhs,
+    'lte': (lhs, rhs) => lhs <= rhs,
+    'gte': (lhs, rhs) => lhs >= rhs,
     /** return first truthy argument */
     'coalesce': (...args) => args.slice(0, -1).find(i => !!i),
     'startsWith': (str, seq) => str.startsWith(seq),
@@ -55,7 +59,7 @@ const handlebarsHelpers: {[name: string]: HelperDelegate} = {
 	// 'extend-context': function(context, options) {
 		// return options.fn(Object.assign(Object.assign({}, this), JSON.parse(context)));
 	// },
-    'json-stringify': (val) => new SafeString(JSON.stringify(val)),
+    'json-stringify': (val, space) => new SafeString(JSON.stringify(val, null, space)),
     'html-uri': JsonLDUtil.htmlUri,
     'getTypes': JsonLDUtil.getTypes,
     'datetime': (dateStr, formatStr) => {
@@ -74,7 +78,9 @@ const handlebarsHelpers: {[name: string]: HelperDelegate} = {
             key? JsonLDUtil.getProperty(v, key) === value: v === value);
     },
     'join': (array, value) => {
-        return array.join(value)
+        return Array.isArray(array)?
+            array.join(value):
+            array;
     },
     /** pick an value off each object in the array */
     'map-pick': (key, array) => {
@@ -83,28 +89,15 @@ const handlebarsHelpers: {[name: string]: HelperDelegate} = {
     'repeat': function(count, options) {
         return options.fn(this).repeat(count);
     },
-    'embedded': function(resource, link, rel, options) {
-        if(!resource._embedded) {
-            return options.inverse(link);
-        }
-        const embeddedRel = resource._embedded[rel];
-        const embeddedResources =
-            Array.isArray(embeddedRel)?
-            embeddedRel:
-            resource._embedded[rel]?
-                [resource._embedded[rel]]:
-                [];
-
-        const embeddedResource = embeddedResources.find(
-            (r: any) => r?._links?.self?.href === link.href
-        );
-
-        if(!embeddedResource) {
-            return options.inverse(link);
-        }
-
-        return options.fn(embeddedResource);
+    /** converts a single value to an array containing one item. leaves array as-is. null/undefined returns an empty array */
+    'asArray': (value) => {
+        return value == undefined?
+            []:
+            Array.isArray(value)? value: [value];
     },
+    'stripEmptyLines': (value) => {
+        return value.replace(/^\s*\n/gm, '');
+    }
 };
 
 export { handlebarsHelpers };
