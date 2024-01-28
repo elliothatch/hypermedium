@@ -5,10 +5,9 @@
     "main": "build/index.js",
     "types": "declarations/index.d.ts",
     "dependencies": {
+        "github-slugger": "^1.5.0",
         "hypermedium": "^0.1.0",
-        "marked": "^1.1.1"
+        "marked": "^9.0.3"
     },
-    "devDependencies": {
-        "@types/marked": "^1.1.0"
-    }
+    "devDependencies": {}
 }

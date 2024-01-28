@@ -6,12 +6,13 @@
 	"name": "Schema Examples",
 	"itemListOrder": "Unordered",
 	"itemListElement": [{
+		"@id": "#Thing",
 		"@type": "https://schema.org/Thing",
 		"url": "https://schema.org/Thing",
 		"name": "Thing",
-		"identifier": "type/Thing.hbs",
+		"identifier": "type/Thing",
 		"description": "A generic thing",
-		"disambiguatingDescription": "The most generic type of item in Schema.org",
+		"disambiguatingDescription": "Type",
 		"image": "/schemas/schema-org/example.png",
 		"potentialAction": [{
 			"name": "Say hello",
@@ -21,12 +22,12 @@
 			"target": "javascript:alert('goodbye')"
 		}]
 	}, {
+		"@id": "#ItemList",
 		"@type": "https://schema.org/ItemList",
 		"url": "https://schema.org/ItemList",
 		"name": "ItemList",
-		"identifier": "type/ItemList.hbs",
+		"identifier": "type/ItemList",
 		"description": "A list of items",
-		"disambiguatingDescription": "An ascending, descending, or unordered list of items.",
 		"image": "/schemas/schema-org/example.png",
 		"potentialAction": {
 			"name": "Say Hello",
@@ -58,5 +59,38 @@
 				"target": "javascript:alert('3')"
 			}
 		}]
+	}, {
+		"@id": "#CreativeWork",
+		"@type": "https://schema.org/CreativeWork",
+		"url": "https://schema.org/CreativeWork",
+		"name": "Creative Work",
+		"identifier": "type/CreativeWork",
+		"description": "The most generic kind of creative work, including books, movies, photographs, software programs, etc.",
+		"image": "/schemas/schema-org/example.png",
+		"potentialAction": {
+			"name": "Say Hello",
+			"target": "javascript:alert('hello')"
+		},
+		"author": "Alan Smithee",
+		"dateCreated": "2023-08-27",
+		"dateModified": "2023-08-28",
+		"abstract": "A creative work about nothing"
+	}, {
+		"@id": "#Article",
+		"@type": "https://schema.org/Article",
+		"url": "https://schema.org/Article",
+		"name": "Article",
+		"identifier": "type/Article",
+		"description": "An article, such as a news article or piece of investigative report. Newspapers and magazines have articles of many different types and this is intended to cover them all.",
+		"image": "/schemas/schema-org/example.png",
+		"potentialAction": {
+			"name": "Say Hello",
+			"target": "javascript:alert('hello')"
+		},
+		"author": "Alan Smithee",
+		"dateCreated": "2023-08-27",
+		"dateModified": "2023-08-28",
+		"abstract": "An article about nothing",
+		"articleBody": "<p>Hello, this is an article.</p><p>Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum.</p>"
 	}]
 }

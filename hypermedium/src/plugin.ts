@@ -2,7 +2,7 @@ import { Observable } from 'rxjs';
 import { validate } from 'fresh-validation';
 import { HelperDelegate } from 'handlebars';
 
-import { ProfileLayoutMap } from './renderer';
+import { ProfileLayoutMap, TemplateRoute } from './renderer';
 import { Processor, DynamicResource } from './hypermedia-engine';
 import * as BuildManager from './build';
 
@@ -20,14 +20,15 @@ export class Plugin<T = any> {
     /** plugin API version */
     pluginApi!: string;
     /** names of plugins that the module depends on */
-    @validate(false, String)
-    dependencies!: string[];
+    // TODO: update fresh-validation to handle array of union types 
+    // @validate(false, String)
+    dependencies!: Plugin.Dependency[];
     /** constructor function for the module */
     @validate()
     moduleFactory!: Module.Factory<T>;
     /** default options that should be used when calling moduleFactory */
-    @validate(true)
-    defaultOptions?: Module.Options & T;
+    // @validate(true)
+    // defaultOptions?: Module.Options & T;
     /** path to the root directory of the plugin, relative to the plugin file.
      * when a Module is instanced, this is used to determine the baseDir of the module
      * if undefined, the directory immediately containing the Plugin is used */
@@ -43,6 +44,8 @@ export namespace Plugin {
         /** absolute path to the javascript file containing a plugin */
         path: string;
     }
+
+    export type Dependency<T extends object = any> = string | {name: string, options: T};
 }
 
 // TODO: rename processor to transformer
@@ -57,7 +60,6 @@ export type Module = Partial<{
     files?: Array<string | {from: string; to: string;}>;
     // TODO: options that describe how resources will be served by the webserver
     // baseUrl: string;
-    // templatePaths desribe which templates will be used to serve which URLs
     hypermedia: Partial<{
         sitePaths: string[];
         /** new types of processor factories that can be used in the hypermedia engine */
@@ -78,7 +80,12 @@ export type Module = Partial<{
         // websocket middleware
     }>;
     renderer: Partial<{
+        /** paths to search for templates */
         templatePaths: string[];
+        /** list of router patterns mapping to template IRIs. each entry is installed as an express middleware--when a page is rendered, it uses the template associated with the first matching routerPath. if there are no matches, falls back to default.hbs */
+        // TODO: since routes are matched in the order they are added, the plugins registered earlier always take precedence over later plugins. this is the opposite of desired behavior, as a plugin's dependencies are always loaded before the plugin, resulting in lowest precedence for the last (main) plugin loaded.
+        templateRoutes: TemplateRoute[];
+        /** paths to search for partials */
         partialPaths: string[];
         handlebarsHelpers: {[name: string]: HelperDelegate};
         profileLayouts: ProfileLayoutMap;
@@ -174,7 +181,7 @@ export namespace Module {
             }
         }
 
-        export type Renderer = Renderer.TemplateChanged | Renderer.PartialChanged | Renderer.HandlebarsHelperChanged | Renderer.ProfileLayoutChanged | Renderer.ContextChanged;
+        export type Renderer = Renderer.TemplateChanged | Renderer.TemplateRouteAdded | Renderer.PartialChanged | Renderer.HandlebarsHelperChanged | Renderer.ProfileLayoutChanged | Renderer.ContextChanged;
         export namespace Renderer {
             export interface Base {
                 eCategory: 'renderer';
@@ -185,6 +192,12 @@ export namespace Module {
                 fileEvent: 'add' | 'change' | 'unlink';
                 path: string;
                 uri: string;
+            }
+
+            export interface TemplateRouteAdded extends Base {
+                eType: 'template-route-added';
+                routerPattern: string;
+                templateUri: string;
             }
 
             export interface PartialChanged extends Base {

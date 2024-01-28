@@ -59,13 +59,16 @@ const handlebarsHelpers: {[name: string]: HelperDelegate} = {
 	// 'extend-context': function(context, options) {
 		// return options.fn(Object.assign(Object.assign({}, this), JSON.parse(context)));
 	// },
-    'json-stringify': (val, space) => new SafeString(JSON.stringify(val, null, space)),
+    'json-stringify': (val, space) => JSON.stringify(val, null, space),
+    'json-stringify-safe': (val, space) => new SafeString(JSON.stringify(val, null, space)),
     'html-uri': JsonLDUtil.htmlUri,
     'getTypes': JsonLDUtil.getTypes,
     'datetime': (dateStr, formatStr) => {
         const format = (formatStr && typeof formatStr === 'string')?
             formatStr:
-            'MMMM D, YYYY [at] h:mm a z';
+            dateStr.includes('T')?
+            'MMMM D, YYYY [at] h:mm a z':
+            'MMMM D, YYYY';
 
         const date = Moment(dateStr);
 		return new SafeString('<time datetime="' + date.toISOString() + '">' + date.format(format) + '</time>');
@@ -97,6 +100,34 @@ const handlebarsHelpers: {[name: string]: HelperDelegate} = {
     },
     'stripEmptyLines': (value) => {
         return value.replace(/^\s*\n/gm, '');
+    },
+    'concat': (lhs, rhs) => {
+        if(Array.isArray(lhs)) {
+            return lhs.concat(rhs);
+        }
+
+        return lhs + rhs;
+    },
+    'slice': (value, start, end) => {
+        if(typeof start !== 'number') {
+            start = undefined;
+        }
+        if(typeof end !== 'number') {
+            end = undefined;
+        }
+        return value.slice(start, end);
+    },
+    'add': (lhs, rhs) => {
+        return lhs + rhs
+    },
+    'subtract': (lhs, rhs) => {
+        return lhs - rhs
+    },
+    'multiply': (lhs, rhs) => {
+        return lhs * rhs
+    },
+    'divide': (lhs, rhs) => {
+        return lhs / rhs
     }
 };
 

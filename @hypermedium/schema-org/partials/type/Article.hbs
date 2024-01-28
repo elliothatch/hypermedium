@@ -1,0 +1,7 @@
+{{!-- https://schema.org/Article --}}
+{{#> type/CreativeWork.hbs}}
+	{{#*inline "slot-tag"}}article{{/inline}}
+	{{#*inline "slot-contents"}}
+	{{#if articleBody}}<div class="articleBody">{{{articleBody}}}</div>{{/if}}
+	{{/inline}}
+{{/type/CreativeWork.hbs}}

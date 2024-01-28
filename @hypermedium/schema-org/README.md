@@ -30,3 +30,4 @@ Usage:
 ```
 
  - `slot-contents`: Additional contents
+ - `slot-tag`: Changes the outermost tag from the default `div`. E.g. Article uses `article` so the entire object is inside `<article></article>` tags.

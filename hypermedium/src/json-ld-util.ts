@@ -138,11 +138,10 @@ export function normalizeUri(uri: JsonLD.IRI, baseUri?: JsonLD.IRI): JsonLD.IRI 
 /** returns an object containing only the properties listed in 'properties' */
 export function pickProperties<T extends {[key: string]: any}>(target: T, properties: PropertyPath[]): Partial<T> {
 
-    properties.reduce((result, property) => {
+    return properties.reduce((result, property) => {
         setProperty(result, property, getProperty(target, property));
         return result;
     }, {});
-    return target;
 }
 
 /** recursively merge two objects. source values overwrite target values

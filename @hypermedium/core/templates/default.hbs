@@ -16,7 +16,7 @@
 			if(!window.hypermedium) {
 				window.hypermedium = {};
 			}
-			window.hypermedium.resource = {{ json-stringify this }};
+			window.hypermedium.resource = {{ json-stringify-safe this }};
 		</script>
 		{{#> includes/header.hbs }}
 			<!-- no header.hbs found -->
@@ -28,6 +28,9 @@
 				{{/ layouts/default.hbs }}
 			{{/ undefined }}
 		</main>
+		{{#> includes/sidebar.hbs }}
+			<!-- no sidebar.hbs found -->
+		{{/ includes/sidebar.hbs }}
 		{{#> includes/footer.hbs }}
 			<!-- no footer.hbs found -->
 		{{/ includes/footer.hbs }}

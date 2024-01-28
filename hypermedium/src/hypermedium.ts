@@ -12,7 +12,7 @@ import { BuildManager } from './build-manager';
 import { HtmlRenderer } from './renderer';
 import { HypermediaEngine, ResourceGraph, Event as HypermediaEvent } from './hypermedia-engine';
 import { WatchEvent, matchesFullExtension } from './util';
-import { Module } from './plugin';
+import { Module, Plugin } from './plugin';
 import { PluginManager } from './plugin-manager';
 import * as JsonLD from './json-ld';
 
@@ -103,8 +103,26 @@ export class Hypermedium {
             return !!pluginsLoaded.find((p) => p.plugin.name === plugin);
         });
 
+
+        const moduleOptions = new Map<string, any>();
+        // options from plugins later in the topological sorting override those from earlier ones
+        // TODO: allow merging of moduleOptions from mutiple dependencies, or instantiate dependencies with different options as seperate modules
+        pluginLoadOrder.forEach((pluginName) => {
+            const plugin: Plugin = this.pluginManager.dependencyGraph.node(pluginName).pluginFile.plugin;
+            plugin.dependencies.forEach((dependency) => {
+                if(typeof dependency === 'string') {
+                    return;
+                }
+
+                moduleOptions.set(dependency.name, dependency.options);
+            });
+        });
+
         const modulesObservable = from(pluginLoadOrder).pipe(
-            mergeMap((pluginName) => this.pluginManager.createModule(pluginName, pluginName, {})),
+            mergeMap((pluginName) => {
+                const options = moduleOptions.get(pluginName) || {};
+                return this.pluginManager.createModule(pluginName, pluginName, options)
+            }),
             concatMap((moduleInstance) => {
                 // TODO: handle namespacing
                 const moduleEvents = this.registerModule(moduleInstance, '').pipe(
@@ -247,6 +265,9 @@ export class Hypermedium {
                                             this.renderer.unregisterTemplate(moduleNamespace + moduleEvent.uri);
                                             return EMPTY;
                                     }
+                                case 'template-route-added':
+                                    this.renderer.addTemplatePath(moduleEvent.routerPattern, moduleEvent.templateUri);
+                                    return EMPTY;
                                 case 'partial-changed':
                                     switch(moduleEvent.fileEvent) {
                                         case 'add':

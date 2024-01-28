@@ -344,15 +344,26 @@ export class HypermediaEngine {
                     processors: []
                 });
 
-                const dependentResourceObservables = (this.resourceGraph.graph.nodeEdges(normalizedUri) as unknown as Edge[])
-                    .filter(({v}) => v !== normalizedUri)
-                    .map(({v}) => this.processResource(v, prevUris!.concat(normalizedUri)));
+                    // TODO: since calling dynamic resource callbacks can trigger processing, maybe it is a very bad idea to invoke it as a side effect outside of the processResource flow.
+                    merge(...this.dynamicResources.filter((resourceData) => resourceData.definition.nodeEvents?.onProcess).map((resourceData) => {
+                        return this.executeDynamicResourceCallback(resourceData, {cType: 'node', callbackName: 'onProcess', uri});
+                        })
+                    ).subscribe({
+                        next: (result) => {
+                        },
+                        error: (err) => {
+                        }
+                    });
+
+                    const dependentResourceObservables = (this.resourceGraph.graph.nodeEdges(normalizedUri) as unknown as Edge[])
+                        .filter(({v}) => v !== normalizedUri)
+                        .map(({v}) => this.processResource(v, prevUris!.concat(normalizedUri)));
 
 
-                return concat(
-                    of({uri: normalizedUri, resource: {path: node.path}}),
-                    merge(...dependentResourceObservables)
-                );
+                    return concat(
+                        of({uri: normalizedUri, resource: {path: node.path}}),
+                        merge(...dependentResourceObservables)
+                    );
             }
 
             // reset

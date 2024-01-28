@@ -1,50 +1,68 @@
 {{!-- https://schema.org/CreativeWork --}}
-{{> type/Thing}}
-{{headline}}
-{{version}}
-{{> dateCreated}}
-{{> dateModified}}
-{{> datePublished}}
-{{> author}}
-{{> creator}}
-{{contributor}}
-{{ maintainer}}
+{{#> type/Thing.hbs}}
+    {{#*inline "slot-header"}}
+    <header>
+		<div class="headline">
+	{{#if url}}<a href="{{url}}">{{/if}}
+		<h1 class="{{#if headline}}headline{{else}}name{{/if}}">{{#if headline}}{{headline}}{{else}}{{name}}{{/if}}</h1>
+		{{#if url}}</a>{{/if}}
+		</div>
+		<div class="byline">
+			{{#if author}}<div class="author">by {{> property/author.hbs author}}</div>
+			{{else if creator}}<div class="creator">by {{> property/author.hbs creator}}</div>{{/if}}
+		{{#if dateCreated}}{{> datatype/DateTime.hbs dateCreated}}
+		{{else if datePublished}}{{> datatype/DateTime.hbs datePublished}}{{/if}}
+		{{#if dateModified}} <div class="last-modified">(last edited {{> datatype/DateTime.hbs dateModified}})</div>{{/if}}
+		</div>
+	</header>
+    {{/inline}}
+	{{#*inline "slot-contents"}}
+		{{version}}
 
-{{creditText}}
-{{editor}}
-{{producer}}
-{{publication}}
-{{translator}}
-{{contentRating}}
-	{{aggregateRating}}
+		{{contributor}}
+		{{maintainer}}
 
-	{{accessMode}}
-	{{accessibilityHazard}}
+		{{creditText}}
+		{{editor}}
+		{{producer}}
+		{{publication}}
+		{{translator}}
+		{{contentRating}}
+		{{aggregateRating}}
 
-	{{thumbnailUri}}
+		{{accessMode}}
+		{{accessibilityHazard}}
 
-	{{correction}}
-	{{#if abstract}}<p>{{abstract}}</p>{{/if}}
+		{{thumbnailUri}}
 
-	{{offers}}
+		{{correction}}
+		{{#if abstract}}
+		<h2>Abstract</h2>
+		<p class="abstract">{{abstract}}</p>
+		{{/if}}
 
-	{{text}}
+		{{#> slot-contents}}{{/slot-contents}}
 
-	{{audio}}
-	{{video}}
+		{{offers}}
 
-	{{citation}}
-	{{mentions}}
+		{{text}}
 
-	{{keywords}}
+		{{audio}}
+		{{video}}
 
-	{{review}}
+		{{citation}}
+		{{mentions}}
 
-	{{discussionUrl}}
-	{{comment}}
+		{{keywords}}
+
+		{{review}}
+
+		{{discussionUrl}}
+		{{comment}}
 
 
-	{{license}}
-	{{copyrightNotice}} {{copyrightHolder}} {{copyrightYear}}
-	{{sponsor}}
-{{/type/Thing
+		{{license}}
+		{{copyrightNotice}} {{copyrightHolder}} {{copyrightYear}}
+		{{sponsor}}
+	{{/inline}}
+{{/type/Thing.hbs}}

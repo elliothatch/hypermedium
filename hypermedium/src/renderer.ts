@@ -35,8 +35,8 @@ export type ProfileLayoutMap = {[uri: string]: JsonLD.IRI};
 /** list of objects that map an express.js router path glob to a template URI
  * paths are applied to the router in order from beginning to end.
  * The defaultTemplate is used if none of the paths match */
-export interface TemplatePath {
-    routerPath: string;
+export interface TemplateRoute {
+    routerPattern: string;
     templateUri: string;
 };
 
@@ -53,7 +53,7 @@ export class HtmlRenderer {
     public partials: PartialMap;
     public templates: TemplateMap;
     public profileLayouts: ProfileLayoutMap;
-    public templatePaths: TemplatePath[];
+    public templateRoutes: TemplateRoute[];
     // template paths are grouped into a router so we can add more paths dynamically and still have the fallback template last
     public templateRouter: Router;
 
@@ -78,7 +78,6 @@ export class HtmlRenderer {
         this.defaultTemplate = options.defaultTemplate || 'default.hbs';
         this.siteContext = options.siteContext || {};
         this.profileLayouts = options.profileLayouts || {};
-        this.templatePaths = options.templatePaths || [];
 
 
         this.partials = {};
@@ -93,15 +92,20 @@ export class HtmlRenderer {
         this.router = Router();
         this.templateRouter = Router();
 
-        this.templatePaths.forEach((templatePath) => this.addTemplatePath(templatePath));
+        this.templateRoutes = [];
+        (options.templateRoutes || []).forEach((templateRoute) => this.addTemplatePath(templateRoute.routerPattern, templateRoute.templateUri));
         this.router.use(this.templateRouter);
         this.router.get('/*', this.middleware());
     }
 
-    public addTemplatePath(templatePath: TemplatePath): void {
+    public addTemplatePath(routerPattern: string, templateUri: string): void {
+        this.templateRoutes.push({
+            routerPattern,
+            templateUri
+        });
         this.templateRouter.get(
-            templatePath.routerPath,
-            this.middleware(templatePath.templateUri)
+            routerPattern,
+            this.middleware(templateUri)
         );
     }
 
@@ -260,7 +264,7 @@ export namespace HtmlRenderer {
          */
         siteContext?: object;
         profileLayouts?: ProfileLayoutMap;
-        templatePaths?: TemplatePath[];
+        templateRoutes?: TemplateRoute[];
     }
 
     export type Event = Event.RenderResource;

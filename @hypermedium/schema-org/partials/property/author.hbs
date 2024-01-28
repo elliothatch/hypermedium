@@ -1,0 +1,8 @@
+{{!-- https://schema.org/author --}}
+{{#if (eq this.[@type] "https://schema.org/Person")}}
+{{> type/Person.hbs}}
+{{else if (eq this.[@type] "https://schema.org/Organization")}}
+{{> type/Organization.hbs}}
+{{else}}
+<span>{{this}}</span>
+{{/if}}

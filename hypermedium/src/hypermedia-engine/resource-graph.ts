@@ -63,6 +63,7 @@ export class ResourceGraph {
         prevDependencies
         .filter(({v, w}) => v === uri)
         .forEach(({v, w}) => this.graph.removeEdge(v, w));
+
     }
 }
 

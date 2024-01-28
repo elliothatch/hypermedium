@@ -1,12 +1,16 @@
 {{!-- https://schema.org/Thing --}}
-<div class="{{join this.[@type] " "}}">
-	{{#if url}}<a href="{{url}}">{{/if}}<h1 class="name">{{name}}</h1>{{#if url}}</a>{{/if}}
+<{{#> slot-tag}}div{{/slot-tag}} class="{{join this.[@type] " "}}">
+	{{#> slot-header}}
+	<header>
+		{{#if url}}<a href="{{url}}">{{/if}}<h1 class="name">{{name}}</h1>{{#if url}}</a>{{/if}}
+	</header>
+	{{/ slot-header}}
 	{{#if alternateName}}<h2 class="alternateName">{{alternateName}}</h2>{{/if}}
 	{{#if identifier}}<span class="identifier">{{identifier}}</span>{{/if}}
-	{{#if description}}<p class="description">{{description}}</p>{{/if}}
-	{{#if disambiguatingDescription}}<p class="disambiguatingDescription">{{disambiguatingDescription}}</p>{{/if}}
+	{{#if description}}<p class="description">{{description}}{{#if disambiguatingDescription}} <span class="disambiguatingDescription">({{disambiguatingDescription}})</span>{{/if}}
+	</p>{{/if}}
 	{{> property/image.hbs image}}
 	{{> property/potentialAction.hbs potentialAction}}
 
 	{{#> slot-contents}}{{/slot-contents}}
-</div>
+</{{#> slot-tag}}div{{/slot-tag}}>

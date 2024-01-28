@@ -28,7 +28,7 @@ export class PluginManager {
 
     /** recursively loads each plugin and its dependencies
     * @returns list of newly loaded plugins (not including plugins/dependencies that were already loaded) */
-    public loadPluginsAndDependencies(pluginNames: string[], searchPaths: string[]) {
+    public loadPluginsAndDependencies(pluginNames: string[], searchPaths: string[]): Plugin.File[] {
         const loadedPlugins: Plugin.File[] = [];
         pluginNames.forEach((pluginName) => {
             const node = this.dependencyGraph.node(pluginName);
@@ -38,7 +38,12 @@ export class PluginManager {
                 loadedPlugins.push(pluginFile);
             }
 
-            const loadedDependencies = this.loadPluginsAndDependencies(pluginFile.plugin.dependencies, searchPaths);
+            const dependencyNames = pluginFile.plugin.dependencies.map((dependency) => {
+                return typeof dependency === 'string'?
+                    dependency:
+                    dependency.name;
+            });
+            const loadedDependencies = this.loadPluginsAndDependencies(dependencyNames, searchPaths);
 
             loadedPlugins.push(...loadedDependencies);
         });
@@ -133,8 +138,9 @@ export class PluginManager {
         this.dependencyGraph.setNode(plugin.name, pluginNode);
 
         plugin.dependencies.forEach((dependency) => {
-            // console.log(`adding dependency: ${dependency} -> ${plugin.name}`);
-            this.dependencyGraph.setEdge(dependency, plugin.name);
+            const dependencyName = typeof dependency === 'string'? dependency: dependency.name;
+            // console.log(`adding dependency: ${dependencyName} -> ${plugin.name}`);
+            this.dependencyGraph.setEdge(dependencyName, plugin.name);
         });
 
         return pluginNode.pluginFile!;
@@ -268,6 +274,16 @@ export class PluginManager {
                         ));
                     }
 
+                    if(module.renderer.templateRoutes) {
+                        const templateRouteEvents = module.renderer.templateRoutes.map((templateRoute) => ({
+                            eCategory: 'renderer' as const,
+                            eType: 'template-route-added' as const,
+                            routerPattern: templateRoute.routerPattern,
+                            templateUri: templateRoute.templateUri
+                        }));
+                        installEventSources.push(from(templateRouteEvents));
+                    }
+
                     if(module.renderer.partialPaths) {
                         const partialPaths = module.renderer.partialPaths.map((partialPath) => Path.join(modulePath, partialPath));
                         moduleEventSources.push(watchFiles(partialPaths).pipe(
@@ -346,9 +362,10 @@ export class PluginManager {
     /** @returns list of modules that are dependencies of 'plugin', but have not been initalized with createModule */
     public findMissingModules(plugin: Plugin<any>): string[] {
         return plugin.dependencies.reduce((missing, dependency) => {
-            const module = this.modules.get(dependency);
+            const dependencyName = typeof dependency === 'string'? dependency: dependency.name;
+            const module = this.modules.get(dependencyName);
             if(!module) {
-                missing.push(dependency);
+                missing.push(dependencyName);
             }
             else {
                 missing.push(...this.findMissingModules(module.pluginFile.plugin));
@@ -360,9 +377,10 @@ export class PluginManager {
     /** @returns list of plugins that are dependencies of 'plugin', but have not been loaded with loadPlugin */
     public findMissingPlugins(plugin: Plugin<any>): string[] {
         return plugin.dependencies.reduce((missing, dependency) => {
-            const node = this.dependencyGraph.node(dependency);
+            const dependencyName = typeof dependency === 'string'? dependency: dependency.name;
+            const node = this.dependencyGraph.node(dependencyName);
             if(!node || !node.pluginFile) {
-                missing.push(dependency);
+                missing.push(dependencyName);
             }
             else {
                 missing.push(...this.findMissingPlugins(node.pluginFile.plugin));

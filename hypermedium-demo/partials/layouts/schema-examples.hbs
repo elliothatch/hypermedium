@@ -1,11 +1,18 @@
 <h1>{{name}}</h1>
+<aside class="table-of-contents">
+	<ul>
+	{{#each itemListElement}}
+		<li><a href="{{this.[@id]}}">{{name}}</a></li>
+	{{/each}}
+	</ul>
+</aside>
 <ul>
 	{{#each itemListElement}}
-		<li><div class="tabs">
+		<li id="{{slice this.[@id] 1}}"><div class="tabs">
 			<input name="tabs-{{@index}}" type="radio" id="panel-{{@index}}-example" checked>
 			<label for="panel-{{@index}}-example">Example</label>
 			<div class="tab-panel">
-				{{> (lookup . 'identifier') this}}
+				{{> (concat (lookup . "identifier") ".hbs") this}}
 			</div>
 			<input name="tabs-{{@index}}" type="radio" id="panel-{{@index}}-json">
 			<label for="panel-{{@index}}-json">JSON-LD</label>
@@ -15,7 +22,7 @@
 			<input name="tabs-{{@index}}" type="radio" id="panel-{{@index}}-html">
 			<label for="panel-{{@index}}-html">HTML</label>
 			<div class="tab-panel">
-				<pre>{{stripEmptyLines (escapedPartial (lookup . 'identifier') this)}}</pre>
+				<pre>{{stripEmptyLines (escapedPartial (concat (lookup . 'identifier') ".hbs") this)}}</pre>
 			</div>
 		</div></li>
 	{{/each}}
