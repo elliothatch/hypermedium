@@ -2,8 +2,8 @@ import * as Path from 'path';
 import { validateData } from 'fresh-validation';
 import * as fs from 'fs-extra';
 import { Graph } from 'graphlib';
-import { concat, defer, from, merge, of, Observable } from 'rxjs';
-import { filter, map } from 'rxjs/operators';
+import { concat, defer, from, merge, of, Observable, partition } from 'rxjs';
+import { concatMap, filter, map, takeWhile, publish } from 'rxjs/operators';
 
 import { watchFiles, WatchEvent } from './util';
 import { Processor } from './hypermedia-engine';
@@ -189,9 +189,15 @@ export class PluginManager {
         }).pipe(
             map(([pluginFile, modulePath]) => {
                 const module = pluginFile.plugin.moduleFactory(options);
-                // install event sources contain all events that need to be performed before "ongoing/file watch" events. this includes creating processor factories, handlebars helpers, and task definitions
+                // install event sources contain events that define constructs needed to initialize the rest of the module.
+                // this includes creating processor factories, handlebars helpers, and task definitions
                 const installEventSources: Array<Observable<Module.Event>> = [];
-                const moduleEventSources: Array<Observable<Module.Event>> = [];
+                const initializeEventSources: Array<Observable<Module.Event>> = [];
+                const watchEventSources: Array<Observable<Module.Event>> = [];
+
+                // every file watch increases the expected scanned events by one. when the events are encountered, the values is decremented, and at 0, the module initialized event is emitted
+                // this method is kind of crude, but is simpler then trying to split the watch event streams into pre and post-ready observables without resubscribing to the watchFiles observable or missing events
+                let expectedScannedEvents = 0;
 
                 // set up watch events for the module
                 if(module.hypermedia) {
@@ -202,16 +208,31 @@ export class PluginManager {
                         const baseUri = module.hypermedia.baseUri != null?
                             module.hypermedia.baseUri:
                             '/';
-                        moduleEventSources.push(watchFiles(sitePaths, baseUri).pipe(
-                            filter((watchEvent) => ['add', 'change', 'unlink'].includes(watchEvent.eType)),
-                            map((watchEvent) => ({
-                                eCategory: 'hypermedia',
-                                eType: 'resource-changed',
-                                fileEvent: watchEvent.eType as 'add' | 'change' | 'unlink',
-                                path: (watchEvent as WatchEvent.File).path,
-                                uri: (watchEvent as WatchEvent.File).uri,
-                            }))
+
+                        let scanComplete = false;
+                        watchEventSources.push(watchFiles(sitePaths, baseUri).pipe(
+                            filter((watchEvent) => ['add', 'change', 'unlink', 'ready'].includes(watchEvent.eType)),
+                            map((watchEvent) => {
+                                if(watchEvent.eType === 'ready') {
+                                    scanComplete = true;
+                                    return {
+                                        eCategory: 'hypermedia',
+                                        eType: 'resources-scanned',
+                                    } satisfies Module.Event.Hypermedia.ResourcesScanned;
+                                }
+
+                                return {
+                                    eCategory: 'hypermedia',
+                                    eType: 'resource-changed',
+                                    fileEvent: watchEvent.eType as 'add' | 'change' | 'unlink',
+                                    path: (watchEvent as WatchEvent.File).path,
+                                    uri: (watchEvent as WatchEvent.File).uri,
+                                    initialScan: !scanComplete,
+                                } satisfies Module.Event.Hypermedia.ResourceChanged;
+                            })
                         ));
+
+                        expectedScannedEvents++;
                     }
 
                     if(module.hypermedia.processorDefinitions) {
@@ -234,7 +255,7 @@ export class PluginManager {
                             processor,
                             stage
                         }));
-                        moduleEventSources.push(from(processorEvents));
+                        initializeEventSources.push(from(processorEvents));
                     }
 
                     if(module.hypermedia.dynamicResourceDefinitions) {
@@ -254,7 +275,7 @@ export class PluginManager {
                             eType: 'dynamic-resource-changed' as const,
                             dynamicResource,
                         }));
-                        moduleEventSources.push(from(dynamicResourceEvents));
+                        initializeEventSources.push(from(dynamicResourceEvents));
                     }
 
                 }
@@ -262,16 +283,31 @@ export class PluginManager {
                 if(module.renderer) {
                     if(module.renderer.templatePaths) {
                         const templatePaths = module.renderer.templatePaths.map((templatePath) => Path.join(modulePath, templatePath));
-                        moduleEventSources.push(watchFiles(templatePaths).pipe(
-                            filter((watchEvent) => ['add', 'change', 'unlink'].includes(watchEvent.eType)),
-                            map((watchEvent) => ({
-                                eCategory: 'renderer',
-                                eType: 'template-changed',
-                                fileEvent: watchEvent.eType as 'add' | 'change' | 'unlink',
-                                path: (watchEvent as WatchEvent.File).path,
-                                uri: (watchEvent as WatchEvent.File).uri,
-                            }))
+
+                        let scanComplete = false;
+                        watchEventSources.push(watchFiles(templatePaths).pipe(
+                            filter((watchEvent) => ['add', 'change', 'unlink', 'ready'].includes(watchEvent.eType)),
+                            map((watchEvent) => {
+                                if(watchEvent.eType === 'ready') {
+                                    scanComplete = true;
+                                    return {
+                                        eCategory: 'renderer',
+                                        eType: 'templates-scanned',
+                                    } satisfies Module.Event.Renderer.TemplatesScanned;
+                                }
+
+                                return {
+                                    eCategory: 'renderer',
+                                    eType: 'template-changed',
+                                    fileEvent: watchEvent.eType as 'add' | 'change' | 'unlink',
+                                    path: (watchEvent as WatchEvent.File).path,
+                                    uri: (watchEvent as WatchEvent.File).uri,
+                                    initialScan: !scanComplete,
+                                } satisfies Module.Event.Renderer.TemplateChanged;
+                            })
                         ));
+
+                        expectedScannedEvents++;
                     }
 
                     if(module.renderer.templateRoutes) {
@@ -286,16 +322,31 @@ export class PluginManager {
 
                     if(module.renderer.partialPaths) {
                         const partialPaths = module.renderer.partialPaths.map((partialPath) => Path.join(modulePath, partialPath));
-                        moduleEventSources.push(watchFiles(partialPaths).pipe(
-                            filter((watchEvent) => ['add', 'change', 'unlink'].includes(watchEvent.eType)),
-                            map((watchEvent) => ({
-                                eCategory: 'renderer',
-                                eType: 'partial-changed',
-                                fileEvent: watchEvent.eType as 'add' | 'change' | 'unlink',
-                                path: (watchEvent as WatchEvent.File).path,
-                                uri: (watchEvent as WatchEvent.File).uri,
-                            }))
+
+                        let scanComplete = false;
+                        watchEventSources.push(watchFiles(partialPaths).pipe(
+                            filter((watchEvent) => ['add', 'change', 'unlink', 'ready'].includes(watchEvent.eType)),
+                            map((watchEvent) => {
+                                if(watchEvent.eType === 'ready') {
+                                    scanComplete = true;
+                                    return {
+                                        eCategory: 'renderer',
+                                        eType: 'partials-scanned',
+                                    } satisfies Module.Event.Renderer.PartialsScanned;
+                                }
+
+                                return {
+                                    eCategory: 'renderer',
+                                    eType: 'partial-changed',
+                                    fileEvent: watchEvent.eType as 'add' | 'change' | 'unlink',
+                                    path: (watchEvent as WatchEvent.File).path,
+                                    uri: (watchEvent as WatchEvent.File).uri,
+                                    initialScan: !scanComplete,
+                                } satisfies Module.Event.Renderer.PartialChanged;
+                            })
                         ));
+
+                        expectedScannedEvents++;
                     }
 
                     if(module.renderer.handlebarsHelpers) {
@@ -315,11 +366,11 @@ export class PluginManager {
                             profile,
                             uri: module.renderer!.profileLayouts![profile]
                         }));
-                        moduleEventSources.push(from(profileEvents));
+                        initializeEventSources.push(from(profileEvents));
                     }
 
                     if(module.renderer.context) {
-                        moduleEventSources.push(of({
+                        initializeEventSources.push(of({
                             eCategory: 'renderer' as const,
                             eType: 'context-changed' as const,
                             context: module.renderer.context,
@@ -345,11 +396,34 @@ export class PluginManager {
                     modulePath,
                     moduleEvents: concat(
                         merge(...installEventSources),
-                        of({
+                        merge(...initializeEventSources),
+
+                        watchEventSources.length > 0?
+                            merge(...watchEventSources).pipe(
+                                concatMap((event) => {
+                                    if((event.eCategory === 'hypermedia' && event.eType === 'resources-scanned')
+                                        || (event.eCategory === 'renderer' && event.eType === 'templates-scanned')
+                                        || (event.eCategory === 'renderer' && event.eType === 'partials-scanned')) {
+                                        expectedScannedEvents--;
+
+                                        if(expectedScannedEvents === 0) {
+                                            return concat(
+                                                of(event),
+                                                of({
+                                                    eCategory: 'module' as const,
+                                                    eType: 'initialized' as const,
+                                                })
+                                            );
+                                        }
+                                    }
+
+                                    return of(event);
+                                })
+                            )
+                        : of({
                             eCategory: 'module' as const,
                             eType: 'initialized' as const,
-                        }),
-                        merge(...moduleEventSources)
+                        })
                     )
                 };
 
@@ -359,7 +433,7 @@ export class PluginManager {
         );
     }
 
-    /** @returns list of modules that are dependencies of 'plugin', but have not been initalized with createModule */
+    /** @returns list of modules that are dependencies of 'plugin', but have not been initialized with createModule */
     public findMissingModules(plugin: Plugin<any>): string[] {
         return plugin.dependencies.reduce((missing, dependency) => {
             const dependencyName = typeof dependency === 'string'? dependency: dependency.name;

@@ -149,7 +149,9 @@ export const Order: Processor.Definition<'order', {
         }
     };
 
-/** shorthand to automatically copy an index at the default uri, and embed properties */
+/** shorthand to automatically copy an index at the default uri, and embed properties 
+ * TODO: add sort options? and maxItems option to truncate the list after sorting. how about pagination?
+ */
 export const GetIndex: Processor.Definition<'getIndex', {
     /** property */
     property: PropertyPath;

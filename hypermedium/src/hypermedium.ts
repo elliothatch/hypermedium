@@ -5,7 +5,7 @@ import * as fsPromises from 'fs/promises';
 import * as Path from 'path';
 import * as GraphLib from 'graphlib';
 import { concat, defer, EMPTY, from, merge, of, Observable, Subject, ConnectableObservable } from 'rxjs';
-import { catchError, concatMap, combineLatest, map, mergeMap, last, publish, filter, take, mapTo, tap, refCount } from 'rxjs/operators';
+import { catchError, concatMap, combineLatest, map, mergeMap, last, publish, filter, take, mapTo, tap, refCount, delayWhen } from 'rxjs/operators';
 
 import * as Build from './build';
 import { BuildManager } from './build-manager';
@@ -95,6 +95,7 @@ export class Hypermedium {
     // Observable<[ModuleInstance, Observable<ModuleEvent>]
 
     public initializePlugins(pluginNames: string[], searchPaths: string[]): {modules: Observable<Module.Instance>, moduleEvents: Observable<[Module.Event | ({eCategory: 'build-event'} & Build.Event), Module.Instance]>} {
+    // public initializePlugins(pluginNames: string[], searchPaths: string[]): Observable<{module: Module.Instance, event: Module.Event | ({eCategory: 'build-event'} & Build.Event)}> {
 
         const moduleEventsSubject: Subject<[Observable<Module.Event | ({eCategory: 'build-event'} & Build.Event)>, Module.Instance]> = new Subject();
 
@@ -102,7 +103,6 @@ export class Hypermedium {
         const pluginLoadOrder = GraphLib.alg.topsort(this.pluginManager.dependencyGraph).filter((plugin) => {
             return !!pluginsLoaded.find((p) => p.plugin.name === plugin);
         });
-
 
         const moduleOptions = new Map<string, any>();
         // options from plugins later in the topological sorting override those from earlier ones
@@ -119,7 +119,7 @@ export class Hypermedium {
         });
 
         const modulesObservable = from(pluginLoadOrder).pipe(
-            mergeMap((pluginName) => {
+            concatMap((pluginName) => {
                 const options = moduleOptions.get(pluginName) || {};
                 return this.pluginManager.createModule(pluginName, pluginName, options)
             }),
@@ -132,6 +132,8 @@ export class Hypermedium {
                             && moduleInstance.module.build 
                             && moduleInstance.module.build.buildSteps) {
 
+                            // after the module is initialized, build the module's build tasks
+                            // this also sets up the filesystem watches
                             // TODO: deal with unwatching files on module unregister
                             return concat(
                                 this.build.build(moduleInstance.module.build.buildSteps, moduleInstance.modulePath).pipe(
@@ -172,6 +174,49 @@ export class Hypermedium {
                 )
             )
         }
+
+        // this is cleaner but it doesn't work because registerModule never completes
+        // return from(pluginLoadOrder).pipe(
+        //     concatMap((pluginName) => {
+        //         const options = moduleOptions.get(pluginName) || {};
+        //         return this.pluginManager.createModule(pluginName, pluginName, options)
+        //     }),
+        //     concatMap((moduleInstance) => {
+        //         // TODO: handle namespacing
+        //         return this.registerModule(moduleInstance, '').pipe(
+        //             concatMap((moduleEvent) => {
+        //                 if(moduleEvent.eCategory === 'module'
+        //                     && moduleEvent.eType === 'initialized'
+        //                     && moduleInstance.module.build 
+        //                     && moduleInstance.module.build.buildSteps) {
+
+        //                     // after the module is initialized, build the module's build tasks
+        //                     // this also sets up the filesystem watches
+        //                     // TODO: deal with unwatching files on module unregister
+        //                     return concat(
+        //                         this.build.build(moduleInstance.module.build.buildSteps, moduleInstance.modulePath).pipe(
+        //                             map((buildEvent) => ({
+        //                                 eCategory: 'build-event' as const,
+        //                                 ...buildEvent
+        //                         }))),
+        //                         of(moduleEvent).pipe(
+        //                             tap(() => {
+        //                             })
+        //                         ),
+        //                     );
+        //                 }
+
+        //                 return of(moduleEvent);
+        //             }),
+        //             map((event) => {
+        //                 return {
+        //                     module: moduleInstance,
+        //                     event
+        //                 };
+        //             })
+        //         );
+        //     })
+        // );
 }
 
     /** start handling module events
@@ -193,8 +238,12 @@ export class Hypermedium {
                                     switch(moduleEvent.fileEvent) {
                                         case 'add':
                                         case'change':
+                                            // we don't call processResource during the initial scan because we want to load everything and then process them in one pass
                                             if(!matchesFullExtension(moduleEvent.path, moduleInstance.module.hypermedia?.resourceExtensions || ['.json'])) {
                                                 this.hypermedia.loadFile(moduleEvent.uri, moduleEvent.path);
+                                                if(moduleEvent.initialScan) {
+                                                    return EMPTY;
+                                                }
                                                 return this.hypermedia.processResource(moduleEvent.uri);
                                             }
 
@@ -203,24 +252,12 @@ export class Hypermedium {
                                                 mergeMap((fileContents) => {
                                                     // try {
                                                         this.hypermedia.loadResource(moduleEvent.uri, JSON.parse(fileContents));
+                                                        if(moduleEvent.initialScan) {
+                                                            return EMPTY;
+                                                        }
                                                         return this.hypermedia.processResource(moduleEvent.uri).pipe(
                                                             tap(() => {
-                                                                // TODO: context CANNOT be provided by a dynamic resource
-                                                                const baseUri = moduleInstance.module.hypermedia?.baseUri != null?
-                                                                    moduleInstance.module.hypermedia.baseUri:
-                                                                    '/';
-                                                                const contextUri = typeof moduleInstance.module.renderer?.context === 'string'?
-                                                                    Url.resolve(baseUri, moduleInstance.module.renderer.context):
-                                                                    undefined;
-                                                                if(contextUri === moduleEvent.uri) {
-                                                                    const resource = this.hypermedia.resourceGraph.getResource(contextUri) || {};
-                                                                    const context = moduleNamespace?
-                                                                        {[moduleNamespace]: resource}:
-                                                                        resource;
-
-                                                                    this.siteContexts.set(moduleInstance.name, context);
-                                                                    this.renderer.siteContext = this.computeContext();
-                                                                }
+                                                                this.updateContext(moduleInstance, moduleNamespace, moduleEvent.uri);
                                                             })
                                                         );
                                                     // }
@@ -243,7 +280,10 @@ export class Hypermedium {
 
                                 case 'processor-changed':
                                     this.hypermedia.addGlobalProcessor(moduleEvent.processor, moduleEvent.stage);
-                                    return this.hypermedia.processAllResources();
+                                    return EMPTY;
+                                    // TODO: reprocess all the resources if a global processor is changed after module initialization
+                                    // it's okay to not handle this for now because processors are never changed after initialization anyway
+                                    // return this.hypermedia.processAllResources();
                                 case 'dynamic-resource-definition-changed':
                                     this.hypermedia.dynamicResourceDefinitions.set(moduleNamespace + moduleEvent.dynamicResourceDefinition.name, moduleEvent.dynamicResourceDefinition);
                                     return EMPTY;
@@ -333,10 +373,31 @@ export class Hypermedium {
     }
 
     public computeContext(): JsonLD.Document {
+        // TODO: contexts should be namespaced, or assigned in dependency topological order
         return Array.from(this.siteContexts.values()).reduce((result, ctx) => {
             return Object.assign(result, ctx);
         }, {});
 
+    }
+
+    public updateContext(moduleInstance: Module.Instance, moduleNamespace: string, uri: string): void {
+        // TODO: context CANNOT be provided by a dynamic resource
+        // TODO: update the context elsewhere, so we can update it after processAllResources without manually calling this
+        const baseUri = moduleInstance.module.hypermedia?.baseUri != null?
+            moduleInstance.module.hypermedia.baseUri:
+            '/';
+        const contextUri = typeof moduleInstance.module.renderer?.context === 'string'?
+            Url.resolve(baseUri, moduleInstance.module.renderer.context):
+            undefined;
+        if(contextUri === uri) {
+            const resource = this.hypermedia.resourceGraph.getResource(contextUri) || {};
+            const context = moduleNamespace?
+                {[moduleNamespace]: resource}:
+                resource;
+
+            this.siteContexts.set(moduleInstance.name, context);
+            this.renderer.siteContext = this.computeContext();
+        }
     }
 
     /** output resources as rendered HTML */

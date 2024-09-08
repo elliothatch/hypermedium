@@ -433,8 +433,10 @@ export class HypermediaEngine {
                         }))
                     ).subscribe({
                         next: (result) => {
+                            // TODO: DO SOMETHING?
                         },
                         error: (err) => {
+                            // TODO: DO SOMETHING?
                         }
                     });
 
@@ -452,7 +454,9 @@ export class HypermediaEngine {
         });
     }
 
-    public processAllResources(): Observable<JsonLD.Document> {
+    public processAllResources(): Observable<{uri: JsonLD.IRI, resource: JsonLD.Document}> {
+        // TODO: process in topographical order, and disable automatic processing of dependencies
+        // TODO: make return values more useful
         return merge(...this.resourceGraph.graph.sources().map((uri) => this.processResource(uri)));
     }
 

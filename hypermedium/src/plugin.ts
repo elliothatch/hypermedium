@@ -141,12 +141,12 @@ export namespace Module {
             }
 
             export interface ModuleError extends Base {
-                eType: 'error',
-                error: Error
+                eType: 'error';
+                error: Error;
                 uri?: string;
             }
         }
-        export type Hypermedia = Hypermedia.ResourceChanged | Hypermedia.ProcessorDefinitionChanged | Hypermedia.ProcessorChanged | Hypermedia.DynamicResourceDefinitionChanged | Hypermedia.DynamicResourceChanged;
+        export type Hypermedia = Hypermedia.ResourceChanged | Hypermedia.ResourcesScanned | Hypermedia.ProcessorDefinitionChanged | Hypermedia.ProcessorChanged | Hypermedia.DynamicResourceDefinitionChanged | Hypermedia.DynamicResourceChanged;
         export namespace Hypermedia {
             export interface Base {
                 eCategory: 'hypermedia'
@@ -157,6 +157,12 @@ export namespace Module {
                 fileEvent: 'add' | 'change' | 'unlink';
                 path: string;
                 uri: string;
+                initialScan: boolean;
+            }
+
+            /** emitted when the initial scan for resources has completed. */
+            export interface ResourcesScanned extends Base {
+                eType: 'resources-scanned';
             }
 
             export interface ProcessorDefinitionChanged extends Base {
@@ -181,7 +187,7 @@ export namespace Module {
             }
         }
 
-        export type Renderer = Renderer.TemplateChanged | Renderer.TemplateRouteAdded | Renderer.PartialChanged | Renderer.HandlebarsHelperChanged | Renderer.ProfileLayoutChanged | Renderer.ContextChanged;
+        export type Renderer = Renderer.TemplateChanged | Renderer.TemplatesScanned | Renderer.TemplateRouteAdded | Renderer.PartialChanged | Renderer.PartialsScanned | Renderer.HandlebarsHelperChanged | Renderer.ProfileLayoutChanged | Renderer.ContextChanged;
         export namespace Renderer {
             export interface Base {
                 eCategory: 'renderer';
@@ -192,6 +198,12 @@ export namespace Module {
                 fileEvent: 'add' | 'change' | 'unlink';
                 path: string;
                 uri: string;
+                initialScan: boolean;
+            }
+
+            /** emitted when the initial scan for templates has completed. */
+            export interface TemplatesScanned extends Base {
+                eType: 'templates-scanned';
             }
 
             export interface TemplateRouteAdded extends Base {
@@ -205,6 +217,12 @@ export namespace Module {
                 fileEvent: 'add' | 'change' | 'unlink';
                 path: string;
                 uri: string;
+                initialScan: boolean;
+            }
+
+            /** emitted when the initial scan for partials has completed. */
+            export interface PartialsScanned extends Base {
+                eType: 'partials-scanned';
             }
 
             export interface HandlebarsHelperChanged extends Base {

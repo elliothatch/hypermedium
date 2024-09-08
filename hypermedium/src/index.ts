@@ -14,8 +14,8 @@ export * as Util from './util';
 
 import * as Path from 'path';
 import { Log } from 'freshlog';
-import { concat, defer, EMPTY, merge } from 'rxjs';
-import { timeoutWith, tap, catchError } from 'rxjs/operators';
+import { concat, defer, EMPTY, merge, Observable } from 'rxjs';
+import { timeoutWith, tap, catchError, toArray, map, mergeMap, filter } from 'rxjs/operators';
 import * as Express from 'express';
 
 import { Hypermedium } from './hypermedium';
@@ -37,10 +37,10 @@ export interface HypermediumCommand {
     argName?: string;
     unamedArgs?: string;
     options?: boolean;
-    fn: (args: Minimist.ParsedArgs) => number | void;
+    fn: (args: Minimist.ParsedArgs) => Promise<number | void>;
 }
 
-export function HypermediumCmd(argv: string[]) {
+export async function HypermediumCmd(argv: string[]) {
     Log.handlers.get('trace')!.enabled = true;
 
     const args = Minimist(argv, {
@@ -56,7 +56,7 @@ export function HypermediumCmd(argv: string[]) {
 
     const commands: HypermediumCommand[] = [{
         flags: ['h', 'help'],
-        fn: (args: Minimist.ParsedArgs) => {
+        fn: async (args: Minimist.ParsedArgs) => {
             const execName = 'hypermedium';
             const usageStrings = commands.map((command) => {
                 const flags = command.flags.map((flag) => (flag.length > 1? '--': '-') + flag).join(' ');
@@ -75,31 +75,27 @@ export function HypermediumCmd(argv: string[]) {
         // argName: 'OUTPUT_DIR',
         unamedArgs: '<plugin(s)>',
         options: true,
-        fn: (args: Minimist.ParsedArgs) => {
+        fn: async (args: Minimist.ParsedArgs) => {
+            // export static files after initialization, then exit
             Log.info(`command line arguments: ${process.argv.slice(2).join(' ')}`, {args});
-            const hypermediumOptions: HypermediumInitOptions = {
-                // TODO: should we use the output argument as the export path?
+            // TODO: should we use the output argument as the export path?
+
+            const hypermedium = await initializeHypermedium({
                 plugins: args._,
                 pluginSearchPaths: defaultPluginSearchPaths,
-                export: {
-                    overwrite: args.force || args.f
-                },
-            };
+            });
 
-            try {
-                initializeHypermedium(hypermediumOptions, []);
-            }
-            catch(error) {
-                Log.error(error.message, {error});
-                return 1;
-            }
-            // return 0;
+            await exportSite(hypermedium, {
+                overwrite: args.force || args.f
+            });
+
+            return 0;
         }
     }, {
         flags: ['S', 'server'],
         unamedArgs: '<plugin(s)>',
         options: true,
-        fn: (args: Minimist.ParsedArgs) => {
+        fn: async (args: Minimist.ParsedArgs) => {
             Log.info(`command line arguments: ${process.argv.slice(2).join(' ')}`, {args});
             // TODO: get list of plugins, plugin-lookup dirs (e.g. node_modules)
             // const hypermedium = new Hypermedium();
@@ -127,20 +123,16 @@ export function HypermediumCmd(argv: string[]) {
             });
 
             //TODO: automatically get the first part of the plugins list (the flagged part) from the flags arg. maybe use minimist opts.boolean?
-            const hypermediumOptions: HypermediumInitOptions = {
+
+            const hypermedium = await initializeHypermedium({
                 plugins: args._,
                 pluginSearchPaths: defaultPluginSearchPaths,
-                port: args['p'] || args['port'],
-            };
+            });
 
-            try {
-                initializeHypermedium(hypermediumOptions, staticMappings);
-            }
-            catch(error) {
-                Log.error(error.message, {error});
-                return 1;
-            }
-            // return 0;
+            const app = await runHttpServer(hypermedium, {
+                port: args['p'] ?? args['port'] ?? 3000,
+                staticMappings
+            });
         }
     }];
 
@@ -164,20 +156,19 @@ export function HypermediumCmd(argv: string[]) {
 */
 
     const flags = Object.keys(args);
-    for(let command of commands) {
-        if(command.flags.some((flag) => flags.includes(flag) && args[flag] === true)) {
-            const code = command.fn(args);
-            if(code != null) {
-                process.exit(code);
-            }
-            return;
+    const command = commands.find(
+        (command) => command.flags.some((flag) => flags.includes(flag) && args[flag] === true)
+    ) || commands[0];
+
+    try {
+        const code = await command.fn(args);
+        if(code != null) {
+            process.exit(code);
         }
     }
-
-    // no command specified: default command
-    const code = commands[0].fn(args);
-    if(code != null) {
-        process.exit(code);
+    catch(error) {
+        Log.error(error.message, {error, level: 'error'});
+        process.exit(1);
     }
 }
 
@@ -186,26 +177,26 @@ export interface HypermediumInitOptions {
     plugins: string[];
     /** paths to plugin directories */
     pluginSearchPaths: string[];
-    /** if provided, hypermedium will export static files after initialization, then exit. */
-    export?: {
-        /**  the export path. if not provided, defaults to 'mainPluginDir/export' */
-        path?: string;
-        /** if true, overwrite existing files */
-        overwrite?: boolean;
-    }
-
-    /** port number if in server mode */
-    port?: number;
 }
 
-// temp function
-function initializeHypermedium(options: HypermediumInitOptions, staticMappings: StaticMapping[]) {
+export interface ExportOptions {
+    /**  the export path. if not provided, defaults to 'mainPluginDir/export' */
+    path?: string;
+    /** if true, overwrite existing files */
+    overwrite?: boolean;
+}
+
+export interface HttpServerOptions {
+    /** port number if in server mode */
+    port?: number;
+    staticMappings: StaticMapping[];
+}
+
+async function initializeHypermedium(options: HypermediumInitOptions): Promise<Hypermedium> {
     if(options.plugins.length === 0) {
         throw new Error('Hypermedium must be initialized with at least one plugin');
     }
-    // const commandLine = Minimist(process.argv.slice(2));
 
-    // initialize hypermedium
     const hypermedium = new Hypermedium();
 
     hypermedium.hypermedia.events.subscribe({
@@ -275,135 +266,180 @@ function initializeHypermedium(options: HypermediumInitOptions, staticMappings: 
     // TODO: specify the main module explicitly
     const mainModule = options.plugins[0];
 
-    const {modules: modulesObservable, moduleEvents} = hypermedium.initializePlugins(options.plugins, options.pluginSearchPaths)
+    const {modules, moduleEvents} = hypermedium.initializePlugins(options.plugins, options.pluginSearchPaths);
 
     moduleEvents.subscribe({
-        next: ([event, moduleInstance]) => {
-            logModuleEvent(event, moduleInstance);
+        next: ([event, module]) => {
+            logModuleEvent(event, module);
 
-            // if(moduleInstance.name === demoPlugin.plugin.name || corePlugin.plugin.name) {
+            // if(module.name === demoPlugin.plugin.name || corePlugin.plugin.name) {
                 // don't namespace the user plugin or core plugin
                 // TODO: we should probably actually leave the core prefix?
                 // TODO: look into overriding namespaces. it would be nice if you could use e.g. core/layout/default.hbs but override with your own includes/header.hbs, etc. right now the override probably doesn't work and if it does it probably shows the most recently edited file
-                // return hypermedium.registerModule(moduleInstance, '').pipe(
-                    // map((event) => ({moduleInstance, event}))
+                // return hypermedium.registerModule(module, '').pipe(
+                    // map((event) => ({module, event}))
                 // );
             // }
-        }
-    });
-
-    // output files after all events have stablized
-    if(options.export) {
-        // TODO: do this by detecting when all processing is done, rather than timeout
-        merge(
-            hypermedium.hypermedia.events,
-            hypermedium.renderer.events,
-            hypermedium.build.watchEvents,
-            moduleEvents) // TODO: module events are now doubling up
-        .pipe(
-            timeoutWith(2000, concat(
-                defer(() => Log.info('exporting site')),
-                defer(() => {
-                        const exportPath = options.export?.path || Path.join(hypermedium.mainModule?.modulePath || process.cwd(), 'export');
-                        return hypermedium.exportSite(exportPath, {overwrite: options.export!.overwrite});
-                }).pipe(
-                tap((event: Hypermedium.Event.Export | HypermediaEngine.Event.Warning) => {
-                    switch(event.eType) {
-                        case 'Export':
-                            Log.trace(`export ${event.from} -> ${event.path}`, event);
-                            break;
-                        case 'Warning':
-                            Log.warn(event.message, event);
-                            break;
-                    }
-                }),
-                catchError((error: Error) => {
-                    Log.error(`Export site failed: ${error.message}`, {error: error});
-                    process.exit(1);
-                    // return EMPTY;
-                }),
-                )
-            ))
-        ).subscribe({
-            // we only get here if there was no export error. exit gracefully
-            complete: () => process.exit(0)
-        });
-    }
-
-    modulesObservable.subscribe({
-        next: (moduleInstance) => {
-            if(moduleInstance.name === mainModule) {
-                Log.info(`Module initialized (MAIN): ${moduleInstance.name}`, moduleInstance);
-                hypermedium.mainModule = moduleInstance;
-            }
-            else {
-                Log.info(`Module initialized: ${moduleInstance.name}`, moduleInstance);
-            }
-        },
-        complete: () => {
-            Log.info(`${hypermedium.pluginManager.modules.size} modules initalized: ${Array.from(hypermedium.pluginManager.modules.keys())}`);
-            // set up the http server
-            const app = Express();
-
-            // TODO: specify which modules to map
-            if(hypermedium.mainModule?.module.files) {
-                hypermedium.mainModule.module.files.forEach((file) => {
-                    const mapping = typeof file === 'string'?
-                        {from: file, to: '/'}:
-                        file;
-
-                    const fromPath = Path.join(hypermedium.mainModule!.modulePath, mapping.from);
-                    Log.trace(`Server: add static mapping '${fromPath}' -> '${mapping.to}'`, {from: fromPath, to: mapping.to});
-                    app.use(mapping.to, Express.static(fromPath));
-                });
-            }
-
-            staticMappings.forEach((mapping) => {
-                Log.trace(`Server: add static mapping '${mapping.from}' -> '${mapping.to}'`, mapping);
-                app.use(mapping.to, Express.static(mapping.from));
-            });
-
-            app.use(hypermedium.renderer.router);
-            app.use(hypermedium.hypermedia.router);
-
-            app.use((error: any, req: Express.Request, res: Express.Response, next: Express.NextFunction) => {
-                const errorOut = {
-                    code: error.httpCode || 500,
-                    data: Object.keys(error).reduce((o: any, p: string) => {
-                        o[p] = error[p];
-                        return o;
-                    }, {}),
-                    message: error.message,
-                };
-
-                if(errorOut.code >= 500) {
-                    Log.error(`MiddlewareError ${req.url}: ${error.constructor.name}: ${error.message}`, {
-                        uri: req.url,
-                        error,
-                    });
-                }
-                res.status(errorOut.code).json(errorOut);
-            });
-
-            const serverOptions: Partial<Server.Options> = {};
-            if(options.port !== undefined) {
-                serverOptions.port = options.port;
-            }
-
-            server(app, serverOptions).subscribe({
-                next: (server) => {
-                    Log.info(`server-listening at port ${server.port}`, {port: server.port});
-                }, 
-                error: (error) => Log.error('server-start', {error}),
-            });
         },
         error: (error) => {
             Log.error(`Failed to load modules: ${error.message}`, {error});
+            process.exit(1);
         }
     });
 
+    return modules.pipe(
+        tap((module) => {
+            if(module.name === mainModule) {
+                Log.info(`Module initialized (MAIN): ${module.name}`, module);
+                hypermedium.mainModule = module;
+            }
+            else {
+                Log.info(`Module initialized: ${module.name}`, module);
+            }
+        }),
+        catchError((error) => {
+            Log.error(`Failed to load modules: ${error.message}`, {error});
+            throw error;
+        }),
+        toArray(),
+        mergeMap((modules) => {
+            Log.info(`${modules.length} modules initialized: ${modules.map((module) => module.name)}`);
 
+            return hypermedium.hypermedia.processAllResources();
+
+        }),
+        tap(({uri, resource}) => {
+            // TODO: this doesn't make sense here. will break when namespaces are used
+            // TODO: making a big assumption that only the main module instance has context. this will break
+            hypermedium.updateContext(hypermedium.mainModule!, '', uri);
+        }),
+        toArray(),
+        map((nodes) => {
+            Log.info(`Setup complete: ${nodes.length} resources processed`);
+            return hypermedium;
+        })
+    ).toPromise();
+
+    // return hypermedium.initializePlugins(options.plugins, options.pluginSearchPaths).pipe(
+    //     tap(({module, event}) => {
+    //         logModuleEvent(event, module);
+
+    //         // if(module.name === demoPlugin.plugin.name || corePlugin.plugin.name) {
+    //             // don't namespace the user plugin or core plugin
+    //             // TODO: we should probably actually leave the core prefix?
+    //             // TODO: look into overriding namespaces. it would be nice if you could use e.g. core/layout/default.hbs but override with your own includes/header.hbs, etc. right now the override probably doesn't work and if it does it probably shows the most recently edited file
+    //             // return hypermedium.registerModule(module, '').pipe(
+    //                 // map((event) => ({module, event}))
+    //             // );
+    //         // }
+    //     }),
+    //     filter(({event}) => event.eCategory === 'module' && event.eType === 'initialized'),
+    //     map(({module}) => module),
+    //     tap((module) => {
+    //         if(module.name === mainModule) {
+    //             Log.info(`Module initialized (MAIN): ${module.name}`, module);
+    //             hypermedium.mainModule = module;
+    //         }
+    //         else {
+    //             Log.info(`Module initialized: ${module.name}`, module);
+    //         }
+    //     }),
+    //     catchError((error) => {
+    //         Log.error(`Failed to load modules: ${error.message}`, {error});
+    //         throw error;
+    //     }),
+    //     toArray(),
+    //     mergeMap((modules) => {
+    //         Log.info(`${modules.length} modules initialized: ${modules.map((module) => module.name)}`);
+
+    //         return hypermedium.hypermedia.processAllResources();
+    //     }),
+    //     toArray(),
+    //     map((nodes) => {
+    //         Log.info(`Setup complete: ${nodes.length} resources processed`);
+    //         return hypermedium;
+    //     })
+    // ).toPromise();
 }
+
+async function exportSite(hypermedium: Hypermedium, options: ExportOptions) {
+    const exportPath = options.path || Path.join(hypermedium.mainModule?.modulePath || process.cwd(), 'export');
+    Log.info(`exporting site to ${exportPath}`, {exportPath});
+
+    return hypermedium.exportSite(exportPath, {overwrite: options.overwrite}).pipe(
+        tap((event: Hypermedium.Event.Export | HypermediaEngine.Event.Warning) => {
+            switch(event.eType) {
+                case 'Export':
+                    Log.trace(`export ${event.from} -> ${event.path}`, event);
+                    break;
+                case 'Warning':
+                    Log.warn(event.message, event);
+                    break;
+            }
+        })
+    ).toPromise();
+}
+
+async function runHttpServer(hypermedium: Hypermedium, options: HttpServerOptions): Promise<Express.Express> {
+    const app = Express();
+
+    // TODO: specify which modules to map
+    if(hypermedium.mainModule?.module.files) {
+        hypermedium.mainModule.module.files.forEach((file) => {
+            const mapping = typeof file === 'string'?
+                {from: file, to: '/'}:
+                file;
+
+            const fromPath = Path.join(hypermedium.mainModule!.modulePath, mapping.from);
+            Log.trace(`Server: add static mapping '${fromPath}' -> '${mapping.to}'`, {from: fromPath, to: mapping.to});
+            app.use(mapping.to, Express.static(fromPath));
+        });
+    }
+
+    options.staticMappings.forEach((mapping) => {
+        Log.trace(`Server: add static mapping '${mapping.from}' -> '${mapping.to}'`, mapping);
+        app.use(mapping.to, Express.static(mapping.from));
+    });
+
+    app.use(hypermedium.renderer.router);
+    app.use(hypermedium.hypermedia.router);
+
+    app.use((error: any, req: Express.Request, res: Express.Response, next: Express.NextFunction) => {
+        const errorOut = {
+            code: error.httpCode || 500,
+            data: Object.keys(error).reduce((o: any, p: string) => {
+                o[p] = error[p];
+                return o;
+            }, {}),
+            message: error.message,
+        };
+
+        if(errorOut.code >= 500) {
+            Log.error(`MiddlewareError ${req.url}: ${error.constructor.name}: ${error.message}`, {
+                uri: req.url,
+                error,
+            });
+        }
+        res.status(errorOut.code).json(errorOut);
+    });
+
+    // const serverOptions: Partial<Server.Options> = {};
+    // if(options.port !== undefined) {
+    //     serverOptions.port = options.port;
+    // }
+
+    // return server(app, serverOptions).toPromise();
+
+    return new Promise((resolve) => {
+        const server = app.listen(options.port, () => {
+            const port = (server.address() as any).port;
+            Log.info(`server-listening at port ${port}`, {port});
+            resolve(app);
+        });
+    });
+}
+
+
 
 interface HypermediumCmdOptions {
     /** list of paths that will be used as a base directory for plugin lookups */
@@ -424,7 +460,13 @@ function logModuleEvent(event: Module.Event | ({eCategory: 'build-event'} & Buil
         Log.error(`${moduleInstance.name}: ${(event as any).uri || ''} ${event.error.message}`, {event, moduleInstance: {name: moduleInstance.name, modulePath: moduleInstance.modulePath, error: event.error}});
     }
     else if(event.eType === 'resource-changed') {
-        Log.info(`${moduleInstance.name}: ${event.fileEvent} Hypermedia resource: ${event.uri}`, {event, moduleInstance: {name: moduleInstance.name, modulePath: moduleInstance.modulePath}});
+        Log.info(`${moduleInstance.name}: ${event.fileEvent} hypermedia resource: ${event.uri}`, {event, moduleInstance: {name: moduleInstance.name, modulePath: moduleInstance.modulePath}});
+    }
+    else if(event.eType === 'template-changed') {
+        Log.info(`${moduleInstance.name}: ${event.fileEvent} template: ${event.uri}`, {event, moduleInstance: {name: moduleInstance.name, modulePath: moduleInstance.modulePath}});
+    }
+    else if(event.eType === 'partial-changed') {
+        Log.info(`${moduleInstance.name}: ${event.fileEvent} partial: ${event.uri}`, {event, moduleInstance: {name: moduleInstance.name, modulePath: moduleInstance.modulePath}});
     }
     else if(event.eType === 'initialized') {
         Log.trace(`${moduleInstance.name}: ${event.eType}: ${moduleInstance.modulePath}`, {event, moduleInstance: {name: moduleInstance.name, modulePath: moduleInstance.modulePath}});
