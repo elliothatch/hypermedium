@@ -6,6 +6,7 @@ import { mergeMap, publish, refCount } from 'rxjs/operators';
 
 import { NextFunction, Router, Request, Response } from 'express';
 
+import * as GraphLib from 'graphlib';
 import { Edge } from 'graphlib';
 
 import * as JsonLD from '../json-ld';
@@ -99,7 +100,7 @@ export class HypermediaEngine {
                         const fullUri = baseUri + (uri.startsWith('/')? '': '/') + uri;
                         const updated = this.resourceGraph.getResource(fullUri) != undefined;
                         resourceData.resources.add(fullUri);
-                        this.loadResource(fullUri, resource);
+                        this.loadResource(fullUri, resource, resourceData);
                         return this.processResource(fullUri).toPromise().then(() => {
                             return {
                                 resource: this.resourceGraph.getResource(fullUri)!,
@@ -195,13 +196,40 @@ export class HypermediaEngine {
     public loadResource(uri: JsonLD.IRI, resource: JsonLD.Document, dynamic?: DynamicResourceData): ResourceGraph.Node.Resource {
         const normalizedUri = JsonLDUtil.normalizeUri(uri);
         if(this.resourceGraph.graph.hasNode(normalizedUri)) {
-            if(this.resourceGraph.graph.node(normalizedUri)) {
-                // if hasNode returns true but the node is undefined, it was only created as a placeholder for a dependency, so we don't need to show a warning
-                // also, this probably can just be a trace instead of a warning
-                this.log({
-                    eType: 'Warning',
-                    message: `Resource ${normalizedUri} already loaded. Overwriting...`,
-                });
+            const prevNode: ResourceGraph.Node = this.resourceGraph.graph.node(normalizedUri);
+            if(prevNode) {
+                // if hasNode returns true but the node is undefined, it was only created as a placeholder for a dependency, so we don't need to print anything
+                if(prevNode.eType === 'file') {
+                    this.log({
+                        eType: 'Warning',
+                        message: `Resource ${normalizedUri} already loaded as a file (${prevNode.path}), but is being overwritten as a resource.`,
+                    });
+                }
+                else if(prevNode.dynamic && !dynamic) {
+                    this.log({
+                        eType: 'Warning',
+                        message: `Dynamic resource ${normalizedUri} (from '${prevNode.dynamic.dynamicResource.name}') is being overwritten by a resource from the filesystem.`,
+                    });
+                }
+                else if(!prevNode.dynamic && dynamic) {
+                    this.log({
+                        eType: 'Warning',
+                        message: `Resource ${normalizedUri} is being overwritten by a dynamic resource from '${dynamic.dynamicResource.name}'.`,
+                    });
+                }
+                else if(prevNode.dynamic && dynamic && prevNode.dynamic.dynamicResource !== dynamic.dynamicResource) {
+                    this.log({
+                        eType: 'Warning',
+                        message: `Dynamic resource ${normalizedUri} (from '${prevNode.dynamic.dynamicResource.name}') is being overwritten by a dynamic resource from '${dynamic.dynamicResource.name}'.`,
+                    });
+                }
+                else {
+                    // this is normal in server mode
+                    this.log({
+                        eType: 'Trace',
+                        message: `Resource ${normalizedUri} already loaded. Overwriting...`,
+                    });
+                }
             }
         }
 
@@ -269,13 +297,22 @@ export class HypermediaEngine {
     public loadFile(uri: JsonLD.IRI, path: string): void {
         const normalizedUri = JsonLDUtil.normalizeUri(uri);
         if(this.resourceGraph.graph.hasNode(normalizedUri)) {
-            if(this.resourceGraph.graph.node(normalizedUri)) {
-                // if hasNode returns true but the node is undefined, it was only created as a placeholder for a dependency, so we don't need to show a warning
-                // also, this probably can just be a trace instead of a warning
-                this.log({
-                    eType: 'Warning',
-                    message: `Resource ${normalizedUri} already loaded. Overwriting...`,
-                });
+            const prevNode: ResourceGraph.Node = this.resourceGraph.graph.node(normalizedUri);
+            if(prevNode) {
+                // if hasNode returns true but the node is undefined, it was only created as a placeholder for a dependency, so we don't need to print anything
+                if(prevNode.eType === 'resource') {
+                    this.log({
+                        eType: 'Warning',
+                        message: `Resource ${normalizedUri} already loaded as a resource, but is being overwritten as a file (${path}).`,
+                    });
+                }
+                else {
+                    // this is normal in server mode
+                    this.log({
+                        eType: 'Trace',
+                        message: `Resource ${normalizedUri} already loaded. Overwriting...`,
+                    });
+                }
             }
         }
 
@@ -294,18 +331,25 @@ export class HypermediaEngine {
         });
     }
 
-    /** returns observable with each resource that is processed as a result of this one */
-    public processResource(uri: JsonLD.IRI, prevUris?: JsonLD.IRI[] ): Observable<{uri: JsonLD.IRI, resource: JsonLD.Document}> {
+    /** Run global and local processors on the JsonLD resource at the URI, then process resources that depend on this one 
+     * @param options.prevUris - uris of resource dependencies that were processed before this one. used for cycle detection
+     * @param option.skipDependents - if true, disable recursion and only process this resource.
+     * returns observable with each resource that is processed as a result of this one */
+    public processResource(uri: JsonLD.IRI, options?: Partial<{prevUris: JsonLD.IRI[], skipDependents: boolean}> ): Observable<{uri: JsonLD.IRI, resource: JsonLD.Document}> {
         return defer(() => {
             const startTime = hrtime.bigint();
-            if(!prevUris) {
-                prevUris = [];
+            if(!options) {
+                options = {};
+            }
+
+            if(!options.prevUris) {
+                options.prevUris = [];
             }
 
             const normalizedUri = JsonLDUtil.normalizeUri(uri);
 
-            if(prevUris.includes(normalizedUri)) {
-                const cycle = prevUris.concat(uri);
+            if(options.prevUris.includes(normalizedUri)) {
+                const cycle = options.prevUris.concat(uri);
                 const error = new Error(`Process Resource: cycle detected ${cycle}`);
                 (error as any).cycle = cycle;
                 // throw error;
@@ -344,26 +388,32 @@ export class HypermediaEngine {
                     processors: []
                 });
 
-                    // TODO: since calling dynamic resource callbacks can trigger processing, maybe it is a very bad idea to invoke it as a side effect outside of the processResource flow.
-                    merge(...this.dynamicResources.filter((resourceData) => resourceData.definition.nodeEvents?.onProcess).map((resourceData) => {
-                        return this.executeDynamicResourceCallback(resourceData, {cType: 'node', callbackName: 'onProcess', uri});
-                        })
-                    ).subscribe({
-                        next: (result) => {
-                        },
-                        error: (err) => {
-                        }
-                    });
+                // TODO: since calling dynamic resource callbacks can trigger processing, maybe it is a very bad idea to invoke it as a side effect outside of the processResource flow.
+                merge(...this.dynamicResources.filter((resourceData) => resourceData.definition.nodeEvents?.onProcess).map((resourceData) => {
+                    return this.executeDynamicResourceCallback(resourceData, {cType: 'node', callbackName: 'onProcess', uri});
+                    })
+                ).subscribe({
+                    next: (result) => {
+                        // TODO: DO SOMETHING?
+                    },
+                    error: (err) => {
+                        // TODO: DO SOMETHING?
+                    }
+                });
 
-                    const dependentResourceObservables = (this.resourceGraph.graph.nodeEdges(normalizedUri) as unknown as Edge[])
-                        .filter(({v}) => v !== normalizedUri)
-                        .map(({v}) => this.processResource(v, prevUris!.concat(normalizedUri)));
+                if(options.skipDependents) {
+                    return of({uri: normalizedUri, resource: {path: node.path}});
+                }
+
+                const dependentResourceObservables = (this.resourceGraph.graph.nodeEdges(normalizedUri) as unknown as Edge[])
+                    .filter(({v}) => v !== normalizedUri)
+                    .map(({v}) => this.processResource(v, {...options, prevUris: options!.prevUris!.concat(normalizedUri)}));
 
 
-                    return concat(
-                        of({uri: normalizedUri, resource: {path: node.path}}),
-                        merge(...dependentResourceObservables)
-                    );
+                return concat(
+                    of({uri: normalizedUri, resource: {path: node.path}}),
+                    merge(...dependentResourceObservables)
+                );
             }
 
             // reset
@@ -440,9 +490,13 @@ export class HypermediaEngine {
                         }
                     });
 
+                    if(options?.skipDependents) {
+                        return of({uri: normalizedUri, resource});
+                    }
+
                     const dependentResourceObservables = (this.resourceGraph.graph.nodeEdges(normalizedUri) as unknown as Edge[])
                         .filter(({v}) => v !== normalizedUri)
-                        .map(({v}) => this.processResource(v, prevUris!.concat(normalizedUri)));
+                        .map(({v}) => this.processResource(v, {...options, prevUris: options!.prevUris!.concat(normalizedUri)}));
 
 
                     return concat(
@@ -455,9 +509,8 @@ export class HypermediaEngine {
     }
 
     public processAllResources(): Observable<{uri: JsonLD.IRI, resource: JsonLD.Document}> {
-        // TODO: process in topographical order, and disable automatic processing of dependencies
-        // TODO: make return values more useful
-        return merge(...this.resourceGraph.graph.sources().map((uri) => this.processResource(uri)));
+        return merge(...GraphLib.alg.topsort(this.resourceGraph.graph).map((uri) => this.processResource(uri, {skipDependents: true})));
+        // return merge(...this.resourceGraph.graph.sources().map((uri) => this.processResource(uri)));
     }
 
     protected executeProcessor(processor: Processor, uri: JsonLD.IRI, resource: JsonLD.Document): Observable<JsonLD.Document> {

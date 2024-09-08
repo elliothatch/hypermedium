@@ -13,6 +13,7 @@ export type Event =
      | Event.AddDependency
      | Event.ProcessorError
      | Event.Warning
+     | Event.Trace
      | Event.ProcessorLog
      | Event.DynamicResourceError
      | Event.DynamicResourceLog;
@@ -74,6 +75,13 @@ export namespace Event {
 
     export interface Warning {
         eType: 'Warning';
+
+        message: string;
+        data?: any;
+    }
+
+    export interface Trace {
+        eType: 'Trace';
 
         message: string;
         data?: any;

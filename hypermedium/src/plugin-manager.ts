@@ -7,7 +7,6 @@ import { concatMap, filter, map, takeWhile, publish } from 'rxjs/operators';
 
 import { watchFiles, WatchEvent } from './util';
 import { Processor } from './hypermedia-engine';
-import { DynamicResource } from './hypermedia-engine';
 
 import { Plugin, Module } from './plugin';
 
@@ -27,6 +26,10 @@ export class PluginManager {
     // TODO: handle discrepancies between plugin directory name and name defined in plugin file
 
     /** recursively loads each plugin and its dependencies
+     * Looks in each searchPath directory for a valid plugin file based on the criteria:
+     *  - `main` property in a `package.json`
+     *  - `index.js`
+     * @searchPaths - a list of directories to search
     * @returns list of newly loaded plugins (not including plugins/dependencies that were already loaded) */
     public loadPluginsAndDependencies(pluginNames: string[], searchPaths: string[]): Plugin.File[] {
         const loadedPlugins: Plugin.File[] = [];

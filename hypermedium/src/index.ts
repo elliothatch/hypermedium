@@ -49,9 +49,13 @@ export async function HypermediumCmd(argv: string[]) {
         boolean: ['O', 'output', 'S', 'server', 'f', 'force'],
     });
 
+    // NOTE: hypermedium does not use node package resolution, and it will not automatically search for the packages in parent directories.
+    // if you are relying on the package resolution for multi-project workspaces, you must specify the plugin search paths explicitly.
+    // that functionality is not yet implemented, for the demo to work we always search the parent node_modules
     const defaultPluginSearchPaths = [
         Path.join(process.cwd(), 'node_modules', '@hypermedium'),
-        process.cwd()
+        process.cwd(),
+        Path.join(process.cwd(), '..', 'node_modules', '@hypermedium'),
     ];
 
     const commands: HypermediumCommand[] = [{
@@ -204,6 +208,9 @@ async function initializeHypermedium(options: HypermediumInitOptions): Promise<H
             switch(event.eType) {
                 case 'Warning':
                     Log.warn(event.message, event.data);
+                    break;
+                case 'Trace':
+                    Log.trace(event.message, event.data);
                     break;
                 default: {
                     const e: Partial<HypermediaEngine.Event> = Object.assign({}, event);
@@ -367,13 +374,16 @@ async function exportSite(hypermedium: Hypermedium, options: ExportOptions) {
     Log.info(`exporting site to ${exportPath}`, {exportPath});
 
     return hypermedium.exportSite(exportPath, {overwrite: options.overwrite}).pipe(
-        tap((event: Hypermedium.Event.Export | HypermediaEngine.Event.Warning) => {
+        tap((event: Hypermedium.Event.Export | HypermediaEngine.Event.Warning | HypermediaEngine.Event.Trace) => {
             switch(event.eType) {
                 case 'Export':
                     Log.trace(`export ${event.from} -> ${event.path}`, event);
                     break;
                 case 'Warning':
                     Log.warn(event.message, event);
+                    break;
+                case 'Trace':
+                    Log.trace(event.message, event);
                     break;
             }
         })
