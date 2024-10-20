@@ -56,6 +56,7 @@
 		"@types/minimist": "^1.2.0",
 		"@types/node": "^14.6.0",
 		"schema-dts": "^1.1.0",
+		"sift-cli": "^1.2.0",
 		"typedoc": "^0.25.1",
 		"typescript": "^5.2.2"
 	}
