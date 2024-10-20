@@ -518,7 +518,7 @@ function logBuildEvent(event: Build.Event & {eCategory: 'build-event'}, moduleIn
                 step.sType === 'task'? step.definition: step.steps.length + ' subtasks'
             ).join(',')
 
-            buildStepText = `${event.buildStep.steps} subtasks (${event.buildStep.sync === true? 'serial': 'parallel'}): ${subStepNames}`
+            buildStepText = `${event.buildStep.steps.length} subtasks (${event.buildStep.sync === true? 'serial': 'parallel'}): ${subStepNames}`
             break;
     }
 

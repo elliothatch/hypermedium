@@ -326,9 +326,25 @@ export class PluginManager {
                     if(module.renderer.partialPaths) {
                         const partialPaths = module.renderer.partialPaths.map((partialPath) => Path.join(modulePath, partialPath));
 
+                        // don't register some file types (binary images)
+                        // TODO: partial file extensions should be configurable
+                        const ignoredExtensions = [
+                            '.png',
+                            '.apng',
+                            '.avif',
+                            '.gif',
+                            '.jpg',
+                            '.jpeg',
+                            '.jfif',
+                            '.pjpeg',
+                            '.pjp',
+                            '.webp'
+                        ];
+
                         let scanComplete = false;
                         watchEventSources.push(watchFiles(partialPaths).pipe(
                             filter((watchEvent) => ['add', 'change', 'unlink', 'ready'].includes(watchEvent.eType)),
+                            filter((watchEvent) => watchEvent.eType === 'ready' || !ignoredExtensions.includes(Path.extname(watchEvent.path))),
                             map((watchEvent) => {
                                 if(watchEvent.eType === 'ready') {
                                     scanComplete = true;

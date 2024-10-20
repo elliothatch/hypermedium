@@ -40,7 +40,12 @@ const handlebarsHelpers: {[name: string]: HelperDelegate} = {
         if(!url) {
             throw new Error(`handlebars helper link (core): invalid link: 'url' and '@id' were '${url}'`);
         }
-        const relHtml = typeof rel === 'string'? `rel=${rel}`: '';
+        const relHtml = 
+            typeof rel === 'string'?
+                `rel=${rel}`: 
+            typeof resource.rel === 'string'?
+                `rel=${resource.rel}`: 
+                '';
 
         if(typeof target == 'string') {
             return new SafeString(`<a ${relHtml} href=${JsonLDUtil.htmlUri(url)} target=${target}>${resource.headline || resource.name || url}</a>`)
