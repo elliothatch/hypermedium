@@ -4,8 +4,8 @@ import * as fs from 'fs-extra';
 import * as fsPromises from 'fs/promises';
 import * as Path from 'path';
 import * as GraphLib from 'graphlib';
-import { concat, defer, EMPTY, from, merge, of, Observable, Subject, ConnectableObservable } from 'rxjs';
-import { catchError, concatMap, combineLatest, map, mergeMap, last, publish, filter, take, mapTo, tap, refCount, delayWhen } from 'rxjs/operators';
+import { concat, defer, EMPTY, from, merge, of, Observable, Subject, ConnectableObservable, timer } from 'rxjs';
+import { catchError, concatMap, combineLatest, map, last, publish, filter, take, mapTo, tap, refCount, delayWhen, mergeMap } from 'rxjs/operators';
 
 import * as Build from './build';
 import { BuildManager } from './build-manager';
@@ -152,16 +152,16 @@ export class Hypermedium {
 
                 moduleEventsSubject.next([moduleEvents, moduleInstance]);
 
-                return merge(
+                return concat(
+                    defer(() => {
+                        (moduleEvents as ConnectableObservable<any>).connect()
+                        return EMPTY;
+                    }),
                     moduleEvents.pipe(
                         filter((e) => e.eCategory === 'module' && e.eType === 'initialized'),
                         take(1),
                         mapTo(moduleInstance)
                     ),
-                    defer(() => {
-                        (moduleEvents as ConnectableObservable<any>).connect()
-                        return EMPTY;
-                    }),
                 );
             })
         );
@@ -174,50 +174,7 @@ export class Hypermedium {
                 )
             )
         }
-
-        // this is cleaner but it doesn't work because registerModule never completes
-        // return from(pluginLoadOrder).pipe(
-        //     concatMap((pluginName) => {
-        //         const options = moduleOptions.get(pluginName) || {};
-        //         return this.pluginManager.createModule(pluginName, pluginName, options)
-        //     }),
-        //     concatMap((moduleInstance) => {
-        //         // TODO: handle namespacing
-        //         return this.registerModule(moduleInstance, '').pipe(
-        //             concatMap((moduleEvent) => {
-        //                 if(moduleEvent.eCategory === 'module'
-        //                     && moduleEvent.eType === 'initialized'
-        //                     && moduleInstance.module.build 
-        //                     && moduleInstance.module.build.buildSteps) {
-
-        //                     // after the module is initialized, build the module's build tasks
-        //                     // this also sets up the filesystem watches
-        //                     // TODO: deal with unwatching files on module unregister
-        //                     return concat(
-        //                         this.build.build(moduleInstance.module.build.buildSteps, moduleInstance.modulePath).pipe(
-        //                             map((buildEvent) => ({
-        //                                 eCategory: 'build-event' as const,
-        //                                 ...buildEvent
-        //                         }))),
-        //                         of(moduleEvent).pipe(
-        //                             tap(() => {
-        //                             })
-        //                         ),
-        //                     );
-        //                 }
-
-        //                 return of(moduleEvent);
-        //             }),
-        //             map((event) => {
-        //                 return {
-        //                     module: moduleInstance,
-        //                     event
-        //                 };
-        //             })
-        //         );
-        //     })
-        // );
-}
+    }
 
     /** start handling module events
      * @param namespace - if provided, will override the default namespace (moduleInstance.name)
@@ -229,7 +186,7 @@ export class Hypermedium {
         }
 
         return moduleInstance.moduleEvents.pipe(
-            mergeMap((moduleEvent) => {
+            concatMap((moduleEvent) => {
                 return defer(() => {
                     switch(moduleEvent.eCategory) {
                         case 'hypermedia':
@@ -238,10 +195,10 @@ export class Hypermedium {
                                     switch(moduleEvent.fileEvent) {
                                         case 'add':
                                         case'change':
-                                            // we don't call processResource during the initial scan because we want to load everything and then process them in one pass
                                             if(!matchesFullExtension(moduleEvent.path, moduleInstance.module.hypermedia?.resourceExtensions || ['.json'])) {
                                                 this.hypermedia.loadFile(moduleEvent.uri, moduleEvent.path);
                                                 if(moduleEvent.initialScan) {
+                                                    // we don't call processResource during the initial scan because we want to load everything and then process them in one pass
                                                     return EMPTY;
                                                 }
                                                 return this.hypermedia.processResource(moduleEvent.uri);
@@ -249,7 +206,7 @@ export class Hypermedium {
 
                                             // load resource
                                             return from(fs.readFile(moduleEvent.path, 'utf-8')).pipe(
-                                                mergeMap((fileContents) => {
+                                                concatMap((fileContents) => {
                                                     // try {
                                                         this.hypermedia.loadResource(moduleEvent.uri, JSON.parse(fileContents));
                                                         if(moduleEvent.initialScan) {
@@ -404,7 +361,7 @@ export class Hypermedium {
     public exportResources(targetDir: string): Observable<Hypermedium.Event.Export | HypermediaEvent.Warning> {
         // TODO: should emit Error event instead of throwing, so we don't have to cancel the entire export for a single error
         return from(fsPromises.mkdir(targetDir, {recursive: true})).pipe(
-            mergeMap(() => {
+            concatMap(() => {
                 // NOTE: there probably is a more efficient way to traverse the nodes, but there doesn't seem to be a public api for it
                 const resources = this.hypermedia.resourceGraph.graph.nodes();
                 const writeResourceObservables = resources.map((uri) => {
@@ -460,7 +417,7 @@ export class Hypermedium {
     /** output files listed in the module's "files" configuration option */
     public exportStaticFiles(moduleName: string, targetDir: string): Observable<Hypermedium.Event.Export> {
         return from(fsPromises.mkdir(targetDir, {recursive: true})).pipe(
-            mergeMap(() => {
+            concatMap(() => {
                 const module = this.pluginManager.modules.get(moduleName);
                 if(!module) {
                     throw Error(`exportStaticFiles: Module '${moduleName}' not found.`);
@@ -487,7 +444,7 @@ export class Hypermedium {
     */
     public exportSite(targetDir: string, options?: Partial<{modules: string[], overwrite: boolean}>): Observable<Hypermedium.Event.Export | HypermediaEvent.Warning> {
         return from(fsPromises.mkdir(targetDir, {recursive: true})).pipe(
-            mergeMap((createdDirPath) => {
+            concatMap((createdDirPath) => {
                 if(!options?.overwrite && !createdDirPath) {
                     throw new Error('hypermedium.exportSite: Target directory already exists. Not exporting because overwrite is disabled. Delete the directory or enable overwriting and try again.');
                 }

@@ -6,7 +6,7 @@ import * as Path from 'path';
 import { promises as fs } from 'fs';
 
 import { from, fromEvent, merge, Observable, of, race, throwError, zip } from 'rxjs';
-import { map, mergeMap } from 'rxjs/operators';
+import { map, concatMap } from 'rxjs/operators';
 
 import { Log } from 'freshlog';
 
@@ -53,7 +53,7 @@ export function server(app: Express.Express, opts?: Partial<Server.Options>): Ob
 
     if(options.certPath) {
         return loadCerts(options.certPath).pipe(
-            mergeMap((cert) => {
+            concatMap((cert) => {
                 const server = Https.createServer(cert, app);
                 const redirectServer = makeSecureRedirectServer(options.securePort || 0);
                 const events = merge(

@@ -14,8 +14,8 @@ export * as Util from './util';
 
 import * as Path from 'path';
 import { Log } from 'freshlog';
-import { concat, defer, EMPTY, merge, Observable } from 'rxjs';
-import { timeoutWith, tap, catchError, toArray, map, mergeMap, filter } from 'rxjs/operators';
+import { concat, defer, EMPTY, merge, Observable, of, timer } from 'rxjs';
+import { timeoutWith, tap, catchError, toArray, map, filter, concatMap } from 'rxjs/operators';
 import * as Express from 'express';
 
 import { Hypermedium } from './hypermedium';
@@ -309,7 +309,7 @@ async function initializeHypermedium(options: HypermediumInitOptions): Promise<H
             throw error;
         }),
         toArray(),
-        mergeMap((modules) => {
+        concatMap((modules) => {
             Log.info(`${modules.length} modules initialized: ${modules.map((module) => module.name)}`);
 
             return hypermedium.hypermedia.processAllResources();
@@ -326,47 +326,6 @@ async function initializeHypermedium(options: HypermediumInitOptions): Promise<H
             return hypermedium;
         })
     ).toPromise();
-
-    // return hypermedium.initializePlugins(options.plugins, options.pluginSearchPaths).pipe(
-    //     tap(({module, event}) => {
-    //         logModuleEvent(event, module);
-
-    //         // if(module.name === demoPlugin.plugin.name || corePlugin.plugin.name) {
-    //             // don't namespace the user plugin or core plugin
-    //             // TODO: we should probably actually leave the core prefix?
-    //             // TODO: look into overriding namespaces. it would be nice if you could use e.g. core/layout/default.hbs but override with your own includes/header.hbs, etc. right now the override probably doesn't work and if it does it probably shows the most recently edited file
-    //             // return hypermedium.registerModule(module, '').pipe(
-    //                 // map((event) => ({module, event}))
-    //             // );
-    //         // }
-    //     }),
-    //     filter(({event}) => event.eCategory === 'module' && event.eType === 'initialized'),
-    //     map(({module}) => module),
-    //     tap((module) => {
-    //         if(module.name === mainModule) {
-    //             Log.info(`Module initialized (MAIN): ${module.name}`, module);
-    //             hypermedium.mainModule = module;
-    //         }
-    //         else {
-    //             Log.info(`Module initialized: ${module.name}`, module);
-    //         }
-    //     }),
-    //     catchError((error) => {
-    //         Log.error(`Failed to load modules: ${error.message}`, {error});
-    //         throw error;
-    //     }),
-    //     toArray(),
-    //     mergeMap((modules) => {
-    //         Log.info(`${modules.length} modules initialized: ${modules.map((module) => module.name)}`);
-
-    //         return hypermedium.hypermedia.processAllResources();
-    //     }),
-    //     toArray(),
-    //     map((nodes) => {
-    //         Log.info(`Setup complete: ${nodes.length} resources processed`);
-    //         return hypermedium;
-    //     })
-    // ).toPromise();
 }
 
 async function exportSite(hypermedium: Hypermedium, options: ExportOptions) {

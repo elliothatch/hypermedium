@@ -3,7 +3,7 @@ import { promises as fs } from 'fs';
 import * as Url from 'url';
 
 import { merge, forkJoin, Observable, of, from, empty, fromEventPattern, Subject, using, Unsubscribable } from 'rxjs';
-import { map, mergeMap, catchError, takeUntil } from 'rxjs/operators';
+import { map, catchError, takeUntil } from 'rxjs/operators';
 
 import * as chokidar from 'chokidar';
 
