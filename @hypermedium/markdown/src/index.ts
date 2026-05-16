@@ -60,42 +60,80 @@ const markdownPlugin: Plugin = {
                         return (marked.parse(JsonLDUtil.getProperty(rs.resource, options.from), parseOptions) as Promise<string>).then((html) => {
                             if(options.tableOfContents) {
                                 const prefix = options.tableOfContents.prefix || '';
-                                // flat toc
-                                const toc = {
-                                    "@type": [
-                                        "/schema/TableOfContents",
-                                        "https://schema.org/ItemList",
-                                    ],
-                                    itemListElement: tocEntries.map((entry) => ({
+                                let tocElements: TableOfContentsElement[] = [];
+                                if(options.tableOfContents.flat) {
+                                    tocElements = tocEntries.map((entry) => ({
+                                        '@type': 'https://hypermedium.design/schemas/TableOfContentsElement',
                                         level: entry.level,
                                         url: '#' + prefix + entry.id,
                                         name: entry.text
-                                    }))
-                            };
+                                    }));
+                                }
+                                else {
+                                    const parents: TableOfContentsElement[] = [];
+                                    let lastElement: TableOfContentsElement | undefined = undefined;
+                                    for(const entry of tocEntries) {
+                                        const element: TableOfContentsElement = {
+                                            '@type': 'https://hypermedium.design/schemas/TableOfContentsElement'  as const,
+                                            level: entry.level,
+                                            url: '#' + prefix + entry.id,
+                                            name: entry.text
+                                        };
 
-                                // build recursive toc
-                                // TODO: deal with incorrect heading levels
-                                /*
-                                const toc = {
+                                        if(!lastElement) {
+                                            tocElements.push(element);
+                                            lastElement = element;
+                                            continue;
+                                        }
+
+                                        if(entry.level > lastElement.level) {
+                                            if(!lastElement.itemListElement) {
+                                                lastElement.itemListElement = [];
+                                                lastElement['@type'] = [
+                                                    'https://hypermedium.design/schemas/TableOfContentsElement',
+                                                    'https://schema.org/ItemList'
+                                                ];
+                                            }
+
+                                            lastElement.itemListElement.push(element);
+                                            parents.push(lastElement);
+                                        }
+                                        else if(entry.level === lastElement.level) {
+                                            if(parents.length === 0) {
+                                                tocElements.push(element);
+                                            }
+                                            else {
+                                                const parent = parents[parents.length - 1];
+                                                parent.itemListElement!.push(element);
+                                            }
+                                        }
+                                        else {
+                                            // entry.level < lastElement.level
+                                            while(parents.length > 0 && entry.level <= parents[parents.length - 1].level) {
+                                                parents.pop();
+                                            }
+
+                                            if(parents.length === 0) {
+                                                tocElements.push(element);
+                                            }
+                                            else
+                                                parents[parents.length - 1].itemListElement!.push(element);
+                                            }
+
+                                        lastElement = element;
+                                    }
+                                }
+
+                                const toc: TableOfContents = {
                                     "@type": [
-                                        "/schema/TableOfContents",
+                                        "https://schema.org/schemas/TableOfContents",
                                         "https://schema.org/ItemList",
                                     ],
-                                    itemListElement: []
+                                    flat: options.tableOfContents.flat || false,
+                                    itemListElement: tocElements
                                 };
 
-                                for(let i = 0; i < tocEntries.length; i++) {
-                                    const entry = tocEntries[i];
-                                    const output = {
-                                        "@type": "/schema/TableOfContentsElement"  as const,
-                                        level: entry.level,
-                                        url: '#' + prefix + entry.id,
-                                        name: entry.text
-                                    };
-                                }
-                                */
-
-                                JsonLDUtil.setProperty(rs.resource, options.tableOfContents.to, toc);
+                                JsonLDUtil.setProperty(rs.resource, options.tableOfContents.to || 'tableOfContents', toc);
                             }
 
                             return JsonLDUtil.setProperty(rs.resource, options.to || options.from, html);
@@ -117,10 +155,14 @@ export interface MarkdownOptions {
     /** if provided, a Table of Contents object will be generated from headers.
      * the links in the TOC will only work if you are using the https://github.com/markedjs/marked-gfm-heading-id/ extension to add github-slugger ids to the headers. */
     tableOfContents?: {
-        /** output property */
-        to: JsonLDUtil.PropertyPath;
+        /** output property. defaults to 'tableOfContents' */
+        to?: JsonLDUtil.PropertyPath;
         /** prefix added to each header's id */
         prefix?: string;
+        /** if true, the toc is generated as a flat list.
+         * otherwise, the toc is generated with nested structure
+         * defaults to false */
+        flat?: boolean;
     }
 }
 
@@ -130,12 +172,26 @@ export interface TableOfContentsEntry {
     text: string;
 }
 
+export interface TableOfContents {
+    "@type": [
+        "https://schema.org/schemas/TableOfContents",
+        "https://schema.org/ItemList",
+    ],
+    itemListElement: TableOfContentsElement[];
+    /** if the ToC is not flat, each TableOfContentsElement may also have @type ItemList.
+     * elements that have a larger level are considered "subsections" and are placed inside the "itemListElement" array of their parent section
+     */
+    flat: boolean;
+}
+
+/** if the tableOfContents is not flat  */
 export interface TableOfContentsElement {
-    "@type": "/schema/TableOfContentsElement";
+    '@type': 'https://hypermedium.design/schemas/TableOfContentsElement'
+        | ['https://hypermedium.design/schemas/TableOfContentsElement', 'https://schema.org/ItemList'];
     level: number;
     url: string;
     name: string;
-    subheaders?: TableOfContentsElement;
+    itemListElement?: TableOfContentsElement[];
 }
 
 export interface MarkdownPluginOptions {

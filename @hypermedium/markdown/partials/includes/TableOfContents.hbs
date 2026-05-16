@@ -1,5 +1,12 @@
-<ol>
+{{!-- https://hypermedium.design/schemas/TableOfContentsElement --}}
+<ol {{#if (matchesType "https://schema.org/schemas/TableOfContents")}}
+    class="table-of-contents"
+    {{/if}}>
 {{#each itemListElement}}
-	<li><a href={{url}}>{{level}} - {{name}}</a></li>
+    <li><a href={{url}}>{{name}}</a>
+        {{#if itemListElement}}
+            {{> includes/TableOfContents.hbs this}}
+        {{/if}}
+    </li>
 {{/each}}
 </ol>
