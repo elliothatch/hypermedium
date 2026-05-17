@@ -1,10 +1,10 @@
 import { Observable } from 'rxjs';
 import { validate } from 'fresh-validation';
-import { HelperDelegate } from 'handlebars';
+import { type HelperDelegate } from 'handlebars';
 
-import { ProfileLayoutMap, TemplateRoute } from './renderer';
-import { Processor, DynamicResource } from './hypermedia-engine';
-import * as BuildManager from './build';
+import { type ProfileLayoutMap, type TemplateRoute } from './renderer.js';
+import { type Processor, type DynamicResource } from './hypermedia-engine/index.js';
+import * as BuildManager from './build.js';
 
 // TODO: should plugins be able to provide options for their dependencies, or otherwise control how their dependencies are initialized?
 // TODO: include a way for plugins to describe the npm modules they require, for auto-installation. This should be a separate file (package.json), so the plugin file can import dependencies outside of the module factory?

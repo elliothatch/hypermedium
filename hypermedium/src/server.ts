@@ -1,4 +1,4 @@
-import { AddressInfo } from 'net';
+import { type AddressInfo } from 'net';
 import * as Express from 'express';
 import * as Http from 'http';
 import * as Https from 'https';

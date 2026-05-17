@@ -7,14 +7,14 @@ import * as GraphLib from 'graphlib';
 import { concat, defer, EMPTY, from, merge, of, Observable, Subject, ConnectableObservable, timer } from 'rxjs';
 import { catchError, concatMap, combineLatest, map, last, publish, filter, take, mapTo, tap, refCount, delayWhen, mergeMap } from 'rxjs/operators';
 
-import * as Build from './build';
-import { BuildManager } from './build-manager';
-import { HtmlRenderer } from './renderer';
-import { HypermediaEngine, ResourceGraph, Event as HypermediaEvent } from './hypermedia-engine';
-import { WatchEvent, matchesFullExtension } from './util';
-import { Module, Plugin } from './plugin';
-import { PluginManager } from './plugin-manager';
-import * as JsonLD from './json-ld';
+import * as Build from './build.js';
+import { BuildManager } from './build-manager.js';
+import { HtmlRenderer } from './renderer.js';
+import { HypermediaEngine, ResourceGraph, type Event as HypermediaEvent } from './hypermedia-engine/index.js';
+import { type WatchEvent, matchesFullExtension } from './util.js';
+import { type Module, Plugin } from './plugin.js';
+import { PluginManager } from './plugin-manager.js';
+import * as JsonLD from './json-ld.js';
 
 /** sets up the hypermedia engine, html renderer, and build system
  */

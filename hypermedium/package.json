@@ -35,6 +35,10 @@
 		"uri-template": "^2.0.0"
 	},
 	"devDependencies": {
+		"@types/express": "^5.0.6",
+		"@types/fs-extra": "^11.0.4",
+		"@types/graphlib": "^2.1.12",
+		"@types/minimist": "^1.2.5",
 		"@types/node": "^25.8.0",
 		"schema-dts": "^2.0.0",
 		"sift-cli": "^1.2.0",

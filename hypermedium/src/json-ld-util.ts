@@ -5,7 +5,7 @@ import * as Url from 'url';
 
 import { match } from 'path-to-regexp';
 
-import * as JsonLD from './json-ld';
+import * as JsonLD from './json-ld.js';
 
 /** either a 'dot.separated.path' or array of property names */
 export type PropertyPath = string | string[];

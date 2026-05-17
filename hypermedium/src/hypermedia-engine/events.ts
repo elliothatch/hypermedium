@@ -1,8 +1,8 @@
-import * as JsonLD from '../json-ld';
+import * as JsonLD from '../json-ld.js';
 
-import { ResourceGraph } from './resource-graph';
-import { Processor } from './processor';
-import { DynamicResource } from './dynamic-resource';
+import { ResourceGraph } from './resource-graph.js';
+import { type Processor } from './processor.js';
+import { type DynamicResource } from './dynamic-resource.js';
 
 export type Event =
     Event.ProcessResource

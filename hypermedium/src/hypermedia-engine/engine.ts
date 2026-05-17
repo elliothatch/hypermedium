@@ -4,18 +4,18 @@ import {URL} from 'url';
 import { concat, merge, defer, from, of, Observable, Subject, EMPTY } from 'rxjs';
 import { mergeMap, publish, refCount } from 'rxjs/operators';
 
-import { NextFunction, Router, Request, Response } from 'express';
+import { type NextFunction, Router, type Request, type Response } from 'express';
 
 import * as GraphLib from 'graphlib';
-import { Edge } from 'graphlib';
+import { type Edge } from 'graphlib';
 
-import * as JsonLD from '../json-ld';
-import * as JsonLDUtil from '../json-ld-util';
+import * as JsonLD from '../json-ld.js';
+import * as JsonLDUtil from '../json-ld-util.js';
 
-import { ResourceGraph, DynamicResourceData } from './resource-graph'
-import { Processor, ResourceState } from './processor';
-import { DynamicResource } from './dynamic-resource';
-import { Event } from './events';
+import { ResourceGraph, type DynamicResourceData } from './resource-graph.js'
+import { type Processor, type ResourceState } from './processor.js';
+import { type DynamicResource } from './dynamic-resource.js';
+import { type Event } from './events.js';
 
 import { Logger, Serializer, Middleware as LoggerMiddleware} from 'freshlog';
 

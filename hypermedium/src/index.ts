@@ -1,16 +1,16 @@
 /** core types and libraries */
-export * as Build from './build';
-export * as JsonLD from './json-ld';
-export * from './plugin';
+export * as Build from './build.js';
+export * as JsonLD from './json-ld.js';
+export * from './plugin.js';
 
 /** core utilities */
-export * from './hypermedium';
-export * from './hypermedia-engine';
-export * from './renderer';
-export * from './plugin-manager';
-export * as Server from './server';
-export * as JsonLDUtil from './json-ld-util';
-export * as Util from './util';
+export * from './hypermedium.js';
+export * from './hypermedia-engine/index.js';
+export * from './renderer.js';
+export * from './plugin-manager.js';
+export * as Server from './server.js';
+export * as JsonLDUtil from './json-ld-util.js';
+export * as Util from './util.js';
 
 import * as Path from 'path';
 import { Log } from 'freshlog';
@@ -18,12 +18,12 @@ import { concat, defer, EMPTY, merge, Observable, of, timer } from 'rxjs';
 import { timeoutWith, tap, catchError, toArray, map, filter, concatMap } from 'rxjs/operators';
 import * as Express from 'express';
 
-import { Hypermedium } from './hypermedium';
-import * as HypermediaEngine from './hypermedia-engine';
-import * as Build from './build';
-import { Module } from './plugin';
+import { Hypermedium } from './hypermedium.js';
+import * as HypermediaEngine from './hypermedia-engine/index.js';
+import * as Build from './build.js';
+import { type Module } from './plugin.js';
 
-import { server, Server } from './server';
+import { server, Server } from './server.js';
 
 import * as Minimist from 'minimist';
 

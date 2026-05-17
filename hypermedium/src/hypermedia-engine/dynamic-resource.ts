@@ -1,10 +1,10 @@
 import { Logger } from 'freshlog';
 
-import * as JsonLD from '../json-ld';
-import { PropertyPath } from '../json-ld-util';
+import * as JsonLD from '../json-ld.js';
+import { type PropertyPath } from '../json-ld-util.js';
 
-import { HypermediaEngine } from './engine';
-import { ResourceGraph } from './resource-graph';
+import { HypermediaEngine } from './engine.js';
+import { ResourceGraph } from './resource-graph.js';
 
 /**
  * Dynamic resources are processes that manage the creation, deletion, and updates of one or more Hypermedia documents.

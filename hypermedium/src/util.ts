@@ -2,12 +2,12 @@ import * as Path from 'path';
 import { promises as fs } from 'fs';
 import * as Url from 'url';
 
-import { merge, forkJoin, Observable, of, from, empty, fromEventPattern, Subject, using, Unsubscribable } from 'rxjs';
+import { merge, forkJoin, Observable, of, from, empty, fromEventPattern, Subject, using, type Unsubscribable } from 'rxjs';
 import { map, catchError, takeUntil } from 'rxjs/operators';
 
 import * as chokidar from 'chokidar';
 
-import * as JsonLD from './json-ld';
+import * as JsonLD from './json-ld.js';
 
 export type FileProcessor<T> = (filePath: string, relativeUri: string, fileContents: string) => T;
 

@@ -5,10 +5,10 @@ import { Graph } from 'graphlib';
 import { concat, defer, from, merge, of, Observable, partition } from 'rxjs';
 import { concatMap, filter, map, takeWhile, publish } from 'rxjs/operators';
 
-import { watchFiles, WatchEvent } from './util';
-import { Processor } from './hypermedia-engine';
+import { watchFiles, type WatchEvent } from './util.js';
+import { type Processor } from './hypermedia-engine/index.js';
 
-import { Plugin, Module } from './plugin';
+import { Plugin, type Module } from './plugin.js';
 
 export class PluginManager {
     /** each node is a PluginNode, edges point toward dependencies */

@@ -1,11 +1,11 @@
 import { defer, Observable, from, of, forkJoin, concat, Subject, merge, Subscription, EMPTY } from 'rxjs';
 import { debounceTime, map, mergeMap, catchError, filter, finalize, retry, skip, skipWhile, takeWhile, publish } from 'rxjs/operators';
-import { Router, RequestHandler } from 'express';
+import { Router, type RequestHandler } from 'express';
 
 import { Logger, Target, Serializer } from 'freshlog';
 
-import * as Build from './build';
-import { watchFiles } from './util';
+import * as Build from './build.js';
+import { watchFiles } from './util.js';
 
 /**
  * Static asset build system, e.g. for compiling SASS into CSS, etc.

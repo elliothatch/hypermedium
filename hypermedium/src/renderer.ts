@@ -9,16 +9,16 @@ import * as Path from 'path';
 import { promises as fs } from 'fs';
 import * as Url from 'url';
 
-import { Observable, Observer, Subject } from 'rxjs';
+import { Observable, type Observer, Subject } from 'rxjs';
 import { publish, refCount } from 'rxjs/operators';
 
-import { NextFunction, Router, Request, Response } from 'express';
+import { type NextFunction, Router, type Request, type Response } from 'express';
 import * as Handlebars from 'handlebars';
 
-import { HypermediaEngine } from './hypermedia-engine';
-import * as JsonLD from './json-ld';
-import * as JsonLDUtil from './json-ld-util';
-import { File } from './util';
+import { HypermediaEngine } from './hypermedia-engine/index.js';
+import * as JsonLD from './json-ld.js';
+import * as JsonLDUtil from './json-ld-util.js';
+import { type File } from './util.js';
 
 export type Html = string;
 export namespace Html {

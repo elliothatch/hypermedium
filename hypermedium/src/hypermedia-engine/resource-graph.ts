@@ -1,9 +1,9 @@
-import { Graph, Edge as GraphEdge } from 'graphlib';
+import { Graph, type Edge as GraphEdge } from 'graphlib';
 
-import * as JsonLD from '../json-ld';
-import * as JsonLDUtil from '../json-ld-util';
-import { Processor } from './processor';
-import { DynamicResource } from './dynamic-resource';
+import * as JsonLD from '../json-ld.js';
+import * as JsonLDUtil from '../json-ld-util.js';
+import { type Processor } from './processor.js';
+import { type DynamicResource } from './dynamic-resource.js';
 
 export class ResourceGraph {
     public graph: Graph;
