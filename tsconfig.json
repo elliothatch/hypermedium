@@ -3,9 +3,6 @@
 	"include": [],
 	"references": [
 		{ "path": "./hypermedium" },
-		{ "path": "./@hypermedium/core" },
-		{ "path": "./@hypermedium/favicons" },
-		{ "path": "./@hypermedium/markdown" },
-		{ "path": "./@hypermedium/sass" }
+		{ "path": "./test-site" }
 	]
 }

@@ -1,0 +1,26 @@
+{
+	"compilerOptions": {
+		"module": "nodenext",
+		"target": "esnext",
+
+		"rootDir": ".",
+		"outDir": "build",
+		"sourceMap": true,
+
+		"declaration": true,
+		"declarationMap": true,
+		"declarationDir": "types",
+
+		"preserveConstEnums": true,
+		"verbatimModuleSyntax": true,
+
+		"noImplicitOverride": true,
+		"isolatedDeclarations": true,
+
+		"types": ["node"]
+	},
+	"typedocOptions": {
+		"entryPoints": ["src/index.ts"],
+		"out": "docs"
+	}
+}

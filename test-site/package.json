@@ -1,0 +1,15 @@
+{
+	"name": "test-site",
+	"version": "0.1.0",
+	"description": "hypermedium test site",
+	"type": "module",
+	"main": "index.js",
+	"scripts": {
+		"start": "npx hypermedium -S test-site",
+		"dev": "npx sift npx -S test-site",
+		"build": "npx hypermedium -f -O test-site"
+	},
+	"dependencies": {
+		"hypermedium": "^1.0.0"
+	}
+}

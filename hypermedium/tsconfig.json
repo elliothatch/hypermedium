@@ -1,37 +1,10 @@
 {
+	"extends": "../tsconfig-base",
 	"compilerOptions": {
-		"composite": true,
-		"module": "commonjs",
-		"target": "esnext",
-
-		"rootDir": "src/.",
-
-		"outDir": "build",
-		"sourceMap": true,
-
-		"declaration": true,
-		"declarationMap": true,
-		"declarationDir": "declarations",
-
-		"strict": true,
-		"useUnknownInCatchVariables": false,
-
-		"experimentalDecorators": true,
-		"emitDecoratorMetadata": true,
-		"preserveConstEnums": true
+		"composite": true
 	},
 	"include": [
 		"src/**/*",
-		"types/**/*"
-	],
-	"baseUrl": ".",
-	"paths": {
-		"*": [
-			"../node_modules/*"
-		]
-	},
-	"typedocOptions": {
-		"entryPoints": ["src/index.ts"],
-		"out": "docs"
-	}
+		"lib/**/*"
+	]
 }

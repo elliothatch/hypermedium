@@ -1,7 +1,0 @@
-{
-    "name": "third post",
-	"@type": "https://schema.org/BlogPosting",
-    "dateCreated": "2020-07-04T09:09:19.344Z",
-    "body": "## three's company\n\n[two's a couple](/posts/second-post)",
-	"tag": ["blog"]
-}

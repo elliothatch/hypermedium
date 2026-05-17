@@ -1,8 +1,7 @@
 tsconfig.tsbuildinfo
 
 build/
-declarations/
+types/
 docs/
 
 node_modules/
-yarn-error.log

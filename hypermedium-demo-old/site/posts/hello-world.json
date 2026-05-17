@@ -1,7 +1,0 @@
-{
-    "name": "hello world!",
-	"@type": "https://schema.org/BlogPosting",
-    "dateCreated": "2020-07-01T09:09:19.344Z",
-    "body": "starting out the blog with a quick hello. hello!",
-	"tag": ["hello", "blog"]
-}
