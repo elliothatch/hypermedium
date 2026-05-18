@@ -1,8 +1,7 @@
-import { hrtime } from 'process';
-import {URL} from 'url';
+import { hrtime } from 'node:process';
 
-import { concat, merge, defer, from, of, Observable, Subject, EMPTY } from 'rxjs';
-import { mergeMap, publish, refCount } from 'rxjs/operators';
+import { concat, merge, defer, from, of, Observable, Subject, EMPTY, lastValueFrom } from 'rxjs';
+import { mergeMap, share } from 'rxjs/operators';
 
 import { type NextFunction, Router, type Request, type Response } from 'express';
 
@@ -47,15 +46,14 @@ export class HypermediaEngine {
 
         this.eventsSubject = new Subject();
         this.events = this.eventsSubject.pipe(
-            publish(),
-            refCount(),
+            share()
         );
 
         this.router = Router();
         this.router.get('/*', this.middleware);
     }
 
-    protected middleware = (req: Request, res: Response, next: NextFunction) => {
+    protected middleware = (req: Request, res: Response, next: NextFunction): unknown => {
         const resource = this.resourceGraph.getResource(req.path);
         if(resource) {
             return res.status(200).json(resource);
@@ -73,7 +71,7 @@ export class HypermediaEngine {
         (this.globalProcessors as any)[stage].push(processor);
     }
 
-    public addDynamicResource(dynamicResource: DynamicResource) {
+    public addDynamicResource(dynamicResource: DynamicResource): Observable<void> {
         return defer(() => {
             const definition = this.dynamicResourceDefinitions.get(dynamicResource.name);
             if(!definition) {
@@ -94,19 +92,18 @@ export class HypermediaEngine {
                     hypermedia: this,
                     state: undefined,
                     logger: new Logger(), // temprory, will be replaced by executeDynamicResourceCallback
-                    createResource: (uri, resource) => {
+                    createResource: async (uri, resource) => {
                         const baseUri = dynamicResource.config?.baseUri || `/~hypermedium/dynamic/${dynamicResource.name}`;
                         // TODO: join uris more robustly
                         const fullUri = baseUri + (uri.startsWith('/')? '': '/') + uri;
                         const updated = this.resourceGraph.getResource(fullUri) != undefined;
                         resourceData.resources.add(fullUri);
                         this.loadResource(fullUri, resource, resourceData);
-                        return this.processResource(fullUri).toPromise().then(() => {
-                            return {
-                                resource: this.resourceGraph.getResource(fullUri)!,
-                                updated
-                            };
-                        });
+                        await lastValueFrom(this.processResource(fullUri));
+                        return {
+                            resource: this.resourceGraph.getResource(fullUri)!,
+                            updated
+                        };
                     }
                 }
             }
@@ -120,7 +117,7 @@ export class HypermediaEngine {
         });
     }
 
-    public executeDynamicResourceCallback(resourceData: DynamicResourceData, callbackData: {cType: 'init'} | {cType: 'resource' | 'node', callbackName: 'onAdd' | 'onProcess' | 'onDelete', uri: JsonLD.IRI}) { 
+    public executeDynamicResourceCallback(resourceData: DynamicResourceData, callbackData: {cType: 'init'} | {cType: 'resource' | 'node', callbackName: 'onAdd' | 'onProcess' | 'onDelete', uri: JsonLD.IRI}): Observable<void> { 
         return defer(() => {
             if((callbackData.cType === 'init' && !resourceData.definition.init)
                 || callbackData.cType === 'resource' && !resourceData.definition.resourceEvents?.[callbackData.callbackName]
@@ -554,15 +551,14 @@ export class HypermediaEngine {
             baseUri,
             logger,
             processor,
-            execProcessor: (p, r?: JsonLD.Document) => {
+            execProcessor: (p, r?: JsonLD.Document): Promise<JsonLD.Document>  => {
                 const processors = Array.isArray(p)? p: [p];
-                return processors.reduce<Promise<JsonLD.Document>>((execPromise, processor) => {
+                return processors.reduce<Promise<JsonLD.Document>>(async (execPromise, processor) => {
                     if(!processor || !processor.name) {
                         throw new Error(`invalid processor: ${processor}`);
                     }
-                    return execPromise.then((newR) => {
-                        return this.executeProcessor(processor, uri, newR).toPromise();
-                    });
+                    const newR = await execPromise;
+                    return lastValueFrom(this.executeProcessor(processor, uri, newR));
                 }, Promise.resolve(r || resource));
 
             },

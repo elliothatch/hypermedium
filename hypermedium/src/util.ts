@@ -1,13 +1,11 @@
-import * as Path from 'path';
-import { promises as fs } from 'fs';
-import * as Url from 'url';
-
-import { merge, forkJoin, Observable, of, from, empty, fromEventPattern, Subject, using, type Unsubscribable } from 'rxjs';
-import { map, catchError, takeUntil } from 'rxjs/operators';
+import * as Path from 'node:path';
 
 import * as chokidar from 'chokidar';
+import { merge,  Observable, fromEventPattern, using, type Unsubscribable, Subject } from 'rxjs';
+import { map } from 'rxjs/operators';
 
 import * as JsonLD from './json-ld.js';
+import type { Target } from 'freshlog';
 
 export type FileProcessor<T> = (filePath: string, relativeUri: string, fileContents: string) => T;
 
@@ -141,7 +139,7 @@ export function watchFiles(path: string | string[], uriPrefix?: string, chokidar
                     return {
                         eType: eventType as 'add' | 'change' | 'unlink' | 'addDir' | 'unlinkDir',
                         path: filename,
-                        uri: Url.resolve(uriPrefix || '', Path.relative(path, filename).replace(/\\/g, '/')),
+                        uri: new URL(Path.relative(path, filename).replace(/\\/g, '/'), uriPrefix || '').href,
                     };
                 }),
             );
@@ -163,3 +161,19 @@ export function matchesFullExtension(filePath: string, extensions: string[]): bo
     }
     return false;
 }
+
+export function createFreshlogObservableTarget<T = any>(name?: string, subject?: Subject<T>): {observable: Observable<T>, target: Target} {
+    if(!subject) {
+        subject = new Subject<T>();
+    }
+
+    return {
+        observable: subject,
+        target: {
+            name: name || 'observable',
+            write: (serializedData: T) => {
+                subject!.next(serializedData);
+            }
+        }
+    };
+};

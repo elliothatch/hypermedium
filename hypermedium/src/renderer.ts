@@ -5,20 +5,16 @@
  * In contrast, templates can be thought of as "themes" for an entire website, and are selected by configuring URL routing paths with expressjs. While multiple websites can easily share the same partial layout, templates dictate the look and feel of the website "around" the blog post, and thus are not selected based on the content of the HAL resource.
  * You can still acheive powerful profile-based templating through the use of layouts by using a minimal template and very large layout partials, but templates allow the look of a website to remain consistent for many different types of resources.
  */
-import * as Path from 'path';
-import { promises as fs } from 'fs';
-import * as Url from 'url';
-
-import { Observable, type Observer, Subject } from 'rxjs';
-import { publish, refCount } from 'rxjs/operators';
+import * as Path from 'node:path';
 
 import { type NextFunction, Router, type Request, type Response } from 'express';
 import * as Handlebars from 'handlebars';
+import { Observable, Subject } from 'rxjs';
+import { share } from 'rxjs/operators';
 
 import { HypermediaEngine } from './hypermedia-engine/index.js';
 import * as JsonLD from './json-ld.js';
 import * as JsonLDUtil from './json-ld-util.js';
-import { type File } from './util.js';
 
 export type Html = string;
 export namespace Html {
@@ -85,8 +81,7 @@ export class HtmlRenderer {
 
         this.eventsSubject = new Subject();
         this.events = this.eventsSubject.pipe(
-            publish(),
-            refCount(),
+            share(),
         );
 
         this.router = Router();
@@ -226,9 +221,9 @@ export class HtmlRenderer {
             });
             return html;
         }
-        catch(error) {
+        catch(error: any) {
             const layoutUsed = layout || 'layouts/default.hbs';
-            const e =  new Error(`Renderer (Handlebars): Error rendering ${uri} with layout ${layoutUsed}: ${error.message}`);
+            const e =  new Error(`Renderer (Handlebars): Error rendering ${uri} with layout ${layoutUsed}: ${error.message ?? error}`);
             (e as any).cause = error;
             (e as any).uri = uri;
             (e as any).layout = layoutUsed;
@@ -237,7 +232,7 @@ export class HtmlRenderer {
     }
 
     /** if templateUri is empty or undefined, use the default template */
-    protected middleware = (templateUri?: string) => (req: Request, res: Response, next: NextFunction) => {
+    protected middleware = (templateUri?: string) => (req: Request, res: Response, next: NextFunction): unknown => {
         const suffix = '.json';
         if(Path.extname(req.url) === suffix || req.headers.accept === "application/ld+json" || req.headers.accept === "application/json") {
             return next();

@@ -1,5 +1,4 @@
-import * as Path from 'path';
-import { from, Observable } from 'rxjs';
+import * as Path from 'node:path';
 
 import { Logger } from 'freshlog';
 
@@ -95,7 +94,7 @@ export type TaskDefinitionFn = (inputs: FileMap, outputs: FileMap, options: any,
  *  input/output params should define the minimum files necessary for one execution of the task (e.g. copy only needs one input file and one output file)
  *  The Task engine handles calling the TaskDefinition func mutliple times if multiple files are specified, so that logic doesn't need to be implemented in the TaskDefinition
  */
-export interface TaskDefinition<T = undefined> {
+export interface TaskDefinition {
     name: string;
     description: string;
     func: TaskDefinitionFn;

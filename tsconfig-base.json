@@ -3,13 +3,13 @@
 		"module": "nodenext",
 		"target": "esnext",
 
-		"rootDir": ".",
-		"outDir": "build",
+		"rootDir": "${configDir}/src",
+		"outDir": "${configDir}/build",
 		"sourceMap": true,
 
 		"declaration": true,
 		"declarationMap": true,
-		"declarationDir": "types",
+		"declarationDir": "${configDir}/types",
 
 		"preserveConstEnums": true,
 		"verbatimModuleSyntax": true,
@@ -22,5 +22,9 @@
 	"typedocOptions": {
 		"entryPoints": ["src/index.ts"],
 		"out": "docs"
-	}
+	},
+	"include": [
+		"${configDir}/src/**/*",
+		"${configDir}/lib/**/*"
+	]
 }

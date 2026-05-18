@@ -1,4 +1,4 @@
-import { Processor, ResourceState, HypermediaEngine, JsonLD, JsonLDUtil } from 'hypermedium';
+import { type Processor, JsonLD, JsonLDUtil } from 'hypermedium';
 
 type PropertyPath = JsonLDUtil.PropertyPath;
 

@@ -16,5 +16,4 @@ const schemaOrg = {
     },
 };
 
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.default = schemaOrg;
+export default schemaOrg;

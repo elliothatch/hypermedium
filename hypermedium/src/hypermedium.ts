@@ -1,23 +1,22 @@
-import * as Url from 'url';
-import * as Process from 'process';
+import * as Process from 'node:process';
+import * as fsPromises from 'node:fs/promises';
+import * as Path from 'node:path';
+
 import * as fs from 'fs-extra';
-import * as fsPromises from 'fs/promises';
-import * as Path from 'path';
 import * as GraphLib from 'graphlib';
-import { concat, defer, EMPTY, from, merge, of, Observable, Subject, ConnectableObservable, timer } from 'rxjs';
-import { catchError, concatMap, combineLatest, map, last, publish, filter, take, mapTo, tap, refCount, delayWhen, mergeMap } from 'rxjs/operators';
+import { concat, defer, EMPTY, from, merge, of, Observable, Subject, connectable } from 'rxjs';
+import { catchError, concatMap, map, last, filter, take, tap, mergeMap, combineLatestWith } from 'rxjs/operators';
 
 import * as Build from './build.js';
 import { BuildManager } from './build-manager.js';
 import { HtmlRenderer } from './renderer.js';
 import { HypermediaEngine, ResourceGraph, type Event as HypermediaEvent } from './hypermedia-engine/index.js';
 import { type WatchEvent, matchesFullExtension } from './util.js';
-import { type Module, Plugin } from './plugin.js';
+import { type Module, type Plugin } from './plugin.js';
 import { PluginManager } from './plugin-manager.js';
 import * as JsonLD from './json-ld.js';
 
-/** sets up the hypermedia engine, html renderer, and build system
- */
+/** sets up the hypermedia engine, html renderer, and build system */
 export class Hypermedium {
 
     public pluginManager: PluginManager;
@@ -125,7 +124,7 @@ export class Hypermedium {
             }),
             concatMap((moduleInstance) => {
                 // TODO: handle namespacing
-                const moduleEvents = this.registerModule(moduleInstance, '').pipe(
+                const moduleEvents = connectable(this.registerModule(moduleInstance, '').pipe(
                     concatMap((moduleEvent) => {
                         if(moduleEvent.eCategory === 'module'
                             && moduleEvent.eType === 'initialized'
@@ -147,20 +146,19 @@ export class Hypermedium {
 
                         return of(moduleEvent);
                     }),
-                    publish(),
-                );
+                ));
 
                 moduleEventsSubject.next([moduleEvents, moduleInstance]);
 
                 return concat(
                     defer(() => {
-                        (moduleEvents as ConnectableObservable<any>).connect()
+                        moduleEvents.connect()
                         return EMPTY;
                     }),
                     moduleEvents.pipe(
                         filter((e) => e.eCategory === 'module' && e.eType === 'initialized'),
                         take(1),
-                        mapTo(moduleInstance)
+                        map(() => moduleInstance)
                     ),
                 );
             })
@@ -170,7 +168,7 @@ export class Hypermedium {
             modules: modulesObservable,
             moduleEvents: moduleEventsSubject.pipe(
                 mergeMap(([moduleEvents, moduleInstance]) =>
-                    moduleEvents.pipe(combineLatest(of(moduleInstance)))
+                    moduleEvents.pipe(combineLatestWith(of(moduleInstance)))
                 )
             )
         }
@@ -292,7 +290,7 @@ export class Hypermedium {
                                         const baseUri = moduleInstance.module.hypermedia?.baseUri != null?
                                             moduleInstance.module.hypermedia.baseUri:
                                             '/';
-                                        const contextUri = Url.resolve(baseUri, baseContext);
+                                        const contextUri = new URL(baseContext, baseUri).href;
                                         baseContext = this.hypermedia.resourceGraph.getResource(contextUri) || {};
                                     }
 
@@ -344,7 +342,7 @@ export class Hypermedium {
             moduleInstance.module.hypermedia.baseUri:
             '/';
         const contextUri = typeof moduleInstance.module.renderer?.context === 'string'?
-            Url.resolve(baseUri, moduleInstance.module.renderer.context):
+            new URL(moduleInstance.module.renderer.context, baseUri).href:
             undefined;
         if(contextUri === uri) {
             const resource = this.hypermedia.resourceGraph.getResource(contextUri) || {};

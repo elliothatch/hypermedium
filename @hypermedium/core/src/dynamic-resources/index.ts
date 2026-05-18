@@ -1,4 +1,4 @@
-import { DynamicResource, JsonLD, JsonLDUtil } from 'hypermedium';
+import { type DynamicResource, JsonLD, JsonLDUtil } from 'hypermedium';
 
 type PropertyPath = JsonLDUtil.PropertyPath;
 

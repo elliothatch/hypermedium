@@ -1,11 +1,12 @@
 {
     "name": "@hypermedium/sass",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "description": "hypermedium sass plugin",
+    "type": "module",
     "main": "build/index.js",
-    "types": "declarations/index.d.ts",
+    "types": "types/index.d.ts",
     "dependencies": {
-        "fs-extra": "^9.0.1",
+        "fs-extra": "^9.1.0",
         "sass": "^1.99.0"
     },
     "devDependencies": {

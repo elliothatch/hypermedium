@@ -2,9 +2,5 @@
 	"extends": "../tsconfig-base",
 	"compilerOptions": {
 		"composite": true
-	},
-	"include": [
-		"src/**/*",
-		"lib/**/*"
-	]
+	}
 }

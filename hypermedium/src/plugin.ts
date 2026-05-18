@@ -1,5 +1,5 @@
+import { type JSONSchemaType } from 'ajv';
 import { Observable } from 'rxjs';
-import { validate } from 'fresh-validation';
 import { type HelperDelegate } from 'handlebars';
 
 import { type ProfileLayoutMap, type TemplateRoute } from './renderer.js';
@@ -10,30 +10,75 @@ import * as BuildManager from './build.js';
 // TODO: include a way for plugins to describe the npm modules they require, for auto-installation. This should be a separate file (package.json), so the plugin file can import dependencies outside of the module factory?
 
 /** Hypermedium functionality can be extended via modules. a Plugin describes how to create a module by defining a ModuleFactory */
-export class Plugin<T = any> {
+export interface Plugin<T = unknown> {
     /** unique identifier of the plugin */
-    @validate()
-    name!: string;
-    @validate()
+    name: string;
     /** plugin version */
-    version!: string;
+    version: string;
     /** plugin API version */
-    pluginApi!: string;
+    pluginApi: string;
     /** names of plugins that the module depends on */
     // TODO: update fresh-validation to handle array of union types 
-    // @validate(false, String)
-    dependencies!: Plugin.Dependency[];
+    dependencies: Plugin.Dependency[];
     /** constructor function for the module */
-    @validate()
-    moduleFactory!: Module.Factory<T>;
+    moduleFactory: Module.Factory<T>;
     /** default options that should be used when calling moduleFactory */
-    // @validate(true)
     // defaultOptions?: Module.Options & T;
     /** path to the root directory of the plugin, relative to the plugin file.
      * when a Module is instanced, this is used to determine the baseDir of the module
      * if undefined, the directory immediately containing the Plugin is used */
-    @validate(true)
     basePath?: string;
+}
+
+export const PluginSchema: JSONSchemaType<Plugin> = {
+    type: 'object',
+    required: [
+        'name',
+        'version',
+        'pluginApi',
+        'dependencies',
+        'moduleFactory'
+    ],
+    properties: {
+        name: {
+            type: 'string'
+        },
+        version: {
+            type: 'string'
+        },
+        pluginApi: {
+            type: 'string'
+        },
+        dependencies: {
+            type: 'array',
+            items: {
+                oneOf: [{
+                    type: 'string'
+                }, {
+                    type: 'object',
+                    required: [
+                        'name',
+                        'options'
+                    ],
+                    properties: {
+                        name: {
+                            type: 'string'
+                        },
+                        options: {
+                            type: 'object'
+                        }
+                    }
+                }]
+            }
+        },
+        moduleFactory: {
+            typeof: 'function'
+        } as any,
+        basePath: {
+            type: 'string',
+            nullable: true
+        }
+    }
 }
 
 export namespace Plugin {
@@ -45,7 +90,7 @@ export namespace Plugin {
         path: string;
     }
 
-    export type Dependency<T extends object = any> = string | {name: string, options: T};
+    export type Dependency<T extends object = object> = string | {name: string, options: T};
 }
 
 // TODO: rename processor to transformer

@@ -1,8 +1,6 @@
-import { promisify } from 'util';
-
-import { Plugin, Processor, JsonLDUtil } from 'hypermedium';
-import { Marked, MarkedOptions, MarkedExtension} from 'marked';
-const GithubSlugger = require('github-slugger');
+import { type Plugin, JsonLDUtil } from 'hypermedium';
+import { Marked, type MarkedOptions, type MarkedExtension} from 'marked';
+import GithubSlugger from 'github-slugger';
 
 const markdownPlugin: Plugin = {
     name: 'markdown',

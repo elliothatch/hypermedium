@@ -2,6 +2,11 @@
 	"private": true,
 	"workspaces": [
 		"hypermedium",
+		"@hypermedium/core",
+		"@hypermedium/favicons",
+		"@hypermedium/markdown",
+		"@hypermedium/sass",
+		"@hypermedium/schema-org",
 		"test-site"
 	],
 	"scripts": {

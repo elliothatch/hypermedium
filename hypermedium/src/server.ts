@@ -1,14 +1,13 @@
-import { type AddressInfo } from 'net';
+import { type AddressInfo } from 'node:net';
+import * as Http from 'node:http';
+import * as Https from 'node:https';
+import * as Path from 'node:path';
+import { promises as fs } from 'node:fs';
+
 import * as Express from 'express';
-import * as Http from 'http';
-import * as Https from 'https';
-import * as Path from 'path';
-import { promises as fs } from 'fs';
-
-import { from, fromEvent, merge, Observable, of, race, throwError, zip } from 'rxjs';
-import { map, concatMap } from 'rxjs/operators';
-
 import { Log } from 'freshlog';
+import { from, fromEvent, merge, Observable, zip } from 'rxjs';
+import { map, concatMap } from 'rxjs/operators';
 
 export interface Server {
     /** server hosting the app */
@@ -61,8 +60,8 @@ export function server(app: Express.Express, opts?: Partial<Server.Options>): Ob
                         fromEvent(server, 'listening'),
                         fromEvent(redirectServer, 'listening'),
                     ),
-                    fromEvent(server, 'error').pipe(map((err) => throwError(err))),
-                    fromEvent(redirectServer, 'error').pipe(map((err) => throwError(err))),
+                    fromEvent(server, 'error').pipe(map((err) => { throw err; })),
+                    fromEvent(redirectServer, 'error').pipe(map((err) => { throw err; })),
                 );
 
                 server.listen(options.securePort || 0);
@@ -83,7 +82,7 @@ export function server(app: Express.Express, opts?: Partial<Server.Options>): Ob
         const server = Http.createServer(app);
         const events = merge(
             fromEvent(server, 'listening'),
-            fromEvent(server, 'error').pipe(map((err) => throwError(err))),
+            fromEvent(server, 'error').pipe(map((err) => { throw err; })),
         );
 
         server.listen(options.port || 0);
@@ -119,10 +118,10 @@ function makeSecureRedirectServer(redirectPort: number): Http.Server {
                 res.writeHead(307, {Location: 'https://' + host + redirectPortStr + req.url});
             }
             res.end();
-        } catch (err) {
+        } catch(err: any) {
             res.writeHead(500);
             res.end();
-            Log.error(`secure redirect error`, err);
+            Log.error(`secure redirect error: ${err.message ?? err}`, err);
         }
     });
 }

@@ -1,7 +1,6 @@
 import { Logger } from 'freshlog';
 
 import * as JsonLD from '../json-ld.js';
-import { type PropertyPath } from '../json-ld-util.js';
 
 import { HypermediaEngine } from './engine.js';
 

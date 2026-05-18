@@ -1,9 +1,4 @@
-import * as Path from 'path';
-
-import * as UriTemplate from 'uri-template';
-import * as Url from 'url';
-
-import { match } from 'path-to-regexp';
+import * as Path from 'node:path';
 
 import * as JsonLD from './json-ld.js';
 

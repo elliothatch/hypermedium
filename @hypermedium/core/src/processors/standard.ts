@@ -1,5 +1,4 @@
-import * as graphlib from 'graphlib';
-import { Processor, ResourceState, HypermediaEngine, JsonLD, JsonLDUtil } from 'hypermedium';
+import { type Processor, JsonLD, JsonLDUtil } from 'hypermedium';
 import * as fs from 'fs/promises';
 
 type PropertyPath = JsonLDUtil.PropertyPath;
@@ -215,7 +214,7 @@ export const processorDefinitions: Core.Processors[] = [{
             }
 
             return array.concat(elements)
-        }, []);
+        }, [] as any[]);
 
         rs.resource = JsonLDUtil.setProperty(rs.resource, options?.property, flatArray);
         return rs.resource;

@@ -1,13 +1,13 @@
 {
     "name": "@hypermedium/markdown",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "description": "hypermedium markdown plugin",
+    "type": "module",
     "main": "build/index.js",
-    "types": "declarations/index.d.ts",
+    "types": "types/index.d.ts",
     "dependencies": {
-        "github-slugger": "^1.5.0",
+        "github-slugger": "^2.0.0",
         "hypermedium": "^0.1.0",
-        "marked": "^9.0.3"
-    },
-    "devDependencies": {}
+        "marked": "^9.1.6"
+    }
 }

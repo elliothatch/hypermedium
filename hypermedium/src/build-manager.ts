@@ -1,11 +1,11 @@
-import { defer, Observable, from, of, forkJoin, concat, Subject, merge, Subscription, EMPTY } from 'rxjs';
-import { debounceTime, map, mergeMap, catchError, filter, finalize, retry, skip, skipWhile, takeWhile, publish } from 'rxjs/operators';
+import { defer, Observable, from, of, forkJoin, concat, Subject, merge, Subscription } from 'rxjs';
+import { debounceTime, map, mergeMap, catchError, filter, finalize, retry, skip, skipWhile } from 'rxjs/operators';
 import { Router, type RequestHandler } from 'express';
 
-import { Logger, Target, Serializer } from 'freshlog';
+import { Logger, Serializer } from 'freshlog';
 
 import * as Build from './build.js';
-import { watchFiles } from './util.js';
+import { createFreshlogObservableTarget, watchFiles } from './util.js';
 
 /**
  * Static asset build system, e.g. for compiling SASS into CSS, etc.
@@ -93,7 +93,7 @@ export class BuildManager {
         }
 
         const taskLogSubject = new Subject<Build.StepLog>();
-        const taskLogTarget = Target.Observable<Build.StepLog>('buildlog', taskLogSubject);
+        const taskLogTarget = createFreshlogObservableTarget<Build.StepLog>('buildlog', taskLogSubject);
         const taskLogger = new Logger({
             target: taskLogTarget.target,
             serializer: Serializer.identity
@@ -197,6 +197,7 @@ export class BuildManager {
                 of({
                     eType: 'success' as const,
                     result: [],
+                    buildStep: multitask,
                     buildStepPath
                 })
             );

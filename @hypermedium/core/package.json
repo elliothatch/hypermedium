@@ -1,9 +1,10 @@
 {
     "name": "@hypermedium/core",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "description": "hypermedium core plugin",
+    "type": "module",
     "main": "build/index.js",
-    "types": "declarations/index.d.ts",
+    "types": "types/index.d.ts",
     "dependencies": {
         "fs-extra": "^9.0.1",
         "handlebars": "^4.7.6",
@@ -11,6 +12,6 @@
         "moment": "^2.27.0"
     },
     "devDependencies": {
-        "@types/fs-extra": "^9.0.1"
+        "@types/fs-extra": "^11.0.4"
     }
 }

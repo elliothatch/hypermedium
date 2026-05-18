@@ -1,9 +1,9 @@
-import { Plugin } from 'hypermedium';
+import { type Plugin } from 'hypermedium';
 
-import { handlebarsHelpers } from './handlebars';
-import { processorDefinitions } from './processors';
-import { taskDefinitions } from './task-definitions';
-import { dynamicResourceDefinitions } from './dynamic-resources';
+import { handlebarsHelpers } from './handlebars.js';
+import { processorDefinitions } from './processors/index.js';
+import { taskDefinitions } from './task-definitions.js';
+import { dynamicResourceDefinitions } from './dynamic-resources/index.js';
 
 export interface CoreOptions {
 }

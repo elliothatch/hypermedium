@@ -1,26 +1,35 @@
-import * as Path from 'path';
-import { validateData } from 'fresh-validation';
+import * as Path from 'node:path';
+
+import { Ajv, type ValidateFunction } from 'ajv';
+import AjvKeywords from 'ajv-keywords';
 import * as fs from 'fs-extra';
 import { Graph } from 'graphlib';
-import { concat, defer, from, merge, of, Observable, partition } from 'rxjs';
-import { concatMap, filter, map, takeWhile, publish } from 'rxjs/operators';
+import { concat, defer, from, merge, of, Observable } from 'rxjs';
+import { concatMap, filter, map } from 'rxjs/operators';
 
 import { watchFiles, type WatchEvent } from './util.js';
 import { type Processor } from './hypermedia-engine/index.js';
 
-import { Plugin, type Module } from './plugin.js';
+import { type Plugin, type Module, PluginSchema } from './plugin.js';
 
 export class PluginManager {
     /** each node is a PluginNode, edges point toward dependencies */
     public dependencyGraph: Graph;
     /** maps names to module instances */
     public modules: Map<string, Module.Instance>;
+    public ajv: Ajv;
+    protected validatePlugin: ValidateFunction<Plugin>;
 
     constructor() {
         this.dependencyGraph = new Graph();
         this.dependencyGraph.setDefaultNodeLabel((_name: string) => ({}));
 
         this.modules = new Map();
+        this.ajv = AjvKeywords.default(new Ajv({
+            strict: true,
+        }));
+
+        this.validatePlugin = this.ajv.compile(PluginSchema);
     }
 
     // TODO: handle discrepancies between plugin directory name and name defined in plugin file
@@ -71,8 +80,8 @@ export class PluginManager {
                             jsModule = jsModule?.default || jsModule;
                         }
                     }
-                    catch(err) {
-                        loadErrors.push(new LoadPluginError(err.message, Path.join(pluginPath, 'package.json'), err));
+                    catch(err: any) {
+                        loadErrors.push(new LoadPluginError(err.message ?? `Unhandled error: ${err}`, Path.join(pluginPath, 'package.json'), err));
                     }
 
                     // didn't work, this time just try the plugin directory itself (index.js)
@@ -81,8 +90,8 @@ export class PluginManager {
                         jsModule = require(pluginPath);
                         jsModule = jsModule?.default || jsModule;
                     }
-                    catch(err) {
-                        throw new LoadPluginError(err.message, pluginPath, err);
+                    catch(err: any) {
+                        throw new LoadPluginError(err.message ?? `Unhandled herror: ${err}`, pluginPath, err);
                     }
 
                     // try the load the plugin if the name matches our target
@@ -92,7 +101,12 @@ export class PluginManager {
                     }
                 }
                 catch(error) {
-                    loadErrors.push(error);
+                    if(error instanceof LoadPluginError) {
+                        loadErrors.push(error);
+                    }
+                    else {
+                        throw error;
+                    }
                 }
             }
         }
@@ -111,18 +125,17 @@ export class PluginManager {
 
             jsModule = jsModule.default || jsModule;
         }
-        catch(err) {
-            throw new LoadPluginError(err.message, pluginPath, err);
+        catch(err: any) {
+            throw new LoadPluginError(err.message ?? `Unhandled error: ${err}`, pluginPath, err);
         }
 
         let plugin: Plugin<any>;
         try {
-            // NOTE: we don't use the return value of validateData because it strips properties that aren't whitelisted by @validate. we just want to check the types that we care about.
-            validateData(jsModule, Plugin, 'default');
+            this.validatePlugin(jsModule);
             plugin = jsModule;
         }
-        catch(err) {
-            throw new LoadPluginError(err.message, pluginPath, err);
+        catch(err: any) {
+            throw new LoadPluginError(`Failed validation: ${err.message ?? err}`, pluginPath, err);
         }
 
         // TODO: include version number in unique identifier for plugins

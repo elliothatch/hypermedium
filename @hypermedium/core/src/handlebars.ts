@@ -1,5 +1,5 @@
-import { HelperDelegate, SafeString } from 'handlebars';
-import * as Moment from 'moment';
+import { type HelperDelegate, SafeString } from 'handlebars';
+import Moment from 'moment';
 import { JsonLDUtil } from 'hypermedium';
 
 const handlebarsHelpers: {[name: string]: HelperDelegate} = {

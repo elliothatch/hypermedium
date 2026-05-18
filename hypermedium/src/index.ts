@@ -12,20 +12,18 @@ export * as Server from './server.js';
 export * as JsonLDUtil from './json-ld-util.js';
 export * as Util from './util.js';
 
-import * as Path from 'path';
+import * as Path from 'node:path';
+
+import Express from 'express';
 import { Log } from 'freshlog';
-import { concat, defer, EMPTY, merge, Observable, of, timer } from 'rxjs';
-import { timeoutWith, tap, catchError, toArray, map, filter, concatMap } from 'rxjs/operators';
-import * as Express from 'express';
+import Minimist from 'minimist';
+import { lastValueFrom } from 'rxjs';
+import { tap, catchError, toArray, map, concatMap } from 'rxjs/operators';
 
 import { Hypermedium } from './hypermedium.js';
 import * as HypermediaEngine from './hypermedia-engine/index.js';
 import * as Build from './build.js';
 import { type Module } from './plugin.js';
-
-import { server, Server } from './server.js';
-
-import * as Minimist from 'minimist';
 
 /** hypermedium may be used as a library or a script */
 if(require.main === module) {
@@ -40,7 +38,7 @@ export interface HypermediumCommand {
     fn: (args: Minimist.ParsedArgs) => Promise<number | void>;
 }
 
-export async function HypermediumCmd(argv: string[]) {
+export async function HypermediumCmd(argv: string[]): Promise<void> {
     Log.handlers.get('trace')!.enabled = true;
 
     const args = Minimist(argv, {
@@ -170,8 +168,8 @@ export async function HypermediumCmd(argv: string[]) {
             process.exit(code);
         }
     }
-    catch(error) {
-        Log.error(error.message, {error, level: 'error'});
+    catch(error: any) {
+        Log.error(error?.message || `Unhandled error: ${error}`, {error, level: 'error'});
         process.exit(1);
     }
 }
@@ -294,7 +292,7 @@ async function initializeHypermedium(options: HypermediumInitOptions): Promise<H
         }
     });
 
-    return modules.pipe(
+    return lastValueFrom(modules.pipe(
         tap((module) => {
             if(module.name === mainModule) {
                 Log.info(`Module initialized (MAIN): ${module.name}`, module);
@@ -325,14 +323,14 @@ async function initializeHypermedium(options: HypermediumInitOptions): Promise<H
             Log.info(`Setup complete: ${nodes.length} resources processed`);
             return hypermedium;
         })
-    ).toPromise();
+    ));
 }
 
 async function exportSite(hypermedium: Hypermedium, options: ExportOptions) {
     const exportPath = options.path || Path.join(hypermedium.mainModule?.modulePath || process.cwd(), 'export');
     Log.info(`exporting site to ${exportPath}`, {exportPath});
 
-    return hypermedium.exportSite(exportPath, {overwrite: options.overwrite}).pipe(
+    return lastValueFrom(hypermedium.exportSite(exportPath, {overwrite: options.overwrite}).pipe(
         tap((event: Hypermedium.Event.Export | HypermediaEngine.Event.Warning | HypermediaEngine.Event.Trace) => {
             switch(event.eType) {
                 case 'Export':
@@ -346,7 +344,7 @@ async function exportSite(hypermedium: Hypermedium, options: ExportOptions) {
                     break;
             }
         })
-    ).toPromise();
+    ));
 }
 
 async function runHttpServer(hypermedium: Hypermedium, options: HttpServerOptions): Promise<Express.Express> {

@@ -1,7 +1,7 @@
 import { promisify } from 'util';
 
 import { outputFile } from 'fs-extra';
-import { Plugin, Build } from 'hypermedium';
+import { type Plugin, Build } from 'hypermedium';
 import { render as renderCb } from 'sass';
 
 const render = promisify(renderCb);
@@ -32,6 +32,9 @@ const sassTaskDefinition: Build.TaskDefinition = {
             outFile: outputs.css[0],
             sourceMap: true
         })).then((result) => {
+                if(!result) {
+                    throw new Error('Sass error');
+                }
                 return Promise.all([
                     outputFile(outputs.css[0], result.css),
                     outputFile(outputs.sourceMap[0], result.map)
