@@ -1,3 +1,3 @@
 #!/usr/bin/env node
-const hypermedium = require('./build/index');
-hypermedium.HypermediumCmd(process.argv.slice(2));
+import { HypermediumCmd } from './build/index.js';
+HypermediumCmd(process.argv.slice(2));

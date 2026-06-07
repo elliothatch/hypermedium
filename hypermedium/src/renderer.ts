@@ -8,7 +8,7 @@
 import * as Path from 'node:path';
 
 import { type NextFunction, Router, type Request, type Response } from 'express';
-import * as Handlebars from 'handlebars';
+import Handlebars from 'handlebars';
 import { Observable, Subject } from 'rxjs';
 import { share } from 'rxjs/operators';
 
@@ -90,7 +90,7 @@ export class HtmlRenderer {
         this.templateRoutes = [];
         (options.templateRoutes || []).forEach((templateRoute) => this.addTemplatePath(templateRoute.routerPattern, templateRoute.templateUri));
         this.router.use(this.templateRouter);
-        this.router.get('/*', this.middleware());
+        this.router.get('/{*splat}', this.middleware());
     }
 
     public addTemplatePath(routerPattern: string, templateUri: string): void {

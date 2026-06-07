@@ -25,21 +25,25 @@ const sassPlugin: Plugin = {
 const sassTaskDefinition: Build.TaskDefinition = {
     name: 'sass',
     description: 'Compile Sass and SCSS files into CSS',
-    func: (inputs, outputs, options, logger) => {
+    func: async (inputs, outputs, options, logger) => {
         logger.info(`Compiling ${inputs.target[0]} to ${outputs.css[0]}`);
-        return render(Object.assign({}, options, {
+        const result = await render({
+            ...options,
             file: inputs.target[0],
             outFile: outputs.css[0],
             sourceMap: true
-        })).then((result) => {
-                if(!result) {
-                    throw new Error('Sass error');
-                }
-                return Promise.all([
-                    outputFile(outputs.css[0], result.css),
-                    outputFile(outputs.sourceMap[0], result.map)
-                ]).then(() => result.stats);
-            });
+        });
+
+        if(!result) {
+            throw new Error('Sass error');
+        }
+
+        await Promise.all([
+            outputFile(outputs.css[0], result.css),
+            outputFile(outputs.sourceMap[0], result.map)
+        ]);
+
+        return result.stats;
     },
     inputs: {
         target: {

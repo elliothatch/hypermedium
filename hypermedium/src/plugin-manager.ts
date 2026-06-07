@@ -2,7 +2,7 @@ import * as Path from 'node:path';
 
 import { Ajv, type ValidateFunction } from 'ajv';
 import AjvKeywords from 'ajv-keywords';
-import * as fs from 'fs-extra';
+import fs from 'fs-extra';
 import { Graph } from 'graphlib';
 import { concat, defer, from, merge, of, Observable } from 'rxjs';
 import { concatMap, filter, map } from 'rxjs/operators';
@@ -40,13 +40,13 @@ export class PluginManager {
      *  - `index.js`
      * @searchPaths - a list of directories to search
     * @returns list of newly loaded plugins (not including plugins/dependencies that were already loaded) */
-    public loadPluginsAndDependencies(pluginNames: string[], searchPaths: string[]): Plugin.File[] {
+    public async loadPluginsAndDependencies(pluginNames: string[], searchPaths: string[]): Promise<Plugin.File[]> {
         const loadedPlugins: Plugin.File[] = [];
-        pluginNames.forEach((pluginName) => {
+        for(const pluginName of pluginNames) {
             const node = this.dependencyGraph.node(pluginName);
             let pluginFile: Plugin.File | undefined = node?.pluginFile;
             if(!pluginFile) {
-                pluginFile = this.findAndLoadPlugin(pluginName, searchPaths);
+                pluginFile = await this.findAndLoadPlugin(pluginName, searchPaths);
                 loadedPlugins.push(pluginFile);
             }
 
@@ -55,49 +55,69 @@ export class PluginManager {
                     dependency:
                     dependency.name;
             });
-            const loadedDependencies = this.loadPluginsAndDependencies(dependencyNames, searchPaths);
+            const loadedDependencies = await this.loadPluginsAndDependencies(dependencyNames, searchPaths);
 
             loadedPlugins.push(...loadedDependencies);
-        });
+        }
 
         return loadedPlugins;
     }
 
-    public findAndLoadPlugin(pluginName: string, searchPaths: string[]): Plugin.File {
+    public async findAndLoadPlugin(pluginName: string, searchPaths: string[]): Promise<Plugin.File> {
         const loadErrors: LoadPluginError[] = [];
         // TODO: in verbose mode log paths that are searched
+
+        // TODO: rework module resolution.
+        // we should get a clear and immediate error if a module is correctly identified and loaded
+        // instead of just trying to import every possible module location, actually detect if the module file exists, since ES module resolution is much more straightforward than CJS modules
+        // require hypermedium plugins to have more specific structure or naming convention?
+
+        // TODO: if imported file has errors, can the stack/error message include the line number?
         for(const searchPath of searchPaths) {
             // TODO: the npm module names won't match the plugin names (because they'll be prefixed by 'hypermedium-'), maybe we should add that to default search path?
             const pluginPaths = [searchPath, Path.join(searchPath, pluginName)];
             for(const pluginPath of pluginPaths) {
                 // first, check if there is a package.json. if there is, try to load the 'main' file.
                 try {
+                    let resolvedPluginPath: string = pluginPath;
                     let jsModule: any;
+                    let packageJson;
+                    const packageJsonPath = Path.join(pluginPath, 'package.json');
                     try {
-                        const packageJson = fs.readJsonSync(Path.join(pluginPath, 'package.json'));
-                        if(packageJson.main) {
-                            jsModule = require(Path.join(pluginPath, packageJson.main));
-                            jsModule = jsModule?.default || jsModule;
-                        }
+                        packageJson = await fs.readJson(packageJsonPath);
                     }
                     catch(err: any) {
-                        loadErrors.push(new LoadPluginError(err.message ?? `Unhandled error: ${err}`, Path.join(pluginPath, 'package.json'), err));
+                        if(err.code !== 'ENOENT') {
+                            loadErrors.push(new LoadPluginError(err.message ?? `Unhandled error: ${err}`, packageJsonPath, err));
+                        }
+                    }
+
+                    if(packageJson?.main) {
+                        const mainPath = Path.join(pluginPath, packageJson.main);
+                        try {
+                            jsModule = await import(mainPath);
+                            jsModule = jsModule?.default || jsModule;
+                            resolvedPluginPath = mainPath;
+                        }
+                        catch(err: any) {
+                            loadErrors.push(new LoadPluginError(err.message ?? `Unhandled error: ${err}`, mainPath, err));
+                        }
                     }
 
                     // didn't work, this time just try the plugin directory itself (index.js)
+                    // directory import not supported with ES modules
                     // console.log(`try load: ${pluginPath}`);
-                    try {
-                        jsModule = require(pluginPath);
-                        jsModule = jsModule?.default || jsModule;
-                    }
-                    catch(err: any) {
-                        throw new LoadPluginError(err.message ?? `Unhandled herror: ${err}`, pluginPath, err);
-                    }
+                    // try {
+                    //     jsModule = await import(pluginPath);
+                    //     jsModule = jsModule?.default || jsModule;
+                    // }
+                    // catch(err: any) {
+                    //     throw new LoadPluginError(err.message ?? `Unhandled herror: ${err}`, pluginPath, err);
+                    // }
 
                     // try the load the plugin if the name matches our target
                     if(jsModule?.name === pluginName) {
-                        const plugin = this.loadPlugin(pluginPath);
-                        return plugin;
+                        return this.loadPlugin(jsModule, resolvedPluginPath);
                     }
                 }
                 catch(error) {
@@ -111,24 +131,11 @@ export class PluginManager {
             }
         }
 
-        throw new AggregateError(loadErrors, `PluginManager.findAndLoadPlugin: failed to find valid plugin '${pluginName}'`);
+        throw new AggregateError(loadErrors, `PluginManager.findAndLoadPlugin: failed to find valid plugin '${pluginName}':\n${loadErrors.map((err) => err.message).join('\n')}`);
     }
 
     /** loads a plugin file from disk and adds it to the dependency tree */
-    public loadPlugin(pluginPath: string): Plugin.File {
-        let jsModule: any;
-        try {
-            jsModule = require(pluginPath);
-            if(!jsModule) {
-                throw new LoadPluginError('no default export found', pluginPath);
-            }
-
-            jsModule = jsModule.default || jsModule;
-        }
-        catch(err: any) {
-            throw new LoadPluginError(err.message ?? `Unhandled error: ${err}`, pluginPath, err);
-        }
-
+    public async loadPlugin(jsModule: any, pluginPath: string): Promise<Plugin.File> {
         let plugin: Plugin<any>;
         try {
             this.validatePlugin(jsModule);
@@ -147,7 +154,7 @@ export class PluginManager {
         const pluginNode: PluginManager.PluginNode = {
             pluginFile: {
                 plugin,
-                path: require.resolve(pluginPath),
+                path: import.meta.resolve(pluginPath),
             }
         };
 
@@ -504,10 +511,9 @@ export namespace PluginManager {
 }
 
 export class LoadPluginError extends Error {
-    public error?: Error;
     public path: string;
     constructor(message: string, pluginPath: string, err?: Error) {
-        super(`Failed to load plugin ${pluginPath}: ${err && err.name || 'Error'}: ${message}`);
+        super(`${pluginPath}: ${err && err.name || 'Error'}: ${message}`, {cause: err});
         Object.setPrototypeOf(this, LoadPluginError.prototype);
         this.path = pluginPath;
     }

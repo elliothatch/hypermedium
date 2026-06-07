@@ -26,7 +26,7 @@ import * as Build from './build.js';
 import { type Module } from './plugin.js';
 
 /** hypermedium may be used as a library or a script */
-if(require.main === module) {
+if(import.meta.main) {
     HypermediumCmd(process.argv.slice(2));
 }
 
@@ -271,7 +271,7 @@ async function initializeHypermedium(options: HypermediumInitOptions): Promise<H
     // TODO: specify the main module explicitly
     const mainModule = options.plugins[0];
 
-    const {modules, moduleEvents} = hypermedium.initializePlugins(options.plugins, options.pluginSearchPaths);
+    const {modules, moduleEvents} = await hypermedium.initializePlugins(options.plugins, options.pluginSearchPaths);
 
     moduleEvents.subscribe({
         next: ([event, module]) => {

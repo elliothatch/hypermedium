@@ -50,7 +50,7 @@ export class HypermediaEngine {
         );
 
         this.router = Router();
-        this.router.get('/*', this.middleware);
+        this.router.get('/{*splat}', this.middleware);
     }
 
     protected middleware = (req: Request, res: Response, next: NextFunction): unknown => {

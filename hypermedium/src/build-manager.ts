@@ -35,7 +35,7 @@ export class BuildManager {
 
         this.basePath = basePath;
         this.router = Router();
-        this.router.get('/*', this.middleware);
+        this.router.get('/{*splat}', this.middleware);
     }
 
     public addTaskDefinition(name: string, taskDefinition: Build.TaskDefinition): Build.TaskDefinition {

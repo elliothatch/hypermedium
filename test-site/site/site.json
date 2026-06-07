@@ -1,0 +1,17 @@
+{
+	"name": "test-site",
+	"navLinks": {
+		"author": {
+			"url": "/about",
+			"name": "About"
+		},
+		"posts": {
+			"url": "/posts",
+			"name": "Posts"
+		},
+		"tags": {
+			"url": "/tags",
+			"name": "Tags"
+		}
+	}
+}

@@ -1,0 +1,7 @@
+{
+    "name": "first post",
+	"@type": "https://schema.org/BlogPosting",
+    "dateCreated": "2020-07-02T09:09:19.344Z",
+    "body": "this is my first real post! wow!",
+    "tag": ["blog"]
+}

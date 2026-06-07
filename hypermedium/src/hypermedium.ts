@@ -3,7 +3,7 @@ import * as fsPromises from 'node:fs/promises';
 import * as Path from 'node:path';
 
 import * as fs from 'fs-extra';
-import * as GraphLib from 'graphlib';
+import GraphLib from 'graphlib';
 import { concat, defer, EMPTY, from, merge, of, Observable, Subject, connectable } from 'rxjs';
 import { catchError, concatMap, map, last, filter, take, tap, mergeMap, combineLatestWith } from 'rxjs/operators';
 
@@ -93,12 +93,12 @@ export class Hypermedium {
     // okay what I really want
     // Observable<[ModuleInstance, Observable<ModuleEvent>]
 
-    public initializePlugins(pluginNames: string[], searchPaths: string[]): {modules: Observable<Module.Instance>, moduleEvents: Observable<[Module.Event | ({eCategory: 'build-event'} & Build.Event), Module.Instance]>} {
+    public async initializePlugins(pluginNames: string[], searchPaths: string[]): Promise<{modules: Observable<Module.Instance>, moduleEvents: Observable<[Module.Event | ({eCategory: 'build-event'} & Build.Event), Module.Instance]>}> {
     // public initializePlugins(pluginNames: string[], searchPaths: string[]): Observable<{module: Module.Instance, event: Module.Event | ({eCategory: 'build-event'} & Build.Event)}> {
 
         const moduleEventsSubject: Subject<[Observable<Module.Event | ({eCategory: 'build-event'} & Build.Event)>, Module.Instance]> = new Subject();
 
-        const pluginsLoaded = this.pluginManager.loadPluginsAndDependencies(pluginNames, searchPaths);
+        const pluginsLoaded = await this.pluginManager.loadPluginsAndDependencies(pluginNames, searchPaths);
         const pluginLoadOrder = GraphLib.alg.topsort(this.pluginManager.dependencyGraph).filter((plugin) => {
             return !!pluginsLoaded.find((p) => p.plugin.name === plugin);
         });

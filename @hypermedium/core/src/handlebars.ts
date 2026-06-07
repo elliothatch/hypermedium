@@ -1,4 +1,5 @@
-import { type HelperDelegate, SafeString } from 'handlebars';
+import { type HelperDelegate } from 'handlebars';
+import * as Handlebars from 'handlebars';
 import Moment from 'moment';
 import { JsonLDUtil } from 'hypermedium';
 
@@ -48,10 +49,10 @@ const handlebarsHelpers: {[name: string]: HelperDelegate} = {
                 '';
 
         if(typeof target == 'string') {
-            return new SafeString(`<a ${relHtml} href=${JsonLDUtil.htmlUri(url)} target=${target}>${resource.headline || resource.name || url}</a>`)
+            return new Handlebars.SafeString(`<a ${relHtml} href=${JsonLDUtil.htmlUri(url)} target=${target}>${resource.headline || resource.name || url}</a>`)
         }
 
-            return new SafeString(`<a ${relHtml} href=${JsonLDUtil.htmlUri(url)}>${resource.headline || resource.name || url}</a>`)
+            return new Handlebars.SafeString(`<a ${relHtml} href=${JsonLDUtil.htmlUri(url)}>${resource.headline || resource.name || url}</a>`)
     },
 
     /** creates a shallow copy of the object and sets/overwrites top-level properties with the provided values */
@@ -65,7 +66,7 @@ const handlebarsHelpers: {[name: string]: HelperDelegate} = {
 		// return options.fn(Object.assign(Object.assign({}, this), JSON.parse(context)));
 	// },
     'json-stringify': (val, space) => JSON.stringify(val, null, space),
-    'json-stringify-safe': (val, space) => new SafeString(JSON.stringify(val, null, space)),
+    'json-stringify-safe': (val, space) => new Handlebars.SafeString(JSON.stringify(val, null, space)),
     'html-uri': JsonLDUtil.htmlUri,
     'getTypes': JsonLDUtil.getTypes,
     'datetime': (dateStr, formatStr) => {
@@ -76,10 +77,10 @@ const handlebarsHelpers: {[name: string]: HelperDelegate} = {
             'MMMM D, YYYY';
 
         const date = Moment(dateStr);
-		return new SafeString('<time datetime="' + date.toISOString() + '">' + date.format(format) + '</time>');
+		return new Handlebars.SafeString('<time datetime="' + date.toISOString() + '">' + date.format(format) + '</time>');
     },
     'get': (key, map) => map[key],
-    'replace': (str: string, regex: string, newValue: string) => new SafeString(str.replace(new RegExp(regex), newValue)),
+    'replace': (str: string, regex: string, newValue: string) => new Handlebars.SafeString(str.replace(new RegExp(regex), newValue)),
     'find': (array, value, key) => {
         array = (Array.isArray(array)? array: [array])
         return array.find( (v: any) =>
