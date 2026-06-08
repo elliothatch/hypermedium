@@ -159,8 +159,13 @@ export class BuildManager {
                                                 throw error;
                                             }),
                                             retry(),
-                                        ).subscribe((buildEvent) => {
+                                        ).subscribe({
+                                            next: (buildEvent) => {
                                                 this.watchSubject.next(buildEvent);
+                                            },
+                                            error: (error) => {
+                                                console.error('buildTask watch: ' + error?.message || `Unhandled error: ${error}`);
+                                            }
                                         }),
                                     };
 

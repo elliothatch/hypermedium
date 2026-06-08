@@ -5,7 +5,7 @@ import { mergeMap, share } from 'rxjs/operators';
 
 import { type NextFunction, Router, type Request, type Response } from 'express';
 
-import * as GraphLib from 'graphlib';
+import GraphLib from 'graphlib';
 import { type Edge } from 'graphlib';
 
 import * as JsonLD from '../json-ld.js';
@@ -255,7 +255,8 @@ export class HypermediaEngine {
         ).subscribe({
             next: (result) => {
             },
-            error: (err) => {
+            error: (error) => {
+                console.error('loadResource dynamic resource callback: ' + error?.message || `Unhandled error: ${error}`);
             }
         });
 
@@ -284,7 +285,8 @@ export class HypermediaEngine {
         ).subscribe({
             next: (result) => {
             },
-            error: (err) => {
+            error: (error) => {
+                console.error('unloadResource dynamic resource callback: ' + error?.message || `Unhandled error: ${error}`);
             }
         });
 
@@ -393,8 +395,8 @@ export class HypermediaEngine {
                     next: (result) => {
                         // TODO: DO SOMETHING?
                     },
-                    error: (err) => {
-                        // TODO: DO SOMETHING?
+                    error: (error) => {
+                        console.error('processResource dynamic resource callback: ' + error?.message || `Unhandled error: ${error}`);
                     }
                 });
 
@@ -482,8 +484,8 @@ export class HypermediaEngine {
                         next: (result) => {
                             // TODO: DO SOMETHING?
                         },
-                        error: (err) => {
-                            // TODO: DO SOMETHING?
+                        error: (error) => {
+                            console.error('processResource dynamic resource callback: ' + error?.message || `Unhandled error: ${error}`);
                         }
                     });
 

@@ -136,10 +136,15 @@ export function watchFiles(path: string | string[], uriPrefix?: string, chokidar
                     }
 
                     // file event
+                    let uri = resolveUrl(uriPrefix || '', Path.relative(path, filename).replace(/\\/g, '/'));
+                    // if(uri.startsWith('/')) {
+                    //     // remove leading slash, all filesystem "uris" are relative
+                    //     uri = uri.substring(1);
+                    // }
                     return {
                         eType: eventType as 'add' | 'change' | 'unlink' | 'addDir' | 'unlinkDir',
                         path: filename,
-                        uri: new URL(Path.relative(path, filename).replace(/\\/g, '/'), uriPrefix || '').href,
+                        uri,
                     };
                 }),
             );
@@ -177,3 +182,16 @@ export function createFreshlogObservableTarget<T = any>(name?: string, subject?:
         }
     };
 };
+
+/** Resolve relative url without requiring protocol
+ * From https://nodejs.org/api/url.html#urlresolvefrom-to
+ */
+export function resolveUrl(from: string, to: string): string {
+  const resolvedUrl = new URL(to, new URL(from, 'resolve://'));
+  if (resolvedUrl.protocol === 'resolve:') {
+    // `from` is a relative URL.
+    const { pathname, search, hash } = resolvedUrl;
+    return pathname + search + hash;
+  }
+  return resolvedUrl.toString();
+}

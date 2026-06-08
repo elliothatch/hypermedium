@@ -154,7 +154,9 @@ export class PluginManager {
         const pluginNode: PluginManager.PluginNode = {
             pluginFile: {
                 plugin,
-                path: import.meta.resolve(pluginPath),
+                // import.meta includes file:// protocol, which breaks when used with Path.join
+                // it might be useful in the future to update all file paths to URLs?
+                path: new URL(import.meta.resolve(pluginPath)).pathname,
             }
         };
 
@@ -427,6 +429,7 @@ export class PluginManager {
                         installEventSources.push(from(taskDefinitionEvents));
                     }
                 }
+
 
                 const moduleInstance: Module.Instance = {
                     name,

@@ -2,16 +2,16 @@ import * as Process from 'node:process';
 import * as fsPromises from 'node:fs/promises';
 import * as Path from 'node:path';
 
-import * as fs from 'fs-extra';
+import fs from 'fs-extra';
 import GraphLib from 'graphlib';
-import { concat, defer, EMPTY, from, merge, of, Observable, Subject, connectable } from 'rxjs';
-import { catchError, concatMap, map, last, filter, take, tap, mergeMap, combineLatestWith } from 'rxjs/operators';
+import { concat, defer, EMPTY, from, merge, of, Observable, Subject } from 'rxjs';
+import { catchError, concatMap, map, last, filter, take, tap, connect } from 'rxjs/operators';
 
 import * as Build from './build.js';
 import { BuildManager } from './build-manager.js';
 import { HtmlRenderer } from './renderer.js';
 import { HypermediaEngine, ResourceGraph, type Event as HypermediaEvent } from './hypermedia-engine/index.js';
-import { type WatchEvent, matchesFullExtension } from './util.js';
+import { type WatchEvent, matchesFullExtension, resolveUrl } from './util.js';
 import { type Module, type Plugin } from './plugin.js';
 import { PluginManager } from './plugin-manager.js';
 import * as JsonLD from './json-ld.js';
@@ -93,10 +93,12 @@ export class Hypermedium {
     // okay what I really want
     // Observable<[ModuleInstance, Observable<ModuleEvent>]
 
-    public async initializePlugins(pluginNames: string[], searchPaths: string[]): Promise<{modules: Observable<Module.Instance>, moduleEvents: Observable<[Module.Event | ({eCategory: 'build-event'} & Build.Event), Module.Instance]>}> {
+    public async initializePlugins(pluginNames: string[], searchPaths: string[]): Promise<{
+        plugins: Plugin.File<any>[];
+        modules: Observable<Module.Instance>;
+        moduleEvents: Observable<[Module.Event | ({eCategory: 'build-event'} & Build.Event), Module.Instance]>;
+    }> {
     // public initializePlugins(pluginNames: string[], searchPaths: string[]): Observable<{module: Module.Instance, event: Module.Event | ({eCategory: 'build-event'} & Build.Event)}> {
-
-        const moduleEventsSubject: Subject<[Observable<Module.Event | ({eCategory: 'build-event'} & Build.Event)>, Module.Instance]> = new Subject();
 
         const pluginsLoaded = await this.pluginManager.loadPluginsAndDependencies(pluginNames, searchPaths);
         const pluginLoadOrder = GraphLib.alg.topsort(this.pluginManager.dependencyGraph).filter((plugin) => {
@@ -117,60 +119,62 @@ export class Hypermedium {
             });
         });
 
+        const moduleEventsSubject: Subject<[Module.Event | ({eCategory: 'build-event'} & Build.Event), Module.Instance]> = new Subject();
+
         const modulesObservable = from(pluginLoadOrder).pipe(
             concatMap((pluginName) => {
                 const options = moduleOptions.get(pluginName) || {};
-                return this.pluginManager.createModule(pluginName, pluginName, options)
-            }),
-            concatMap((moduleInstance) => {
-                // TODO: handle namespacing
-                const moduleEvents = connectable(this.registerModule(moduleInstance, '').pipe(
-                    concatMap((moduleEvent) => {
-                        if(moduleEvent.eCategory === 'module'
-                            && moduleEvent.eType === 'initialized'
-                            && moduleInstance.module.build 
-                            && moduleInstance.module.build.buildSteps) {
+                return this.pluginManager.createModule(pluginName, pluginName, options).pipe(
+                    concatMap((moduleInstance) => {
 
-                            // after the module is initialized, build the module's build tasks
-                            // this also sets up the filesystem watches
-                            // TODO: deal with unwatching files on module unregister
-                            return concat(
-                                this.build.build(moduleInstance.module.build.buildSteps, moduleInstance.modulePath).pipe(
-                                    map((buildEvent) => ({
-                                        eCategory: 'build-event' as const,
-                                        ...buildEvent
-                                }))),
-                                of(moduleEvent)
-                            );
-                        }
+                        // TODO: handle namespacing
+                        const moduleEvents = this.registerModule(moduleInstance, '').pipe(
+                            concatMap((moduleEvent) => {
+                                if(moduleEvent.eCategory === 'module'
+                                    && moduleEvent.eType === 'initialized'
+                                    && moduleInstance.module.build 
+                                    && moduleInstance.module.build.buildSteps) {
 
-                        return of(moduleEvent);
-                    }),
-                ));
+                                    // after the module is initialized, build the module's build tasks
+                                    // this also sets up the filesystem watches
+                                    // TODO: deal with unwatching files on module unregister
+                                    return concat(
+                                        this.build.build(moduleInstance.module.build.buildSteps, moduleInstance.modulePath).pipe(
+                                            map((buildEvent) => ({
+                                                eCategory: 'build-event' as const,
+                                                ...buildEvent
+                                        }))),
+                                        of(moduleEvent)
+                                    );
+                                }
 
-                moduleEventsSubject.next([moduleEvents, moduleInstance]);
+                                return of(moduleEvent);
+                            }),
+                        );
 
-                return concat(
-                    defer(() => {
-                        moduleEvents.connect()
-                        return EMPTY;
-                    }),
-                    moduleEvents.pipe(
-                        filter((e) => e.eCategory === 'module' && e.eType === 'initialized'),
-                        take(1),
-                        map(() => moduleInstance)
-                    ),
+                        // moduleEventsSubject.next([moduleEvents, moduleInstance]);
+
+                        return moduleEvents.pipe(
+                            connect((shared) =>
+                                shared.pipe(
+                                    tap((event) => {
+                                        moduleEventsSubject.next([event, moduleInstance]);
+                                    }),
+                                    filter((e) => e.eCategory === 'module' && e.eType === 'initialized'),
+                                    take(1),
+                                    map(() => moduleInstance)
+                                )
+                            )
+                        );
+                    })
                 );
             })
         );
 
         return {
+            plugins: pluginsLoaded,
             modules: modulesObservable,
-            moduleEvents: moduleEventsSubject.pipe(
-                mergeMap(([moduleEvents, moduleInstance]) =>
-                    moduleEvents.pipe(combineLatestWith(of(moduleInstance)))
-                )
-            )
+            moduleEvents: moduleEventsSubject,
         }
     }
 
@@ -290,7 +294,7 @@ export class Hypermedium {
                                         const baseUri = moduleInstance.module.hypermedia?.baseUri != null?
                                             moduleInstance.module.hypermedia.baseUri:
                                             '/';
-                                        const contextUri = new URL(baseContext, baseUri).href;
+                                        const contextUri = resolveUrl(baseUri, baseContext);
                                         baseContext = this.hypermedia.resourceGraph.getResource(contextUri) || {};
                                     }
 
@@ -342,7 +346,7 @@ export class Hypermedium {
             moduleInstance.module.hypermedia.baseUri:
             '/';
         const contextUri = typeof moduleInstance.module.renderer?.context === 'string'?
-            new URL(moduleInstance.module.renderer.context, baseUri).href:
+            resolveUrl(baseUri, moduleInstance.module.renderer.context):
             undefined;
         if(contextUri === uri) {
             const resource = this.hypermedia.resourceGraph.getResource(contextUri) || {};

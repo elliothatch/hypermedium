@@ -87,6 +87,8 @@ export async function HypermediumCmd(argv: string[]): Promise<void> {
                 pluginSearchPaths: defaultPluginSearchPaths,
             });
 
+            console.log('Hypermedium initialized. Exporting...');
+
             await exportSite(hypermedium, {
                 overwrite: args.force || args.f
             });
@@ -130,6 +132,8 @@ export async function HypermediumCmd(argv: string[]): Promise<void> {
                 plugins: args._,
                 pluginSearchPaths: defaultPluginSearchPaths,
             });
+
+            console.log('Hypermedium initialized. Starting HTTP Server...');
 
             const app = await runHttpServer(hypermedium, {
                 port: args['p'] ?? args['port'] ?? 3000,
@@ -250,6 +254,9 @@ async function initializeHypermedium(options: HypermediumInitOptions): Promise<H
                     }
                 }
             }
+        },
+        error: (error) => {
+            Log.error('Hypermedia engine: ' + error?.message || `Unhandled error: ${error}`, {error, level: 'error'});
         }
     });
 
@@ -259,6 +266,9 @@ async function initializeHypermedium(options: HypermediumInitOptions): Promise<H
                 case 'render-resource':
                     Log.trace(`html-renderer ${event.eType}: ${event.uri}`, {...event});
             }
+        },
+        error: (error) => {
+            Log.error('Renderer: ' + error?.message || `Unhandled error: ${error}`, {error, level: 'error'});
         }
     });
 
@@ -266,12 +276,17 @@ async function initializeHypermedium(options: HypermediumInitOptions): Promise<H
         next: (event) => {
             logBuildEvent({eCategory: 'build-event', ...event});
         },
+        error: (error) => {
+            Log.error('Build: ' + error?.message || `Unhandled error: ${error}`, {error, level: 'error'});
+        }
     });
 
     // TODO: specify the main module explicitly
     const mainModule = options.plugins[0];
 
-    const {modules, moduleEvents} = await hypermedium.initializePlugins(options.plugins, options.pluginSearchPaths);
+    const {plugins, modules, moduleEvents} = await hypermedium.initializePlugins(options.plugins, options.pluginSearchPaths);
+
+	Log.trace(`Plugins loaded: ${plugins.map((plugin) => plugin.plugin.name).join(',')}`, {plugins});
 
     moduleEvents.subscribe({
         next: ([event, module]) => {

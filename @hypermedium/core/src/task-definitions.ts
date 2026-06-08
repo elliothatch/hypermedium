@@ -1,4 +1,4 @@
-import * as fs from 'fs-extra';
+import fs from 'fs-extra';
 import { Build } from 'hypermedium';
 
 export const taskDefinitions: Build.TaskDefinition[] = [{
