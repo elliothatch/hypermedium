@@ -169,6 +169,16 @@ export class HtmlRenderer {
         const template = this.handlebarsEnvironment.compile(contents);
         // execute the template to check for compile errors
         // template({});
+
+        if(this.templates[uri]) {
+            this.eventsSubject.next({
+                eType: 'warning' as const,
+                message: `Renderer.registerTemplate: Template '${uri}' already exists: overwriting...`,
+                data: {
+                    templateUri: uri,
+                }
+            });
+        }
         this.templates[uri] = template;
     }
 
@@ -211,8 +221,13 @@ export class HtmlRenderer {
 
         // use the first layout found
         // TODO: match layout with path-to-regexp
+
         try {
-            const html = this.templates[templateUri](context);
+            const template = this.templates[templateUri];
+            if(!template) {
+                throw new Error(`Template not found: '${templateUri}'`);
+            }
+            const html = template(context);
             this.eventsSubject.next({
                 eType: 'render-resource',
                 uri,
@@ -227,6 +242,7 @@ export class HtmlRenderer {
             (e as any).cause = error;
             (e as any).uri = uri;
             (e as any).layout = layoutUsed;
+            (e as any).templateUri = templateUri;
             throw e;
         }
     }
@@ -262,7 +278,7 @@ export namespace HtmlRenderer {
         templateRoutes?: TemplateRoute[];
     }
 
-    export type Event = Event.RenderResource;
+    export type Event = Event.RenderResource | Event.Warning;
     export namespace Event {
         export interface RenderResource {
             eType: 'render-resource';
@@ -270,6 +286,13 @@ export namespace HtmlRenderer {
 
             context: JsonLD.Document;
             html: Html;
+        }
+
+        export interface Warning {
+            eType: 'warning';
+
+            message: string;
+            data?: any;
         }
     }
 }

@@ -265,6 +265,10 @@ async function initializeHypermedium(options: HypermediumInitOptions): Promise<H
             switch(event.eType) {
                 case 'render-resource':
                     Log.trace(`html-renderer ${event.eType}: ${event.uri}`, {...event});
+                    break;
+                case 'warning':
+                    Log.warn(event.message, event.data);
+                    break;
             }
         },
         error: (error) => {
